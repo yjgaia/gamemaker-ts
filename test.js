@@ -1,3 +1,6 @@
+window.Tags = [];
+window.IDToTagList = [];
+
 var JSON_game = {
   Extensions: [], ExtensionOptions: {}, Sounds: [], AudioGroups: [{ name: "audiogroup_default", enabled: true, }], Sprites: [], EmbeddedEntries: { "fallbacktexture": 0, "pt_shape_smoke": 4, "pt_shape_circle": 6, "pt_shape_cloud": 13, "pt_shape_line": 14, "pt_shape_disk": 7, "pt_shape_star": 12, "pt_shape_flare": 3, "pt_shape_ring": 8, "pt_shape_sphere": 11, "pt_shape_snow": 10, "pt_shape_square": 9, "pt_shape_explosion": 2, "pt_shape_pixel": 15, "pt_shape_spark": 5, "FONT_builtin": 1 }
   , Backgrounds: [], Paths: [], Shaders: [{

@@ -180,7 +180,7 @@ function    Graphics_Init( _canvas )
 	g_transform[5] = 0;
 
     if( !g_webGL ){
-
+		// @if feature("2d")
 
 	    // Fill in RELEASE function pointers.
         if (CACHE_SINGLE_IMAGE)
@@ -202,7 +202,9 @@ function    Graphics_Init( _canvas )
         Graphics_DrawPart = Graphics_DrawPart_RELEASE;
         Graphics_Save = Graphics_Save_RELEASE;
         Graphics_Restore = Graphics_Restore_RELEASE;
+		// @if feature("fonts")
         Graphics_DrawText = Graphics_DrawText_RELEASE;
+		// @endif fonts
         Graphics_StartFrame = Graphics_StartFrame_RELEASE;
         Graphics_EndFrame = Graphics_EndFrame_RELEASE;
         Graphics_DrawComment = Graphics_DrawComment_RELEASE;
@@ -225,9 +227,12 @@ function    Graphics_Init( _canvas )
     	    }
     	    Graphics_TextureDrawTiled = Graphics_TextureDrawTiled_RELEASE;
     	    Graphics_TextureDraw = Graphics_TextureDraw_DEBUG;
-        } 
+        }
+		// @endif
     }else{
+		// @if feature("gl")
         InitWebGLFunctions();
+		// @endif gl
     }
 
 
@@ -1225,7 +1230,9 @@ function    Graphics_ColouriseImage( _texture, _x, _y, _w, _h, _col )
 ///				
 ///			 </returns>
 // #############################################################################################
-function Graphics_TextureDrawPos(_pTPE, _x1, _y1, _x2, _y2, _x3, _y3, _x4, _y4, _alpha) {
+function Graphics_TextureDrawPos(){}
+// @if feature("2d") && function("draw_sprite_pos")
+Graphics_TextureDrawPos = function(_pTPE, _x1, _y1, _x2, _y2, _x3, _y3, _x4, _y4, _alpha) {
 
 	var pTexture = _pTPE.texture;
 
@@ -1235,7 +1242,7 @@ function Graphics_TextureDrawPos(_pTPE, _x1, _y1, _x2, _y2, _x3, _y3, _x4, _y4, 
 	graphics.globalAlpha = _alpha;
 	drawTexturedTriangle(pTexture, _x1, _y1, _x2, _y2, _x3, _y3, _pTPE.x, _pTPE.y, _pTPE.x + _pTPE.w, _pTPE.y, _pTPE.x + _pTPE.w, _pTPE.y + _pTPE.h);
 	drawTexturedTriangle(pTexture, _x3, _y3, _x4, _y4, _x1, _y1, _pTPE.x + _pTPE.w, _pTPE.y + _pTPE.h, _pTPE.x, _pTPE.y + _pTPE.h, _pTPE.x, _pTPE.y);
-}
+};
 
 
 // #############################################################################################
@@ -1336,6 +1343,7 @@ function drawTexturedTriangle(im, x0, y0, x1, y1, x2, y2, sx0, sy0, sx1, sy1, sx
 	graphics._drawImage(im, 0, 0);
 	Graphics_Restore();
 }
+// @endif
 
 
 
@@ -1562,7 +1570,8 @@ function Graphics_DrawGeneral(_pTPE, _left,_top,_width,_height,    _x,_y,_xscale
 ///				true for okay, false for error
 ///			</returns>
 // #############################################################################################
-var CopyImageToAlpha = CopyImageToAlpha_RELEASE;
+function CopyImageToAlpha(){}
+// @if feature("2d")
 function CopyImageToAlpha_RELEASE(_pDestTPE, _pSrcTPE) 
 {
 	if ( g_webGL )
@@ -1608,6 +1617,10 @@ function CopyImageToAlpha_RELEASE(_pDestTPE, _pSrcTPE)
 	pDestImg.putImageData(DestDataLock, 0, 0);
 	return true;
 }
+// @if function("sprite_set_alpha_from_sprite")
+CopyImageToAlpha = CopyImageToAlpha_RELEASE;
+// @endif
+// @endif
 
 
 
@@ -1770,6 +1783,7 @@ function gif_add_surface(gif, surface, delaytime, xoffset, yoffset, quantquality
 	if (yoffset === undefined) yoffset = 0;
 
 	var pSurf = g_Surfaces.Get(yyGetInt32(surface));
+	
     if (pSurf != null) {
 
 		if (pSurf.FrameBufferData.Texture.Format != eTextureFormat_A8R8G8B8)
@@ -1802,11 +1816,44 @@ function gif_add_surface(gif, surface, delaytime, xoffset, yoffset, quantquality
         var singleimage = document.createElement(g_CanvasName);
         var pGraphics = singleimage.getContext('2d');
         Graphics_AddCanvasFunctions(pGraphics); 			// update for OUR functions.
-
-        var glTexture = g_webGL.CreateTextureFromFramebuffer(singleimage, pSurf.FrameBuffer, yyGetInt32(xoffset), yyGetInt32(yoffset), encoder.getWidth(), encoder.getHeight(), false, false);
-
+		console.log(encoder.getWidth() + "-" + encoder.getHeight());
+        var glTexture = g_webGL.CreateTextureFromFramebuffer(singleimage, pSurf.FrameBuffer, yyGetInt32(xoffset), yyGetInt32(yoffset), encoder.getWidth(), encoder.getHeight(), false, false, false);
         encoder.addFrame(Uint8ClampedArray.from(glTexture.Image), true);
     }
 };
 
+function yyRotationMatrix(angleDegrees)
+{
+	this.m_angleDegrees = angleDegrees;
+	this.m_angleRadians = angleDegrees * Math.PI / 180.0;
+	
+	this.m_sin = Math.sin(this.m_angleRadians);
+	this.m_cos = Math.cos(this.m_angleRadians);
+}
 
+yyRotationMatrix.prototype = {
+	get angleDegrees() { return this.m_angleDegrees; },
+	get angleRadians() { return this.m_angleRadians; },
+	
+	get matrix()
+	{
+		return [
+			[ this.m_cos, -this.m_sin ],
+			[ this.m_sin, this.m_cos ],
+		];
+	},
+};
+
+function RotatePointAroundOrigin(point_xy, origin_xy, angle)
+{
+	var point_x = point_xy[0];
+	var point_y = point_xy[1];
+	
+	var origin_x = origin_xy[0];
+	var origin_y = origin_xy[1];
+	
+	var rotated_x = angle.matrix[0][0] * (point_x - origin_x) + angle.matrix[0][1] * (point_y - origin_y) + origin_x;
+	var rotated_y = angle.matrix[1][0] * (point_x - origin_x) + angle.matrix[1][1] * (point_y - origin_y) + origin_y;
+
+	return [ rotated_x, rotated_y ];
+}

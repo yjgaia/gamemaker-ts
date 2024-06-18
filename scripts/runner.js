@@ -153,10 +153,15 @@ document.write('<script type="text/javascript" src="scripts/sound/AudioEmitter.j
 document.write('<script type="text/javascript" src="scripts/sound/AudioPlaybackProps.js"></script>');
 document.write('<script type="text/javascript" src="scripts/sound/AudioPropsCalc.js"></script>');
 document.write('<script type="text/javascript" src="scripts/sound/effects/Bitcrusher.js"></script>');
+document.write('<script type="text/javascript" src="scripts/sound/effects/Compressor.js"></script>');
 document.write('<script type="text/javascript" src="scripts/sound/effects/Delay.js"></script>');
+document.write('<script type="text/javascript" src="scripts/sound/effects/EQ.js"></script>');
 document.write('<script type="text/javascript" src="scripts/sound/effects/Gain.js"></script>');
+document.write('<script type="text/javascript" src="scripts/sound/effects/HiShelf.js"></script>');
 document.write('<script type="text/javascript" src="scripts/sound/effects/HPF2.js"></script>');
+document.write('<script type="text/javascript" src="scripts/sound/effects/LoShelf.js"></script>');
 document.write('<script type="text/javascript" src="scripts/sound/effects/LPF2.js"></script>');
+document.write('<script type="text/javascript" src="scripts/sound/effects/PeakEQ.js"></script>');
 document.write('<script type="text/javascript" src="scripts/sound/effects/Reverb1.js"></script>');
 document.write('<script type="text/javascript" src="scripts/sound/effects/Tremolo.js"></script>');
 //document.write('<script type="text/javascript" src="scripts/spine/spine.js"></script>');

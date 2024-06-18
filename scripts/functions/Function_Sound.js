@@ -14,6 +14,7 @@
 // 
 // **********************************************************************************************************************
 
+// @if feature("audio")
 var audio_sounds = [];
 var BASE_SOUND_INDEX = 300000;
 var audio_sounds_index = BASE_SOUND_INDEX;
@@ -39,17 +40,21 @@ var g_audioSoundCount=0;	//size of audio_sounds[] array
 var g_handleMap = [];			//map of [handleid] -> audioSound object
 var g_fadingSounds = [];    //array of currently fading sounds
 
-var g_UseDummyAudioBus = false;
+var g_UseDummyAudioBus = {
+    val: false,
+    reason: undefined
+};
 
 var DistanceModels = {
-    AUDIO_FALLOFF_NONE:0,
-	AUDIO_FALLOFF_INVERSE_DISTANCE:1,
-	AUDIO_FALLOFF_INVERSE_DISTANCE_CLAMPED:2,
-	AUDIO_FALLOFF_LINEAR_DISTANCE:3,
-	AUDIO_FALLOFF_LINEAR_DISTANCE_CLAMPED:4,
-	AUDIO_FALLOFF_EXPONENT_DISTANCE:5,
-	AUDIO_FALLOFF_EXPONENT_DISTANCE_CLAMPED:6
-
+    AUDIO_FALLOFF_NONE: 0,
+	AUDIO_FALLOFF_INVERSE_DISTANCE: 1,
+	AUDIO_FALLOFF_INVERSE_DISTANCE_CLAMPED: 2,
+	AUDIO_FALLOFF_LINEAR_DISTANCE: 3,
+	AUDIO_FALLOFF_LINEAR_DISTANCE_CLAMPED: 4,
+	AUDIO_FALLOFF_EXPONENT_DISTANCE: 5,
+	AUDIO_FALLOFF_EXPONENT_DISTANCE_CLAMPED: 6,
+    AUDIO_FALLOFF_INVERSE_DISTANCE_SCALED: 7,
+    AUDIO_FALLOFF_EXPONENT_DISTANCE_SCALED: 8
 };
 
 var Channels = {
@@ -104,12 +109,12 @@ function audio_update()
 
     // Update and apply gains
     g_AudioGroups.forEach(_group => _group.gain.update());
-    audio_sampledata.forEach(_asset => _asset.gain.update());
-    audio_sounds.filter(_voice => _voice.bActive === true)
-                .forEach(_voice => {
-                    _voice.gain.update();
-                    _voice.pgainnode.gain.value = AudioPropsCalc.CalcGain(_voice);
-                });
+    audio_sampledata.forEach(_asset => {
+        if (_asset != null) {
+            _asset.gain.update();
+        }
+    });
+    audio_sounds.forEach(_voice => _voice.updateGain());
 }
 
 var g_hidden;
@@ -121,7 +126,7 @@ function audio_reinit()
 
     g_AudioMainVolumeNode.disconnect();
 
-    g_AudioMainVolumeNode = new GainNode(g_WebAudioContext);
+    g_AudioMainVolumeNode = Audio_CreateGainNode(g_WebAudioContext);
     g_AudioMainVolumeNode.connect(g_WebAudioContext.destination);
 
     g_WebAudioContext.listener.pos = new Vector3(0,0,0);
@@ -134,25 +139,27 @@ function Audio_Init()
     if (g_AudioModel !== Audio_WebAudio)
         return;
 
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+
     g_WebAudioContext = new AudioContext();
     g_WebAudioContext.addEventListener("statechange", Audio_EngineReportState);
-
+    
     g_HandleStreamedAudioAsUnstreamed = ( g_OSPlatform == BROWSER_IOS );
-    g_UseDummyAudioBus = (g_OSBrowser === BROWSER_SAFARI_MOBILE)
-                      || (g_WebAudioContext.audioWorklet === undefined);
+    g_UseDummyAudioBus = Audio_ShouldUseDummyBuses();
 
-    g_AudioMainVolumeNode = new GainNode(g_WebAudioContext);
+    g_AudioMainVolumeNode = Audio_CreateGainNode(g_WebAudioContext);
     g_AudioMainVolumeNode.connect(g_WebAudioContext.destination);
 
-    if (g_UseDummyAudioBus) {
+    if (g_UseDummyAudioBus.val === true) {
         Audio_CreateMainBus();
     }
     else {
-        g_WebAudioContext.audioWorklet.addModule(g_RootDir + "/sound/worklets/audio-worklet.js")
-        .then(() => {
+        g_WebAudioContext.audioWorklet.addModule(g_RootDir + "sound/worklets/audio-worklet.js")
+        .catch((_err) => {
+            g_UseDummyAudioBus.val = true;
+            g_UseDummyAudioBus.reason = _err;
+        }).finally(() => {
             Audio_CreateMainBus();
-        }).catch((_err) => {
-            console.error("Failed to load audio worklets => " + _err);
         });
     }
     
@@ -201,8 +208,46 @@ function Audio_Quit()
 	});
 }
 
+function Audio_CreateGainNode(_context) {
+    if (window.AudioContext !== undefined && _context instanceof window.AudioContext) {
+        return new GainNode(_context);
+    }
+    else if (window.webkitAudioContext !== undefined && _context instanceof window.webkitAudioContext) {
+        return _context.createGain();
+    }
+
+    return undefined;
+}
+
+function Audio_ShouldUseDummyBuses() {
+    const ret = {
+        val: false,
+        reason: undefined
+    };
+
+    if (g_OSBrowser === BROWSER_SAFARI_MOBILE) {
+        ret.val = true;
+        ret.reason = "Using Safari on iOS.";
+        return ret;
+    }
+
+    if (g_WebAudioContext.audioWorklet === undefined) {
+        ret.val = true;
+        ret.reason = "Audio worklets are not supported on this browser.";
+        return ret;
+    }
+
+    if (isSecureContext === false) {
+        ret.val = true;
+        ret.reason = "Audio worklets require a secure context.";
+        return ret;
+    }
+
+    return ret;
+}
+
 function Audio_GetBusType() {
-    return (g_UseDummyAudioBus === true) ? DummyAudioBus : AudioBus; 
+    return (g_UseDummyAudioBus.val === true) ? DummyAudioBus : AudioBus; 
 }
 
 function Audio_CreateBus() {
@@ -217,6 +262,10 @@ function Audio_CreateBus() {
 }
 
 function Audio_CreateMainBus() {
+    if (g_UseDummyAudioBus.val === true) {
+        console.warn("Audio Engine: Using audio worklet fallback.\nReason => " + g_UseDummyAudioBus.reason);
+    }
+
     g_AudioBusMain = Audio_CreateBus();
     g_AudioBusMain.connectOutput(g_AudioMainVolumeNode);
     g_pBuiltIn.audio_bus_main = g_AudioBusMain;
@@ -294,7 +343,7 @@ audioSampleData.prototype.TryDecode = function ( _rawData, _processCommands )
 /** @constructor */
 function audioSound(_props)
 {
-    this.pgainnode = g_WebAudioContext.createGain();
+    this.pgainnode = Audio_CreateGainNode(g_WebAudioContext);
     this.pemitter = null;
     this.handle=0;
 
@@ -352,13 +401,22 @@ audioSound.prototype.start = function(_buffer) {
 
     const shouldLoop = (this.loop === true) && (startOffset < trueLoopEnd);
 
-    this.pbuffersource = new AudioBufferSourceNode(g_WebAudioContext, {
+    const options = {
         buffer: _buffer,
         loop: shouldLoop,
         loopStart: this.loopStart,
         loopEnd: this.loopEnd,
         playbackRate: AudioPropsCalc.CalcPitch(this)
-    });
+    };
+
+    if (typeof AudioBufferSourceNode !== "undefined") {
+        this.pbuffersource = new AudioBufferSourceNode(g_WebAudioContext, options);
+    } else {
+        this.pbuffersource = g_WebAudioContext.createBufferSource();
+        for (const k in options) {
+            this.pbuffersource[k] = options[k];
+        }
+    }
 
     this.pbuffersource.onended = (_event) => {
         this.bActive = false;
@@ -368,6 +426,8 @@ audioSound.prototype.start = function(_buffer) {
             this.pgainnode.disconnect();
 
         this.pemitter = null;
+
+        this.throwOnEndedEvent(false);
     };
 
     this.pbuffersource.connect(this.pgainnode);
@@ -376,13 +436,21 @@ audioSound.prototype.start = function(_buffer) {
         contextTime: g_WebAudioContext.currentTime,
         bufferTime: startOffset
     };
-    
+
     this.pbuffersource.start(0, startOffset);
+
+    // This is for the case where a streamed asset is paused while it was decoding.
+    // Note that AudioBufferSourceNode requires 'start' to have been called before 
+    // the first call to 'stop', else an InvalidStateError exception will be thrown.
+    if (this.paused === true)
+        this.pause();
 };
 
 audioSound.prototype.play = function() {
     if (g_WebAudioContext === null)
         return;
+
+    this.bActive = true;
 
     const asset = Audio_GetSound(this.soundid);
 
@@ -438,8 +506,6 @@ audioSound.prototype.play = function() {
             this.start(asset.buffer);
         }
     }
-
-    this.bActive = true;
 };
 
 audioSound.prototype.stop = function() {
@@ -463,12 +529,13 @@ audioSound.prototype.stop = function() {
         this.pgainnode.disconnect();
 
     this.pemitter = null;
-    this.soundid = -1;
     this.bActive = false;
+
+    this.throwOnEndedEvent(true);
 };
 
 audioSound.prototype.pause = function() {
-    if (this.bActive === false || this.paused === true)
+    if (this.bActive === false)
         return;
 
     //remove ended handler which sets bActive to false - 
@@ -478,7 +545,7 @@ audioSound.prototype.pause = function() {
         queue_sounds[queueSoundId].scriptNode.onended = null;
         queue_sounds[queueSoundId].scriptNode.disconnect(0);
     }
-    else {
+    else if (this.pbuffersource !== null) {
         this.pbuffersource.onended = null;
         this.pbuffersource.stop(0);
         this.pbuffersource.disconnect();
@@ -492,6 +559,8 @@ audioSound.prototype.resume = function() {
     if (this.bActive === false || this.paused === false)
         return;
 
+    this.paused = false;
+
     if (this.soundid >= BASE_QUEUE_SOUND_INDEX 
     && this.soundid < (BASE_QUEUE_SOUND_INDEX + g_queueSoundCount)) {
         const queueSoundId = this.soundid - BASE_QUEUE_SOUND_INDEX;
@@ -502,10 +571,14 @@ audioSound.prototype.resume = function() {
     }
     else {
         this.startoffset = this.playbackCheckpoint.bufferTime;
+
+        // If we are still decoding then there's nothing to do with the buffer source
+        if (this.pbuffersource === null) {
+            return;
+        }
+        
         this.start(this.pbuffersource.buffer);
     }
-
-    this.paused = false;
 };
 
 audioSound.prototype.isPlaying = function() {
@@ -521,14 +594,15 @@ audioSound.prototype.isPlaying = function() {
         return true;
     }
     else {
+        // If the voice is active, but we have no buffer,
+        // then we are decoding and considered to be playing.
         if (this.pbuffersource === null)
-            return false;
+            return true;
 
         //NB- "playbackState" is only defined for webkitAudioContext - undefined for AudioContext
-        // ... we should get rid of it then
         if (this.pbuffersource.playbackState == undefined 
         || this.pbuffersource.playbackState != this.pbuffersource.FINISHED_STATE
-        || _audioSound.paused) {
+        || this.paused) {
             return true;
         }
     }
@@ -740,6 +814,24 @@ audioSound.prototype.setPlaybackPosition = function(_offset) {
     }
 };
 
+audioSound.prototype.setGain = function(_gain, _rampTimeMs = 0) {
+    if (this.bActive === false || this.pgainnode === null)
+        return;
+
+    this.gain.set(_gain, _rampTimeMs);
+
+    if (_rampTimeMs === 0)
+        this.updateGain();
+};
+
+audioSound.prototype.updateGain = function() {
+    if (this.bActive === false || this.pgainnode === null)
+        return;
+
+    this.gain.update();
+    this.pgainnode.gain.value = AudioPropsCalc.CalcGain(this);
+};
+
 audioSound.prototype.setPitch = function(_pitch) {
     if (this.bActive === false)
         return;
@@ -770,6 +862,32 @@ audioSound.prototype.getAssetIndex = function() {
 
     return this.soundid;
 };
+
+audioSound.prototype.throwOnEndedEvent = function(_wasStopped) {
+    const asyncNode = g_pASyncManager.Add(undefined, undefined, ASYNC_AUDIO_PLAYBACK_ENDED, undefined);
+    asyncNode.voiceHandle = this.handle;
+    asyncNode.assetIndex = this.soundid;
+    asyncNode.wasStopped = _wasStopped;
+    asyncNode.m_Complete = true;
+};
+
+function ClampAndWarn(_val, _lo, _hi, _fn, _arg) {
+    let newVal = _val;
+
+    if (isNaN(newVal) === true)
+        newVal = 0.0;
+
+    if (isNaN(_lo) === false)
+        newVal = Math.max(_lo, newVal);
+
+    if (isNaN(_hi) === false)
+        newVal = Math.min(newVal, _hi);
+
+    if (newVal !== _val)
+        console.warn(_fn + ": argument '" + _arg + "' was clamped (" + _val + " => " + newVal + ").");
+
+    return newVal;
+}
 
 function GetAudioSoundFromHandle( _handle )
 {
@@ -873,7 +991,7 @@ var g_WaitingForWebAudioTouchUnlock = false;
 var g_HandleStreamedAudioAsUnstreamed = false;
 
 function Audio_ContextExists() {
-    return g_WebAudioContext instanceof AudioContext;
+        return g_WebAudioContext != null;
 }
 
 function Audio_IsPlaybackAllowed() {
@@ -963,6 +1081,7 @@ function Audio_EngineReportState()
     ds_map_destroy(map);
     g_pBuiltIn.async_load = -1;
 }
+// @endif audio
 
 function audio_system_is_available()
 {
@@ -1071,32 +1190,22 @@ function getFreeVoice(_props)
 	return null;
 }
 
-function Audio_GetSound(soundid)
-{
-	var pSound = null;
-	if(soundid>=0 && soundid<=audio_sampledata.length )
-	{
-		pSound = audio_sampledata[soundid];
-	}
-	else
-	{
-		var bufferSoundId = soundid - BASE_BUFFER_SOUND_INDEX;
-		if( bufferSoundId >=0 && bufferSoundId < g_bufferSoundCount)
-		{
-				pSound = buffer_sampledata[bufferSoundId];
-		}
-		else
-		{
-			var queueSoundId = soundid - BASE_QUEUE_SOUND_INDEX;
+function Audio_GetSound(soundid) {
+    if (soundid >= 0 && soundid < audio_sampledata.length) {
+        return audio_sampledata[soundid];
+    }
 
-			if (queueSoundId >= 0 && queueSoundId < g_queueSoundCount)
-			{
-				pSound = queue_sampledata[queueSoundId];
-			}
-		}
-	}
+    const bufferSoundId = soundid - BASE_BUFFER_SOUND_INDEX;
+    if (bufferSoundId >= 0 && bufferSoundId < g_bufferSoundCount) {
+            return buffer_sampledata[bufferSoundId];
+    }
 
-	return pSound;
+    const queueSoundId = soundid - BASE_QUEUE_SOUND_INDEX;
+    if (queueSoundId >= 0 && queueSoundId < g_queueSoundCount) {
+        return queue_sampledata[queueSoundId];
+    }
+
+    return null;
 }
 
 function Audio_GetEmitterOrThrow(_emitterIndex) {
@@ -1132,7 +1241,7 @@ function audio_play_sound_common(_props) {
             // Intentional fall-through
         case AudioPlaybackType.POSITIONAL_EMITTER:
             voice.pemitter = _props.emitter;
-            voice.pgainnode.connect(voice.pemitter);
+            voice.pgainnode.connect(voice.pemitter.getInput());
             break;
         default:
             debug("Warning: Unknown audio playback type => " + _props.type);
@@ -1399,8 +1508,9 @@ function audio_sound_get_gain(_index)
     else {
         const asset = Audio_GetSound(_index);
 
-        if (asset !== undefined)
+        if (asset !== null) {
             return asset.gain.get();
+        }
     }
 
     return 0;
@@ -1408,45 +1518,36 @@ function audio_sound_get_gain(_index)
 
 function audio_sound_gain(_index, _gain, _timeMs)
 {
-    if (g_AudioModel != Audio_WebAudio)
-        return;
-
     _index = yyGetInt32(_index);
 
     _gain = yyGetReal(_gain);
-    _gain = Math.max(0, _gain);
+    _gain = ClampAndWarn(_gain, 0.0, undefined, "audio_sound_gain", "gain");
 
-    _timeMs = yyGetInt32(_timeMs); 
-    _timeMs = Math.max(0, _timeMs);
+    _timeMs = yyGetInt32(_timeMs);
+    _timeMs = ClampAndWarn(_timeMs, 0, undefined, "audio_sound_gain", "timeMs");
 
     if (_index >= BASE_SOUND_INDEX) {
         const voice = GetAudioSoundFromHandle(_index);
 
-        if (voice == null)
+        if (voice === null)
             return;
 
-        if (voice.bActive) {
-            voice.gain.set(_gain, _timeMs);
-
-            if (_timeMs == 0) 
-                voice.pgainnode.gain.value = AudioPropsCalc.CalcGain(voice);
-        }
+        voice.setGain(_gain, _timeMs);
     }
     else {
         const asset = Audio_GetSound(_index);
 
-        if (asset !== undefined) {
-            asset.gain.set(_gain, _timeMs);
+        if (asset === null)
+            return;
 
-            if (_timeMs == 0) {
-                // Update all the active voices playing this asset
-                audio_sounds.forEach(_voice => {
-                    if (_voice.bActive && _voice.soundid == _index) {
-                        _voice.pgainnode.gain.value = AudioPropsCalc.CalcGain(_voice);
-                    }
-                });
-            }
-        }
+        asset.gain.set(_gain, _timeMs);
+
+        if (_timeMs > 0.0)
+            return; /* Gain update for voices will be handled in audio_update */
+
+        /* Update all voices playing this asset */
+        audio_sounds.filter(_voice => _voice.soundid === _index)
+                    .forEach(_voice => _voice.updateGain());
     }
 }
 
@@ -1542,8 +1643,7 @@ function audio_sound_get_track_position(_soundid)
 	{
 	    const sound_asset = Audio_GetSound(_soundid);
 
-	    if (sound_asset != undefined)
-	    {
+	    if (sound_asset !== null) {
 	        return sound_asset.trackPos;
 	    }
 	}
@@ -1577,8 +1677,7 @@ function audio_sound_set_track_position(_soundid, _time)
 	    {
 	        const sampleData = Audio_GetSound(_soundid);
 
-	        if (sampleData != undefined)
-	        {
+	        if (sampleData !== null) {
 	            sampleData.trackPos = _time;
 	        }
 	    }
@@ -1801,8 +1900,7 @@ function audio_falloff_set_model(_model)
         return; //no change
 
     var tempnode = g_WebAudioContext.createPanner();
-    g_AudioFalloffModel = _model;
-
+    
     switch(_model)
     {
 		case DistanceModels.AUDIO_FALLOFF_NONE:
@@ -1816,40 +1914,61 @@ function audio_falloff_set_model(_model)
 			if (falloff_model == undefined) falloff_model = "inverse";
 			break;
 		case DistanceModels.AUDIO_FALLOFF_INVERSE_DISTANCE_CLAMPED:
-			debug("Audio_falloff_inverse_distance_clamped not supported in html5\n");
+            console.warn("audio_falloff_inverse_distance_clamped is not supported in html5\n");
+            console.log("Note: Falloff will mimic audio_falloff_inverse_distance");
+            falloff_model = tempnode.INVERSE_DISTANCE;
+		    if (falloff_model == undefined) falloff_model = "inverse";
 			break;
 		case DistanceModels.AUDIO_FALLOFF_LINEAR_DISTANCE:
 			falloff_model = tempnode.LINEAR_DISTANCE;
 			if (falloff_model == undefined) falloff_model = "linear";
 			break;
 		case DistanceModels.AUDIO_FALLOFF_LINEAR_DISTANCE_CLAMPED:
-			debug("Audio_falloff_linear_distance_clamped not supported in html5\n");
+			console.warn("audio_falloff_linear_distance_clamped is not supported in html5\n");
+            console.log("Note: Falloff will mimic audio_falloff_linear_distance");
+			falloff_model = tempnode.LINEAR_DISTANCE;
+			if (falloff_model == undefined) falloff_model = "linear";
 			break;
 		case DistanceModels.AUDIO_FALLOFF_EXPONENT_DISTANCE:
 			falloff_model = tempnode.EXPONENTIAL_DISTANCE;
 			if (falloff_model == undefined) falloff_model = "exponential";
 			break;
 		case DistanceModels.AUDIO_FALLOFF_EXPONENT_DISTANCE_CLAMPED:
-			debug("Audio_falloff_exponent_distance_clamped not supported in html5\n");
-			
+			console.warn("audio_falloff_exponent_distance_clamped is not supported in html5\n");
+            console.log("Note: Falloff will mimic audio_falloff_exponent_distance");
+			falloff_model = tempnode.EXPONENTIAL_DISTANCE;
+			if (falloff_model == undefined) falloff_model = "exponential";
 			break;
-
+        case DistanceModels.AUDIO_FALLOFF_INVERSE_DISTANCE_SCALED:
+            console.warn("audio_falloff_inverse_distance_scaled is not supported in html5\n");
+            console.log("Note: Falloff will mimic audio_falloff_inverse_distance");
+            falloff_model = tempnode.INVERSE_DISTANCE;
+		    if (falloff_model == undefined) falloff_model = "inverse";
+			break;
+        case DistanceModels.AUDIO_FALLOFF_EXPONENT_DISTANCE_SCALED:
+            console.warn("audio_falloff_exponent_distance_scaled is not supported in html5\n");
+            console.log("Note: Falloff will mimic audio_falloff_exponent_distance");
+            falloff_model = tempnode.EXPONENTIAL_DISTANCE;
+			if (falloff_model == undefined) falloff_model = "exponential";
+			break;
 		default:
-			debug("Attempting to set audio falloff to unknown model\n");
-			break;
+			console.warn("Ignored attempt to set audio falloff to unknown model\n");
+			return;
     }
+
+    g_AudioFalloffModel = _model;
 
     audio_emitters.filter(_emitter => _emitter.isActive() === true)
                   .forEach(_emitter => {
-                      _emitter.distanceModel = falloff_model;
+                      _emitter.pannerNode.distanceModel = falloff_model;
 
                       //set/restore rolloff factor
                       if (g_AudioFalloffModel == DistanceModels.AUDIO_FALLOFF_NONE) {
-                          _emitter.original_rolloffFactor = _emitter.rolloffFactor;
-                          _emitter.rolloffFactor = 0;
+                          _emitter.original_rolloffFactor = _emitter.pannerNode.rolloffFactor;
+                          _emitter.pannerNode.rolloffFactor = 0;
                       }
                       else if (_emitter.original_rolloffFactor !== undefined) {
-                          _emitter.rolloffFactor = _emitter.original_rolloffFactor;
+                          _emitter.pannerNode.rolloffFactor = _emitter.original_rolloffFactor;
                           _emitter.original_rolloffFactor = undefined;
                       }
                 });
@@ -1882,7 +2001,7 @@ function audio_stop_all()
 function audio_group_stop_sounds(_groupId) 
 {
     audio_sounds.filter(_voice => audio_sampledata[_voice.soundid].groupId === _groupId)
-                .forEach(_voice => voice.stop()); 
+                .forEach(_voice => _voice.stop()); 
 }
 
 function audio_pause_all( )
@@ -2003,7 +2122,6 @@ function audio_listener_velocity( _one,_two,_three)
         _three = yyGetReal(_three);
 
         var lis = g_WebAudioContext.listener;
-        lis.setVelocity( _one, _two, _three );
 
     	// AB: Need to check if pos exists - can be undefined on some browsers
         if ( lis.velocity )
@@ -2321,6 +2439,7 @@ function audio_get_listener_info(index)
 }
 function audio_debug(trueFalse)                             {}
 
+// @if feature("audio")
 //loading -------------------------
 /** @this {XMLHttpRequest} */
 function Audio_SoundError(e)
@@ -2768,7 +2887,7 @@ function Audio_InitSampleData()
     var index;
     for (index = 0; index < g_pGMFile.Sounds.length; index++)
 	{
-	    if(  g_pGMFile.Sounds[index]!==null)
+	    if (g_pGMFile.Sounds[index] && (g_pGMFile.Sounds[index]!==null))
 	    {
             var sampleData = new audioSampleData();
             audio_sampledata[index] = sampleData;
@@ -2821,6 +2940,7 @@ function AudioGroups_Init()
         }
     }
 }
+// @endif audio
 
 function audio_group_load( _groupId )
 {
@@ -2957,6 +3077,15 @@ function audio_sound_get_audio_group(_soundIndex)
     return asset.groupId;
 }
 
+function audio_sound_get_asset(_voiceIndex)
+{
+    const voice = GetAudioSoundFromHandle(_voiceIndex);
+    if (voice === null || voice.bActive === false) {
+        return undefined;
+    }
+    return voice.soundid;
+}
+
 function audio_create_stream(_filename)
 {
     var sampleData = new audioSampleData();
@@ -2968,6 +3097,7 @@ function audio_create_stream(_filename)
     sampleData.duration = -1; //unknown
     sampleData.groupId = 0;
     sampleData.fromFile = yyGetString(_filename);
+    sampleData.state = AudioSampleState.READY;
 
     //append to end of audio_sampledata array (or fill in empty slots created by audio_destroy_stream)
     var index = audio_sampledata.length;
@@ -2979,6 +3109,19 @@ function audio_create_stream(_filename)
     }
 
     audio_sampledata[index] = sampleData;
+
+    // Kick off a request to populate the asset duration
+    const request = new XMLHttpRequest();
+    request.open("GET", getUrlForSound(index), true);
+    request.responseType = "arraybuffer";
+    request.onload = () => {
+        g_WebAudioContext.decodeAudioData(request.response)
+        .then((_buffer) => {
+            sampleData.duration = _buffer.duration;
+        });
+    };
+    request.send();
+
     return index;
 }
 
@@ -2993,9 +3136,12 @@ function audio_destroy_stream(_soundid)
             audio_stop_sound(_soundid);
             audio_sampledata[_soundid] = null;
         }
+        
+        return 1;
     }
-}
 
+    return -1;
+}
 
 function allocateBufferSound( )
 {
@@ -3080,56 +3226,25 @@ function audio_create_buffer_sound(_bufferId, _bufferFormat, _sampleRate, _offse
 
     _sampleRate = Math.min(Math.max(_sampleRate, 8000), 48000);
 
-    buffer_seek( _bufferId, eBuffer_Start, 0 );
-    var bufferSize = _length;
-
-    /* Here we prevent the Web Audio context from cleanly resampling the buffer
-       to the rate of the audio context by aligning the audio buffer rate with
-       that of the audio context and then crudely resampling the signal ourselves.
-       This is done to emulate the resampling that happens on other platforms
-       and maintain consistency of the perceived sound. */
-
-    // Find the new/old sample rate ratio
-    const sr_ratio = g_WebAudioContext.sampleRate / _sampleRate;
-
-    // And its inverse
-    const increment = 1.0 / sr_ratio;
+    buffer_seek(_bufferId, eBuffer_Start, _offset);
 
     // Calculate the divisor needed to convert from u8/s16 to f32
     const divisor = Math.pow(2, bitsPerSample - 1);
 
     // Create the audio buffer
     const bufferOptions = {
-        length: _length / (numChannels * bitsPerSample / 8) * sr_ratio,
+        length: _length / (numChannels * bitsPerSample / 8),
         numberOfChannels: numChannels,
-        sampleRate: g_WebAudioContext.sampleRate
+        sampleRate: _sampleRate
     };
 
     const audioBuffer = new AudioBuffer(bufferOptions);
 
-    // Used for counting samples using the inverse of sr_ratio
-    let frac_pos = 0.0;
-
-    for (let f = 0; f < audioBuffer.length; ++f)
-    {
-        for (let ch = 0; ch < audioBuffer.numberOfChannels; ++ch)
-        {
+    for (let f = 0; f < audioBuffer.length; ++f) {
+        for (let ch = 0; ch < audioBuffer.numberOfChannels; ++ch) {
             const channelData = audioBuffer.getChannelData(ch);
-
-            if (frac_pos - 1.0 >= 0.0)
-            {
-                // Take a new sample from the signal
-                channelData[f] = (buffer_read(_bufferId, _bufferFormat) / divisor) - 1.0;
-                frac_pos -= 1.0;
-            }
-            else
-            {
-                // Copy the previous sample
-                channelData[f] = channelData[f - 1];
-            }
-
-            frac_pos += increment;
-        }  
+            channelData[f] = (buffer_read(_bufferId, _bufferFormat) / divisor) - 1.0;
+        }
     }
 
     var sampleData = new audioSampleData();
@@ -3137,7 +3252,7 @@ function audio_create_buffer_sound(_bufferId, _bufferFormat, _sampleRate, _offse
     sampleData.configGain = 1.0;
     sampleData.pitch = 1.0;
     sampleData.kind = AudioStreamType.UNSTREAMED;
-    sampleData.duration = bufferSize / ( _sampleRate * numChannels * bitsPerSample / 8 );
+    sampleData.duration = audioBuffer.duration;
     sampleData.groupId = 0;
     sampleData.commands = [];
     sampleData.state = AudioSampleState.READY;
@@ -3537,7 +3652,7 @@ function audio_start_recording(_deviceNum)
                 {
                     var source = g_WebAudioContext.createMediaStreamSource(stream);
                     source.connect(gRecorder);
-                    var gainNode = g_WebAudioContext.createGain();
+                    var gainNode = Audio_CreateGainNode(g_WebAudioContext);
                     gRecorder.connect(gainNode);
                     gainNode.connect(g_WebAudioContext.destination);
                 },
@@ -3634,4 +3749,16 @@ function audio_bus_clear_emitters(_bus) {
                       g_AudioBusMain.connectInput(_emitter.gainnode);
                       _emitter.bus = g_AudioBusMain;
                   });
+}
+
+function lin_to_db(_x) {
+    _x = yyGetReal(_x);
+    
+    return 20 * Math.log10(_x);
+}
+
+function db_to_lin(_x) {
+    _x = yyGetReal(_x);
+
+    return Math.pow(10, _x / 20);
 }

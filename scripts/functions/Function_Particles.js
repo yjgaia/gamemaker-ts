@@ -15,8 +15,245 @@
 // 
 // **********************************************************************************************************************
 
+function GetParticleSystemResourceIndex(_arg, _optional)
+{
+    return yyGetRef(_arg, REFID_PARTICLESYSTEM, CParticleSystem.instances.length, CParticleSystem.instances, _optional);
+}
 
+function GetParticleSystemInstanceIndex(_arg, _optional)
+{
+    return yyGetRef(_arg, REFID_PART_SYSTEM, g_ParticleSystems.length, g_ParticleSystems, _optional);
+}
 
+function GetParticleEmitterIndex(_ps, _arg, _optional)
+{
+    var count = 0;
+    var arr = null;
+    if (!_optional)
+    {
+        arr = g_ParticleSystems[_ps].emitters;
+        count = arr.length;
+    }
+    return yyGetRef(_arg, REFID_PART_EMITTER, count, arr, _optional);
+}
+
+function GetParticleTypeIndex(_arg, _optional)
+{
+    return yyGetRef(_arg, REFID_PART_TYPE, g_ParticleTypes.length, g_ParticleTypes, _optional);
+}
+
+function GetSpriteIndex(_arg)
+{
+    var index = yyGetInt32(_arg);
+    if (g_pSpriteManager.Get(index) == null)
+        yyError("invalid reference to sprite");
+    return index;
+}
+
+function GetTimeSourceUnit(arg)
+{
+    var unit = yyGetInt32(arg);
+    if (unit < 0 || unit > 1)
+        yyError("invalid argument, expecting a time source unit");
+    return unit;
+}
+
+function GetLayer(_layerID)
+{
+    var layerIsString = (typeof _layerID == "string");
+    var room = g_pLayerManager.GetTargetRoomObj();
+    var layer = layerIsString
+        ? g_pLayerManager.GetLayerFromName(room, yyGetString(_layerID))
+        : g_pLayerManager.GetLayerFromID(room, yyGetInt32(_layerID));
+
+    if (!layer)
+    {
+        if (layerIsString)
+            yyError("invalid argument, layer name (" + _layerID + ") does not exist");
+        else
+            yyError("invalid argument, layer ID (" + _layerID + ") does not exist");
+    }
+
+    return layer;
+}
+
+function ParticleSystemGetInfoImpl(_ind, _isInstance)
+{
+    var pPSI = undefined;
+    var emitters = [];
+
+    if (_isInstance)
+    {
+        // Particle system INSTANCE
+        _ind = GetParticleSystemInstanceIndex(_ind);
+        var pPS = g_ParticleSystems[_ind];
+        if (pPS != null)
+        {
+            pPSI = new GMLObject();
+
+            var resource = CParticleSystem.Get(pPS.m_resourceID);
+
+            variable_struct_set(pPSI, "name", resource ? resource.name : "");
+            variable_struct_set(pPSI, "xorigin", pPS.xdraw);
+            variable_struct_set(pPSI, "yorigin", pPS.ydraw);
+            variable_struct_set(pPSI, "oldtonew", pPS.oldtonew ? true : false);
+            variable_struct_set(pPSI, "global_space", pPS.globalSpaceParticles);
+
+            for (var i = pPS.emitters.length - 1; i >= 0; --i)
+            {
+                var emitter = pPS.emitters[i];
+                if (emitter)
+                {
+                    emitters.push(emitter);
+                }
+            }
+        }
+    }
+    else
+    {
+        // Particle system RESOURCE
+        _ind = GetParticleSystemResourceIndex(_ind);
+        var pPS = CParticleSystem.Get(_ind);
+        if (pPS != null)
+        {
+            pPSI = new GMLObject();
+
+            variable_struct_set(pPSI, "name", pPS.name);
+            variable_struct_set(pPSI, "xorigin", pPS.originX);
+            variable_struct_set(pPSI, "yorigin", pPS.originY);
+            variable_struct_set(pPSI, "oldtonew", (pPS.drawOrder == 0));
+            variable_struct_set(pPSI, "global_space", pPS.globalSpaceParticles);
+
+            for (var i = 0; i < pPS.emitters.length; ++i)
+            {
+                var emitter = g_PSEmitters[pPS.emitters[i]];
+                if (emitter)
+                {
+                    emitters.push(emitter);
+                }
+            }
+        }
+    }
+
+    if (!pPSI)
+    {
+        return pPSI;
+    }
+
+    var emittersArray = [];
+    for (var i = 0; i < emitters.length; ++i)
+    {
+        var emitter = emitters[i];
+        var pEmitterI = new GMLObject();
+
+        variable_struct_set(pEmitterI, "ind", i);
+        variable_struct_set(pEmitterI, "name", emitter.name);
+        variable_struct_set(pEmitterI, "mode", emitter.mode);
+        variable_struct_set(pEmitterI, "number", emitter.number);
+        variable_struct_set(pEmitterI, "delay_min", emitter.delayMin);
+        variable_struct_set(pEmitterI, "delay_max", emitter.delayMax);
+        variable_struct_set(pEmitterI, "delay_unit", emitter.delayUnit);
+        variable_struct_set(pEmitterI, "interval_min", emitter.intervalMin);
+        variable_struct_set(pEmitterI, "interval_max", emitter.intervalMax);
+        variable_struct_set(pEmitterI, "interval_unit", emitter.intervalUnit);
+        variable_struct_set(pEmitterI, "relative", emitter.relative);
+        variable_struct_set(pEmitterI, "xmin", emitter.xmin);
+        variable_struct_set(pEmitterI, "xmax", emitter.xmax);
+        variable_struct_set(pEmitterI, "ymin", emitter.ymin);
+        variable_struct_set(pEmitterI, "ymax", emitter.ymax);
+        variable_struct_set(pEmitterI, "distribution", emitter.posdistr);
+        variable_struct_set(pEmitterI, "shape", emitter.shape);
+        variable_struct_set(pEmitterI, "enabled", emitter.enabled);
+
+        var pPartTypeI = new GMLObject();
+        var particleType = g_ParticleTypes[emitter.parttype];
+
+        variable_struct_set(pPartTypeI, "ind", emitter.parttype);
+        variable_struct_set(pPartTypeI, "sprite", particleType.sprite);
+        variable_struct_set(pPartTypeI, "frame", particleType.spritestart);
+        variable_struct_set(pPartTypeI, "animate", particleType.spriteanim);
+        variable_struct_set(pPartTypeI, "stretch", particleType.spritestretch);
+        variable_struct_set(pPartTypeI, "random", particleType.spriterandom);
+        variable_struct_set(pPartTypeI, "shape", particleType.shape);
+        variable_struct_set(pPartTypeI, "size_xmin", particleType.sizeMinX);
+        variable_struct_set(pPartTypeI, "size_xmax", particleType.sizeMaxX);
+        variable_struct_set(pPartTypeI, "size_ymin", particleType.sizeMinY);
+        variable_struct_set(pPartTypeI, "size_ymax", particleType.sizeMaxY);
+        variable_struct_set(pPartTypeI, "size_xincr", particleType.sizeIncrX);
+        variable_struct_set(pPartTypeI, "size_yincr", particleType.sizeIncrY);
+        variable_struct_set(pPartTypeI, "size_xwiggle", particleType.sizeRandX);
+        variable_struct_set(pPartTypeI, "size_ywiggle", particleType.sizeRandY);
+        variable_struct_set(pPartTypeI, "xscale", particleType.xscale);
+        variable_struct_set(pPartTypeI, "yscale", particleType.yscale);
+        variable_struct_set(pPartTypeI, "life_min", particleType.lifemin);
+        variable_struct_set(pPartTypeI, "life_max", particleType.lifemax);
+        variable_struct_set(pPartTypeI, "death_type", particleType.deathtype);
+        variable_struct_set(pPartTypeI, "death_number", particleType.deathnumber);
+        variable_struct_set(pPartTypeI, "step_type", particleType.steptype);
+        variable_struct_set(pPartTypeI, "step_number", particleType.stepnumber);
+        variable_struct_set(pPartTypeI, "speed_min", particleType.spmin);
+        variable_struct_set(pPartTypeI, "speed_max", particleType.spmax);
+        variable_struct_set(pPartTypeI, "speed_incr", particleType.spincr);
+        variable_struct_set(pPartTypeI, "speed_wiggle", particleType.sprand);
+        variable_struct_set(pPartTypeI, "dir_min", particleType.dirmin);
+        variable_struct_set(pPartTypeI, "dir_max", particleType.dirmax);
+        variable_struct_set(pPartTypeI, "dir_incr", particleType.dirincr);
+        variable_struct_set(pPartTypeI, "dir_wiggle", particleType.dirrand);
+        variable_struct_set(pPartTypeI, "grav_amount", particleType.grav);
+        variable_struct_set(pPartTypeI, "grav_dir", particleType.gravdir);
+        variable_struct_set(pPartTypeI, "ang_min", particleType.angmin);
+        variable_struct_set(pPartTypeI, "ang_max", particleType.angmax);
+        variable_struct_set(pPartTypeI, "ang_incr", particleType.angincr);
+        variable_struct_set(pPartTypeI, "ang_wiggle", particleType.angrand);
+        variable_struct_set(pPartTypeI, "ang_relative", particleType.angdir);
+        // variable_struct_set(pPartTypeI, "color_mode", particleType.colmode);
+        variable_struct_set(pPartTypeI, "color1", particleType.colpar[0]);
+        variable_struct_set(pPartTypeI, "color2", particleType.colpar[1]);
+        variable_struct_set(pPartTypeI, "color3", particleType.colpar[2]);
+        variable_struct_set(pPartTypeI, "alpha1", particleType.alphastart);
+        variable_struct_set(pPartTypeI, "alpha2", particleType.alphamiddle);
+        variable_struct_set(pPartTypeI, "alpha3", particleType.alphaend);
+        variable_struct_set(pPartTypeI, "additive", particleType.additiveblend);
+
+        variable_struct_set(pEmitterI, "parttype", pPartTypeI);
+
+        emittersArray.push(pEmitterI);
+    }
+    variable_struct_set(pPSI, "emitters", emittersArray);
+
+    return pPSI;
+}
+
+// @if feature("particles")
+// #############################################################################################
+/// Function:<summary>
+///          </summary>
+///
+/// In:		<param name="_ind"></param>
+/// Out:	<returns>
+///			</returns>
+// #############################################################################################
+function particle_get_info(_ind)
+{
+    var isInstance = ((_ind instanceof YYRef) && (_ind.type == REFID_PART_SYSTEM));
+    return ParticleSystemGetInfoImpl(_ind, isInstance);
+}
+
+// #############################################################################################
+/// Function:<summary>
+///          	Checks whether a particle system asset with given index exists.
+///          </summary>
+///
+/// In:		<param name="_ind"></param>
+/// Out:	<returns>
+///				
+///			</returns>
+// #############################################################################################
+function particle_exists(_ind)
+{
+    var ps = GetParticleSystemResourceIndex(_ind, true);
+    return (CParticleSystem.Get(ps) != null);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -29,22 +266,26 @@
 ///				
 ///			</returns>
 // #############################################################################################
-var part_system_create = function (_partsys)
+function part_system_create(_partsys)
 {
+    var id = -1;
+
     if (_partsys === undefined)
     {
-        return ParticleSystem_Create();
+        id = ParticleSystem_Create();
     }
-
-    _partsys = yyGetInt32(_partsys);
-
-    var _system = CParticleSystem.Get(_partsys);
-    if (_system == null)
+    else
     {
-        return -1;
+        _partsys = GetParticleSystemResourceIndex(_partsys);
+        var _system = CParticleSystem.Get(_partsys);
+        if (_system != null)
+        {
+            id = _system.MakeInstance();
+        }
     }
-    return _system.MakeInstance();
-};
+
+    return MAKE_REF(REFID_PART_SYSTEM, (id != -1) ? id : 0xffffffff);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -56,7 +297,11 @@ var part_system_create = function (_partsys)
 ///				
 ///			</returns>
 // #############################################################################################
-var part_system_destroy = ParticleSystem_Destroy;
+function part_system_destroy(_ind)
+{
+    _ind = GetParticleSystemInstanceIndex(_ind, true);
+    return ParticleSystem_Destroy(_ind);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -68,7 +313,11 @@ var part_system_destroy = ParticleSystem_Destroy;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_system_exists = ParticleSystem_Exists;
+function part_system_exists(_ind)
+{
+    _ind = GetParticleSystemInstanceIndex(_ind, true);
+    return ParticleSystem_Exists(_ind);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -81,7 +330,11 @@ var part_system_exists = ParticleSystem_Exists;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_system_clear = ParticleSystem_Clear;
+function part_system_clear(_ind)
+{
+    _ind = GetParticleSystemInstanceIndex(_ind);
+    return ParticleSystem_Clear(_ind, true);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -97,8 +350,11 @@ var part_system_clear = ParticleSystem_Clear;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_system_draw_order = ParticleSystem_DrawOrder;
-
+function part_system_draw_order(_ind, _oldtonew)
+{
+    _ind = GetParticleSystemInstanceIndex(_ind);
+    return ParticleSystem_DrawOrder(_ind, _oldtonew);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -112,7 +368,31 @@ var part_system_draw_order = ParticleSystem_DrawOrder;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_system_depth = ParticleSystem_Depth;
+function part_system_depth(_ind, _depth)
+{
+    _ind = GetParticleSystemInstanceIndex(_ind);
+    return ParticleSystem_Depth(_ind, _depth);
+}
+
+// #############################################################################################
+/// Function:<summary>
+///          	Changes the color and alpha with which to blend the particle system.
+///          </summary>
+///
+/// In:		<param name="_ind"></param>
+///			<param name="_color"></param>
+///			<param name="_alpha"></param>
+/// Out:	<returns>
+///				
+///			</returns>
+// #############################################################################################
+function part_system_color(_ind, _color, _alpha)
+{
+    _ind = GetParticleSystemInstanceIndex(_ind);
+    return ParticleSystem_Color(_ind, _color, _alpha);
+}
+
+var part_system_colour = part_system_color;
 
 // #############################################################################################
 /// Function:<summary>
@@ -128,8 +408,28 @@ var part_system_depth = ParticleSystem_Depth;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_system_position = ParticleSystem_Position;
+function part_system_position(_ind, _x, _y)
+{
+    _ind = GetParticleSystemInstanceIndex(_ind);
+    return ParticleSystem_Position(_ind, _x, _y);
+}
 
+// #############################################################################################
+/// Function:<summary>
+///          	Changes the rotation of the particle system.
+///          </summary>
+///
+/// In:		<param name="_ind"></param>
+///			<param name="_angle"></param>
+/// Out:	<returns>
+///				
+///			</returns>
+// #############################################################################################
+function part_system_angle(_ind, _angle)
+{
+    _ind = GetParticleSystemInstanceIndex(_ind);
+    return ParticleSystem_Angle(_ind, _angle);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -143,7 +443,11 @@ var part_system_position = ParticleSystem_Position;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_system_automatic_update = ParticleSystem_AutomaticUpdate;
+function part_system_automatic_update(_ind, _automatic)
+{
+    _ind = GetParticleSystemInstanceIndex(_ind);
+    return ParticleSystem_AutomaticUpdate(_ind, _automatic);
+}
 
 
 // #############################################################################################
@@ -158,7 +462,11 @@ var part_system_automatic_update = ParticleSystem_AutomaticUpdate;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_system_automatic_draw = ParticleSystem_AutomaticDraw;
+function part_system_automatic_draw(_ind, _automatic)
+{
+    _ind = GetParticleSystemInstanceIndex(_ind);
+    return ParticleSystem_AutomaticDraw(_ind, _automatic);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -173,7 +481,11 @@ var part_system_automatic_draw = ParticleSystem_AutomaticDraw;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_system_update = ParticleSystem_Update; 
+function part_system_update(_ind)
+{
+    _ind = GetParticleSystemInstanceIndex(_ind);
+    return ParticleSystem_Update(_ind);
+}
 
 
 // #############################################################################################
@@ -187,7 +499,31 @@ var part_system_update = ParticleSystem_Update;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_system_drawit = ParticleSystem_Draw;
+function part_system_drawit(_ind)
+{
+    ps = GetParticleSystemInstanceIndex(_ind);
+
+    if (!ParticleSystem_Exists(ps)) return;
+
+	var pSystem = g_ParticleSystems[ps];
+
+	var matWorldOld = WebGL_GetMatrix(MATRIX_WORLD);
+
+	var matRot = new Matrix();
+	matRot.SetZRotation(pSystem.angle);
+
+	var matPos = new Matrix();
+	matPos.SetTranslation(-pSystem.xdraw, -pSystem.ydraw, 0.0);
+	
+	var matWorldNew = new Matrix();
+	matWorldNew.Multiply(matPos, matRot);
+	matWorldNew.Translation(pSystem.xdraw, pSystem.ydraw, 0.0);
+
+	WebGL_SetMatrix(MATRIX_WORLD, matWorldNew);
+	ParticleSystem_SetMatrix(ps, matWorldNew);
+	ParticleSystem_Draw(ps);
+	WebGL_SetMatrix(MATRIX_WORLD, matWorldOld);
+}
 
 
 // #############################################################################################
@@ -204,7 +540,12 @@ var part_system_drawit = ParticleSystem_Draw;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_particles_create = ParticleSystem_Particles_Create;
+function part_particles_create(_ind, _x, _y, _parttype, _number)
+{
+    _ind = GetParticleSystemInstanceIndex(_ind);
+    _parttype = GetParticleTypeIndex(_parttype);
+    return ParticleSystem_Particles_Create(_ind, _x, _y, _parttype, _number);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -223,8 +564,37 @@ var part_particles_create = ParticleSystem_Particles_Create;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_particles_create_color = ParticleSystem_Particles_Create_Color;
-var part_particles_create_colour = ParticleSystem_Particles_Create_Color;
+function part_particles_create_color(_ind, _x, _y, _parttype, _color, _number)
+{
+    _ind = GetParticleSystemInstanceIndex(_ind);
+    _parttype = GetParticleTypeIndex(_parttype);
+    return ParticleSystem_Particles_Create_Color(_ind, _x, _y, _parttype, _color, _number);
+}
+
+var part_particles_create_colour = part_particles_create_color;
+
+// #############################################################################################
+/// Function:<summary>
+///          	This function allows you to burst all particles defined in a particle system
+///          	resource at any position in the room. The final area, distribution and number
+///          	of the particles created depends on the configuration of emitters inside of the
+///          	particle system resource.
+///          </summary>
+///
+/// In:		<param name="_ind"></param>
+///			<param name="_x"></param>
+///			<param name="_y"></param>
+///			<param name="_partsys"></param>
+/// Out:	<returns>
+///				
+///			</returns>
+// #############################################################################################
+function part_particles_burst(_ind, _x, _y, _partsys)
+{
+    _ind = GetParticleSystemInstanceIndex(_ind);
+    _partsys = GetParticleSystemResourceIndex(_partsys);
+    return ParticleSystem_Particles_Burst(_ind, _x, _y, _partsys);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -236,7 +606,11 @@ var part_particles_create_colour = ParticleSystem_Particles_Create_Color;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_particles_clear = ParticleSystem_Particles_Clear;
+function part_particles_clear(_ind)
+{
+    _ind = GetParticleSystemInstanceIndex(_ind);
+    return ParticleSystem_Particles_Clear(_ind);
+}
 
 
 // #############################################################################################
@@ -249,7 +623,11 @@ var part_particles_clear = ParticleSystem_Particles_Clear;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_particles_count = ParticleSystem_Particles_Count;
+function part_particles_count(_ind)
+{
+    _ind = GetParticleSystemInstanceIndex(_ind);
+    return ParticleSystem_Particles_Count(_ind);
+}
 
 
 // #############################################################################################
@@ -263,7 +641,10 @@ var part_particles_count = ParticleSystem_Particles_Count;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_create = ParticleType_Create;
+function part_type_create()
+{
+    return MAKE_REF(REFID_PART_TYPE, ParticleType_Create());
+};
 
 // #############################################################################################
 /// Function:<summary>
@@ -275,7 +656,11 @@ var part_type_create = ParticleType_Create;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_destroy = ParticleType_Destroy;
+function part_type_destroy(_ind)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Destroy(_ind);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -287,7 +672,11 @@ var part_type_destroy = ParticleType_Destroy;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_exists = ParticleType_Exists; 
+function part_type_exists(_ind)
+{
+    _ind = GetParticleTypeIndex(_ind, true);
+    return ParticleType_Exists(_ind);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -299,7 +688,11 @@ var part_type_exists = ParticleType_Exists;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_clear = ParticleType_Clear;
+function part_type_clear(_ind)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Clear(_ind);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -313,7 +706,11 @@ var part_type_clear = ParticleType_Clear;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_shape = ParticleType_Shape;
+function part_type_shape(_ind, _shape)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Shape(_ind, _shape);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -333,7 +730,31 @@ var part_type_shape = ParticleType_Shape;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_sprite = ParticleType_Sprite;
+function part_type_sprite(_ind, _sprite, _animate, _stretch, _random)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    _sprite = GetSpriteIndex(_sprite);
+    return ParticleType_Sprite(_ind, _sprite, _animate, _stretch, _random);
+}
+
+// #############################################################################################
+/// Function:<summary>
+///          	This function can be used to set a particle type to use a custom sub-image
+///             (frame) of a sprite. If the particle's sprite is animated, then this sub-image
+///             will be used as the starting frame of the animation.
+///          </summary>
+///
+/// In:		<param name="_ind"></param>
+///			<param name="_subimg"></param>
+/// Out:	<returns>
+///				
+///			</returns>
+// #############################################################################################
+function part_type_subimage(_ind, _subimg)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Subimage(_ind, _subimg);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -352,7 +773,57 @@ var part_type_sprite = ParticleType_Sprite;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_size = ParticleType_Size;
+function part_type_size(_ind, _size_min, _size_max, _size_incr, _size_wiggle)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Size(_ind, _size_min, _size_max, _size_incr, _size_wiggle);
+}
+
+// #############################################################################################
+/// Function:<summary>
+///          	Sets the size parameters for the particle type. You specify the minimum starting 
+///             size, the maximum starting size, the size increase in each step (use a negative 
+///             number for a decrease in size) and the amount of wiggling. 
+///             (The default size is 1 and default the size does not change.)
+///          </summary>
+///
+/// In:		<param name="_ind"></param>
+///			<param name="_size_min"></param>
+///			<param name="_size_max"></param>
+///			<param name="_size_incr"></param>
+///			<param name="_size_wiggle"></param>
+/// Out:	<returns>
+///				
+///			</returns>
+// #############################################################################################
+function part_type_size_x(_ind, _size_min, _size_max, _size_incr, _size_wiggle)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Size_X(_ind, _size_min, _size_max, _size_incr, _size_wiggle);
+}
+
+// #############################################################################################
+/// Function:<summary>
+///          	Sets the size parameters for the particle type. You specify the minimum starting 
+///             size, the maximum starting size, the size increase in each step (use a negative 
+///             number for a decrease in size) and the amount of wiggling. 
+///             (The default size is 1 and default the size does not change.)
+///          </summary>
+///
+/// In:		<param name="_ind"></param>
+///			<param name="_size_min"></param>
+///			<param name="_size_max"></param>
+///			<param name="_size_incr"></param>
+///			<param name="_size_wiggle"></param>
+/// Out:	<returns>
+///				
+///			</returns>
+// #############################################################################################
+function part_type_size_y(_ind, _size_min, _size_max, _size_incr, _size_wiggle)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Size_Y(_ind, _size_min, _size_max, _size_incr, _size_wiggle);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -367,7 +838,11 @@ var part_type_size = ParticleType_Size;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_scale = ParticleType_Scale;
+function part_type_scale(_ind, _xscale, _yscale)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Scale(_ind, _xscale, _yscale);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -380,7 +855,11 @@ var part_type_scale = ParticleType_Scale;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_blend = ParticleType_Blend;
+function part_type_blend(_ind, _additive)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Blend(_ind, _additive);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -393,8 +872,13 @@ var part_type_blend = ParticleType_Blend;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_color1 = ParticleType_Color1;
-var part_type_colour1 = ParticleType_Color1;
+function part_type_color1(_ind, _color1)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Color1(_ind, _color1);
+}
+
+var part_type_colour1 = part_type_color1;
 
 // #############################################################################################
 /// Function:<summary>
@@ -408,8 +892,13 @@ var part_type_colour1 = ParticleType_Color1;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_color2 = ParticleType_Color2;
-var part_type_colour2 = ParticleType_Color2;
+function part_type_color2(_ind, _color1, _color2)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Color2(_ind, _color1, _color2);
+}
+
+var part_type_colour2 = part_type_color2;
 
 // #############################################################################################
 /// Function:<summary>
@@ -425,10 +914,15 @@ var part_type_colour2 = ParticleType_Color2;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_color3 = ParticleType_Color3;
-var part_type_colour3 = ParticleType_Color3;
-var part_type_color = ParticleType_Color3; // for compatability reasons :S
-var part_type_colour = ParticleType_Color3; // for compatability reasons :S
+function part_type_color3(_ind, _color1, _color2, _color3)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Color3(_ind, _color1, _color2, _color3);
+}
+
+var part_type_colour3 = part_type_color3;
+var part_type_color = part_type_color3; // for compatability reasons :S
+var part_type_colour = part_type_color3; // for compatability reasons :S
 
 // #############################################################################################
 /// Function:<summary>
@@ -444,8 +938,13 @@ var part_type_colour = ParticleType_Color3; // for compatability reasons :S
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_color_mix = ParticleType_Colour_Mix;
-var part_type_colour_mix = ParticleType_Colour_Mix;
+function part_type_color_mix(_ind, _color1, _color2)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Colour_Mix(_ind, _color1, _color2);
+}
+
+var part_type_colour_mix = part_type_color_mix;
 
 // #############################################################################################
 /// Function:<summary>
@@ -465,7 +964,12 @@ var part_type_colour_mix = ParticleType_Colour_Mix;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_color_rgb = ParticleType_Colour_RGB;
+function part_type_color_rgb(_ind, _rmin, _rmax, _gmin, _gmax, _bmin, _bmax)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Colour_RGB(_ind, _rmin, _rmax, _gmin, _gmax, _bmin, _bmax);
+}
+
 var part_type_colour_rgb = ParticleType_Colour_RGB;
 
 // #############################################################################################
@@ -486,7 +990,12 @@ var part_type_colour_rgb = ParticleType_Colour_RGB;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_color_hsv = ParticleType_Colour_HSV;
+function part_type_color_hsv(_ind, _hmin, _hmax, _smin, _smax, _vmin, _vmax)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Colour_HSV(_ind, _hmin, _hmax, _smin, _smax, _vmin, _vmax);
+}
+
 var part_type_colour_hsv = ParticleType_Colour_HSV;
 
 // #############################################################################################
@@ -500,7 +1009,11 @@ var part_type_colour_hsv = ParticleType_Colour_HSV;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_alpha1 = ParticleType_Alpha1;
+function part_type_alpha1(_ind, _alpha1)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Alpha1(_ind, _alpha1);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -515,7 +1028,11 @@ var part_type_alpha1 = ParticleType_Alpha1;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_alpha2 = ParticleType_Alpha2;
+function part_type_alpha2(_ind, _alpha1, _alpha2)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Alpha2(_ind, _alpha1, _alpha2);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -530,8 +1047,11 @@ var part_type_alpha2 = ParticleType_Alpha2;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_alpha3 = ParticleType_Alpha3;
-
+function part_type_alpha3(_ind, _alpha1, _alpha2, _alpha3)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Alpha3(_ind, _alpha1, _alpha2, _alpha3);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -545,7 +1065,11 @@ var part_type_alpha3 = ParticleType_Alpha3;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_life = ParticleType_Life;
+function part_type_life(_ind, _life_min, _life_max)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Life(_ind, _life_min, _life_max);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -562,7 +1086,13 @@ var part_type_life = ParticleType_Life;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_step = ParticleType_Step;
+function part_type_step(_ind, _step_number, _step_type)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    _step_type = GetParticleTypeIndex(_step_type, true);
+    return ParticleType_Step(_ind, _step_number, _step_type);
+}
+
 
 // #############################################################################################
 /// Function:<summary>
@@ -579,8 +1109,12 @@ var part_type_step = ParticleType_Step;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_death = ParticleType_Death;
-
+function part_type_death(_ind, _death_number, _death_type)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    _death_type = GetParticleTypeIndex(_death_type, true);
+    return ParticleType_Death(_ind, _death_number, _death_type);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -602,7 +1136,11 @@ var part_type_death = ParticleType_Death;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_orientation = ParticleType_Orientation;
+function part_type_orientation(_ind, _ang_min, _ang_max, _ang_incr, _ang_wiggle, _ang_relative)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Orientation(_ind, _ang_min, _ang_max, _ang_incr, _ang_wiggle, _ang_relative);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -622,7 +1160,11 @@ var part_type_orientation = ParticleType_Orientation;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_speed = ParticleType_Speed;
+function part_type_speed(_ind, _speed_min, _speed_max, _speed_incr, _speed_wiggle)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Speed(_ind, _speed_min, _speed_max, _speed_incr, _speed_wiggle);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -642,7 +1184,11 @@ var part_type_speed = ParticleType_Speed;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_direction = ParticleType_Direction;
+function part_type_direction(_ind, _dir_min, _dir_max, _dir_incr, _dir_wiggle)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Direction(_ind, _dir_min, _dir_max, _dir_incr, _dir_wiggle);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -658,7 +1204,11 @@ var part_type_direction = ParticleType_Direction;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_type_gravity = ParticleType_Gravity;
+function part_type_gravity(_ind, _grav_amount, _grav_dir)
+{
+    _ind = GetParticleTypeIndex(_ind);
+    return ParticleType_Gravity(_ind, _grav_amount, _grav_dir);
+}
 
 
 
@@ -673,7 +1223,11 @@ var part_type_gravity = ParticleType_Gravity;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_emitter_create = ParticleSystem_Emitter_Create;
+function part_emitter_create(_ps)
+{
+    _ps = GetParticleSystemInstanceIndex(_ps);
+    return MAKE_REF(REFID_PART_EMITTER, ParticleSystem_Emitter_Create(_ps));
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -687,7 +1241,12 @@ var part_emitter_create = ParticleSystem_Emitter_Create;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_emitter_destroy  = ParticleSystem_Emitter_Destroy;
+function part_emitter_destroy(_ps, _ind)
+{
+    _ps = GetParticleSystemInstanceIndex(_ps, true);
+    _ind = GetParticleEmitterIndex(_ps, _ind, true);
+    return ParticleSystem_Emitter_Destroy(_ps, _ind);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -699,7 +1258,31 @@ var part_emitter_destroy  = ParticleSystem_Emitter_Destroy;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_emitter_destroy_all = ParticleSystem_Emitter_DestroyAll;
+function part_emitter_destroy_all(_ps)
+{
+    _ps = GetParticleSystemInstanceIndex(_ps);
+    return ParticleSystem_Emitter_DestroyAll(_ps);
+}
+
+// #############################################################################################
+/// Function:<summary>
+///          	Enables or disables a particle emitter. Disabled emitters aren't updated nor
+///             rendered and they don't spawn new particles.
+///          </summary>
+///
+/// In:		<param name="_ps"></param>
+///			<param name="_ind"></param>
+///			<param name="_enable"></param>
+/// Out:	<returns>
+///				
+///			</returns>
+// #############################################################################################
+function part_emitter_enable(_ps, _ind, _enable)
+{
+    _ps = GetParticleSystemInstanceIndex(_ps);
+    _ind = GetParticleEmitterIndex(_ps, _ind);
+    return ParticleSystem_Emitter_Enable(_ps, _ind, _enable);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -712,7 +1295,12 @@ var part_emitter_destroy_all = ParticleSystem_Emitter_DestroyAll;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_emitter_exists = ParticleSystem_Emitter_Exists;
+function part_emitter_exists(_ps, _ind)
+{
+    _ps = GetParticleSystemInstanceIndex(_ps, true);
+    _ind = GetParticleEmitterIndex(_ps, _ind, true);
+    return ParticleSystem_Emitter_Exists(_ps, _ind);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -725,7 +1313,12 @@ var part_emitter_exists = ParticleSystem_Emitter_Exists;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_emitter_clear = ParticleSystem_Emitter_Clear;
+function part_emitter_clear(_ps, _ind)
+{
+    _ps = GetParticleSystemInstanceIndex(_ps);
+    _ind = GetParticleEmitterIndex(_ps, _ind);
+    return ParticleSystem_Emitter_Clear(_ps, _ind);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -744,7 +1337,12 @@ var part_emitter_clear = ParticleSystem_Emitter_Clear;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_emitter_region = ParticleSystem_Emitter_Region;
+function part_emitter_region(_ps, _ind, _xmin, _xmax, _ymin, _ymax, _shape, _distribution)
+{
+    _ps = GetParticleSystemInstanceIndex(_ps);
+    _ind = GetParticleEmitterIndex(_ps, _ind);
+    return ParticleSystem_Emitter_Region(_ps, _ind, _xmin, _xmax, _ymin, _ymax, _shape, _distribution);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -759,7 +1357,13 @@ var part_emitter_region = ParticleSystem_Emitter_Region;
 ///				
 ///			</returns>
 // #############################################################################################
-var part_emitter_burst = ParticleSystem_Emitter_Burst;
+function part_emitter_burst(_ps, _ind, _parttype, _number)
+{
+    _ps = GetParticleSystemInstanceIndex(_ps);
+    _ind = GetParticleEmitterIndex(_ps, _ind);
+    _parttype = GetParticleTypeIndex(_parttype);
+    return ParticleSystem_Emitter_Burst(_ps, _ind, _parttype, _number);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -777,8 +1381,78 @@ var part_emitter_burst = ParticleSystem_Emitter_Burst;
 ///				
 ///			</returns>
 // #############################################################################################
- var part_emitter_stream = ParticleSystem_Emitter_Stream;
+function part_emitter_stream(_ps, _ind, _parttype, _number)
+{
+    _ps = GetParticleSystemInstanceIndex(_ps);
+    _ind = GetParticleEmitterIndex(_ps, _ind);
+    _parttype = GetParticleTypeIndex(_parttype);
+    return ParticleSystem_Emitter_Stream(_ps, _ind, _parttype, _number);
+}
 
+// #############################################################################################
+/// Function:<summary>
+///          	
+///          </summary>
+///
+/// In:		<param name="_ps"></param>
+///			<param name="_ind"></param>
+///			<param name="_delay_min"></param>
+///			<param name="_delay_max"></param>
+///			<param name="_delay_unit"></param>
+/// Out:	<returns>
+///				
+///			</returns>
+// #############################################################################################
+function part_emitter_delay(_ps, _ind, _delay_min, _delay_max, _delay_unit)
+{
+    _ps = GetParticleSystemInstanceIndex(_ps);
+    _ind = GetParticleEmitterIndex(_ps, _ind);
+    _delay_unit = GetTimeSourceUnit(_delay_unit);
+    return ParticleSystem_Emitter_Delay(_ps, _ind, _delay_min, _delay_max, _delay_unit);
+}
+
+// #############################################################################################
+/// Function:<summary>
+///          	
+///          </summary>
+///
+/// In:		<param name="_ps"></param>
+///			<param name="_ind"></param>
+///			<param name="_interval_min"></param>
+///			<param name="_interval_max"></param>
+///			<param name="_interval_unit"></param>
+/// Out:	<returns>
+///				
+///			</returns>
+// #############################################################################################
+function part_emitter_interval(_ps, _ind, _interval_min, _interval_max, _interval_unit)
+{
+    _ps = GetParticleSystemInstanceIndex(_ps);
+    _ind = GetParticleEmitterIndex(_ps, _ind);
+    _interval_unit = GetTimeSourceUnit(_interval_unit);
+    return ParticleSystem_Emitter_Interval(_ps, _ind, _interval_min, _interval_max, _interval_unit);
+}
+
+// #############################################################################################
+/// Function:<summary>
+///          	Enable or disable relative/density based mode.
+///          </summary>
+///
+/// In:		<param name="_ps"></param>
+///			<param name="_ind"></param>
+///			<param name="_enable"></param>
+/// Out:	<returns>
+///				
+///			</returns>
+// #############################################################################################
+function part_emitter_relative(_ps, _ind, _enable)
+{
+    _ps = GetParticleSystemInstanceIndex(_ps);
+    _ind = GetParticleEmitterIndex(_ps, _ind);
+    return ParticleSystem_Emitter_Relative(_ps, _ind, _enable);
+}
+
+// @endif particles
 
 // #############################################################################################
 /// Function:<summary>
@@ -795,8 +1469,11 @@ var part_emitter_burst = ParticleSystem_Emitter_Burst;
 ///				
 ///			</returns>
 // #############################################################################################
-function effect_create_below(_kind,_x,_y,_size,_color) {
-	Effect_Create(true, yyGetInt32(_kind), yyGetReal(_x), yyGetReal(_y), yyGetInt32(_size), yyGetInt32(_color));
+function effect_create_below(_kind, _x, _y, _size, _color)
+{
+    if (ps_below == -1)
+        Eff_Check_Systems();
+    Effect_Create(ps_below, yyGetInt32(_kind), yyGetReal(_x), yyGetReal(_y), yyGetInt32(_size), yyGetInt32(_color));
 }
 
 // #############################################################################################
@@ -814,10 +1491,73 @@ function effect_create_below(_kind,_x,_y,_size,_color) {
 ///				
 ///			</returns>
 // #############################################################################################
-function effect_create_above(_kind,_x,_y,_size,_color) {
-	Effect_Create(false, yyGetInt32(_kind), yyGetReal(_x), yyGetReal(_y), yyGetInt32(_size), yyGetInt32(_color));
+function effect_create_above(_kind, _x, _y, _size, _color)
+{
+    if (ps_above == -1)
+        Eff_Check_Systems();
+    Effect_Create(ps_above, yyGetInt32(_kind), yyGetReal(_x), yyGetReal(_y), yyGetInt32(_size), yyGetInt32(_color));
 }
 
+// #############################################################################################
+/// Function:<summary>
+///          	Creates an effect of the given kind (see above) at the indicated position on the
+///				layer specified.
+///          </summary>
+///
+/// In:		<param name="_layerid"></param>
+///			<param name="_kind"></param>
+///			<param name="_x"></param>
+///			<param name="_y"></param>
+///			<param name="_size">0 = small, 1 = medium, 2 = large</param>
+///			<param name="_color">indicates the color to be used</param>
+/// Out:	<returns>
+///				
+///			</returns>
+// #############################################################################################
+function effect_create_layer(_layerid, _kind, _x, _y, _size, _color)
+{
+	var layer = GetLayer(_layerid);
+
+	if (!ParticleSystem_Exists(layer.m_effectPS))
+		layer.m_effectPS = ParticleSystem_Create(layer.m_id, false);
+
+	var ps = layer.m_effectPS;
+
+	Effect_Create(ps, yyGetInt32(_kind), yyGetReal(_x), yyGetReal(_y), yyGetInt32(_size), yyGetInt32(_color));
+}
+
+// #############################################################################################
+/// Function:<summary>
+///          	Creates an effect of the given kind (see above) at the indicated position at the
+///				depth specified.
+///          </summary>
+///
+/// In:		<param name="_depth"></param>
+///			<param name="_kind"></param>
+///			<param name="_x"></param>
+///			<param name="_y"></param>
+///			<param name="_size">0 = small, 1 = medium, 2 = large</param>
+///			<param name="_color">indicates the color to be used</param>
+/// Out:	<returns>
+///				
+///			</returns>
+// #############################################################################################
+function effect_create_depth(_depth, _kind, _x, _y, _size, _color)
+{
+	_depth = yyGetInt32(_depth);
+
+	var layer = g_pLayerManager.GetLayerWithDepth(g_RunRoom, _depth, true);
+
+	if (layer == null)
+		layer = g_pLayerManager.AddDynamicLayer(g_RunRoom, _depth);
+
+	if (!ParticleSystem_Exists(layer.m_effectPS))
+		layer.m_effectPS = ParticleSystem_Create(layer.m_id, false);
+
+	var ps = layer.m_effectPS;
+
+	Effect_Create(ps, yyGetInt32(_kind), yyGetReal(_x), yyGetReal(_y), yyGetInt32(_size), yyGetInt32(_color));
+}
 
 
 // #############################################################################################
@@ -827,78 +1567,54 @@ function effect_create_above(_kind,_x,_y,_size,_color) {
 // #############################################################################################
 function effect_clear() 
 {
-	// Kill the 2 particle systems that control effects
-	if (ParticleSystem_Exists(ps_below)){
-		ParticleSystem_Destroy(ps_below);
-		ps_below = -1;
-	}
-	if (ParticleSystem_Exists(ps_above)){
-		ParticleSystem_Destroy(ps_above);
-		ps_above = -1;
-	}
+	ParticleSystem_Particles_Clear(ps_below);
+	ParticleSystem_Particles_Clear(ps_above);
 }
 
 function part_system_create_layer(_layerid, _persistent, _partsys)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-    
-    if (room == null)
-    {
-        // No valid room, bail
-        return;
-    }
-
-    var layer = null;
-    if (typeof (_layerid) == "string")
-        layer = g_pLayerManager.GetLayerFromName(room, yyGetString(_layerid));
-    else
-        layer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(_layerid));
-
-    if (_persistent == undefined)
-    {
-        _persistent = false;
-    }
-    else
-    {
-        _persistent = yyGetBool(_persistent);
-    }
+    var id = -1;
+    var layer = GetLayer(_layerid);
+    _persistent = (_persistent !== undefined) ? yyGetBool(_persistent) : false;
 
     if (_partsys === undefined)
     {
-        return ParticleSystem_Create(layer.m_id, _persistent);
+        id = ParticleSystem_Create(layer.m_id, _persistent);
     }
-
-    _partsys = yyGetInt32(_partsys);
-
-    var _system = CParticleSystem.Get(_partsys);
-    if (_system == null)
+    else
     {
-        return -1;
+        _partsys = GetParticleSystemResourceIndex(_partsys);
+        var _system = CParticleSystem.Get(_partsys);
+        if (_system != null)
+        {
+            id = _system.MakeInstance(layer.m_id, _persistent);
+        }
     }
-    return _system.MakeInstance(layer.m_id, _persistent);
+
+    return MAKE_REF(REFID_PART_SYSTEM, (id != -1) ? id : 0xffffffff);
 }
 
 function part_system_get_layer(_ind)
 {
-    var ret = ParticleSystem_GetLayer(yyGetInt32(_ind));
-    return ret;
+    _ind = GetParticleSystemInstanceIndex(_ind);
+    return ParticleSystem_GetLayer(_ind);
 }
 
 function part_system_layer(_ind, _layerid)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
+    _ind = GetParticleSystemInstanceIndex(_ind);
+    var layer = GetLayer(_layerid);
 
-    if (room == null) {
-        // No valid room, bail
-        return;
-    }
+    return ParticleSystem_Layer(_ind, layer.m_id);
+}
 
-    var layer = null;
-    if (typeof (_layerid) == "string")
-        layer = g_pLayerManager.GetLayerFromName(room, yyGetString(_layerid));
-    else
-        layer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(_layerid));    
+function part_system_global_space(_ind, _enable)
+{
+    _ind = GetParticleSystemInstanceIndex(_ind);
+    return ParticleSystem_GlobalSpace(_ind, _enable);
+}
 
-    var ret = ParticleSystem_Layer(yyGetInt32(_ind), layer.m_id);
-    return ret;
+function part_system_get_info(_ind)
+{
+    return ParticleSystemGetInfoImpl(_ind, true);
 }

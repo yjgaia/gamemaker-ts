@@ -80,7 +80,6 @@ function draw_text(_x, _y, _text) {
 ///				
 ///			</returns>
 // #############################################################################################
-var draw_text_colour = draw_text_color;
 function draw_text_color(_x, _y, _text, _c1, _c2, _c3, _c4, _alpha)
 {
     if (!g_webGL) WarningFunction("draw_text_color() only uses the 1st colour");
@@ -96,16 +95,19 @@ function draw_text_color(_x, _y, _text, _c1, _c2, _c3, _c4, _alpha)
 	    _alpha = 0.0;
 
 	var a = ((yyGetReal(_alpha) * 255) << 24)&0xff000000;
-	_c1 = (yyGetInt32(_c1) & 0xffffff) | a;
-	_c2 = (yyGetInt32(_c2) & 0xffffff) | a;
-	_c3 = (yyGetInt32(_c3) & 0xffffff) | a;
-	_c4 = (yyGetInt32(_c4) & 0xffffff) | a;
+	_c1 = ConvertGMColour(yyGetInt32(_c1) & 0xffffff) | a;
+	_c2 = ConvertGMColour(yyGetInt32(_c2) & 0xffffff) | a;
+	_c3 = ConvertGMColour(yyGetInt32(_c3) & 0xffffff) | a;
+	_c4 = ConvertGMColour(yyGetInt32(_c4) & 0xffffff) | a;
 
 	g_pFontManager.GR_Text_Draw(yyGetString(_text), yyGetReal(_x), yyGetReal(_y), -1, -1, 0, 1, 1, _c1, _c2, _c3, _c4);
 	
 	g_GlobalAlpha = oldalpha;
 	draw_set_color(oldcol);		
 }
+// @if function("draw_text_colour")
+var draw_text_colour = draw_text_color;
+// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -126,7 +128,6 @@ function draw_text_color(_x, _y, _text, _c1, _c2, _c3, _c4, _alpha)
 ///				
 ///			</returns>
 // #############################################################################################
-var draw_text_ext_colour = draw_text_ext_color;
 function draw_text_ext_color(_x, _y, _text, _sep, _w, _c1, _c2, _c3, _c4, _alpha)
 {
     if (!g_webGL) WarningFunction("draw_text_ext_color() only uses the 1st colour");
@@ -141,17 +142,19 @@ function draw_text_ext_color(_x, _y, _text, _sep, _w, _c1, _c2, _c3, _c4, _alpha
 	    _alpha = 0.0;
 
 	var a = (yyGetReal(_alpha) * 255)<<24;
-	_c1 = (yyGetInt32(_c1) & 0xffffff) | a;
-	_c2 = (yyGetInt32(_c2) & 0xffffff) | a;
-	_c3 = (yyGetInt32(_c3) & 0xffffff) | a;
-	_c4 = (yyGetInt32(_c4) & 0xffffff) | a;
+	_c1 = ConvertGMColour(yyGetInt32(_c1) & 0xffffff) | a;
+	_c2 = ConvertGMColour(yyGetInt32(_c2) & 0xffffff) | a;
+	_c3 = ConvertGMColour(yyGetInt32(_c3) & 0xffffff) | a;
+	_c4 = ConvertGMColour(yyGetInt32(_c4) & 0xffffff) | a;
 
 	g_pFontManager.GR_Text_Draw(yyGetString(_text), yyGetReal(_x), yyGetReal(_y), yyGetInt32(_sep), yyGetInt32(_w), 0, 1, 1, _c1, _c2, _c3, _c4);
 
     g_GlobalAlpha = oldalpha;
 	draw_set_color(oldcol);	
 }
-
+// @if function("draw_text_ext_colour")
+var draw_text_ext_colour = draw_text_ext_color;
+// @endif
 
 
 
@@ -245,7 +248,6 @@ function draw_text_ext_transformed(_x, _y, _text, _sep, _w, _xscale, _yscale, _a
 ///				
 ///			</returns>
 // #############################################################################################
-var draw_text_ext_transformed_colour = draw_text_ext_transformed_color;
 function draw_text_ext_transformed_color(_x, _y, _text, _sep, _w, _xscale, _yscale, _angle, _c1, _c2, _c3, _c4, _alpha) {
     if (!g_webGL) WarningFunction("draw_text_ext_transformed_color() only uses the 1st colour");
     
@@ -262,6 +264,9 @@ function draw_text_ext_transformed_color(_x, _y, _text, _sep, _w, _xscale, _ysca
     g_GlobalAlpha = oldalpha;
     draw_set_color(oldcol);	
 }
+// @if function("draw_text_ext_transformed_colour")
+var draw_text_ext_transformed_colour = draw_text_ext_transformed_color;
+// @endif
 
 
 // #############################################################################################
@@ -284,7 +289,6 @@ function draw_text_ext_transformed_color(_x, _y, _text, _sep, _w, _xscale, _ysca
 ///				
 ///			</returns>
 // #############################################################################################
-var draw_text_transformed_colour = draw_text_transformed_color;
 function draw_text_transformed_color(_x, _y, _text, _xscale, _yscale, _angle, _c1, _c2, _c3, _c4, _alpha) {
     if (!g_webGL) WarningFunction("draw_text_transformed_color() only uses the 1st colour");
     
@@ -301,7 +305,9 @@ function draw_text_transformed_color(_x, _y, _text, _xscale, _yscale, _angle, _c
 	g_GlobalAlpha = oldalpha;
 	draw_set_color(oldcol);	
 }
-
+// @if function("draw_text_transformed_colour")
+var draw_text_transformed_colour = draw_text_transformed_color;
+// @endif
 
 
 // #############################################################################################
@@ -452,7 +458,6 @@ function font_get_name(_id) {
     if (!pFont) return "";
     return pFont.pName;
 }
-var font_name = font_get_name;
 
 // #############################################################################################
 /// Function:<summary>
@@ -635,6 +640,20 @@ function font_get_sdf_spread(id)
 	return 0;
 }
 
+function font_enable_effects(id,enable,params)
+{
+	if (g_webGL)
+	{
+		id = yyGetInt32(id);
+		if(g_pFontManager.Fonts[id]!=undefined)
+		{
+			var font = g_pFontManager.Fonts[id];
+			font.effect_params.enabled = yyGetBool(enable);
+
+			font.SetEffectParams(params);			
+		}		
+	}	
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -848,12 +867,18 @@ function font_get_info( _ind )
 	variable_struct_set(ret, "ascenderOffset", pFont.ascenderOffset); //ret.gmlascenderOffset = pFont.ascenderOffset;
 	variable_struct_set(ret, "ascender", pFont.ascender); //ret.gmlascender = pFont.ascender;
 	variable_struct_set(ret, "sdfSpread", pFont.sdfSpread); //ret.gmlsdfSpread = pFont.sdfSpread;
+	variable_struct_set(ret, "sdfEnabled", pFont.sdf); 	
+	variable_struct_set(ret, "freetype", false); // we don't support freetype fonts on HTML5 but adding this so it has the same fields as the C++ runner	
     variable_struct_set(ret, "size", pFont.size); //ret.gmlsize = pFont.size;
     variable_struct_set(ret, "spriteIndex", pFont.spriteIndex); //ret.gmlspriteIndex = pFont.spriteIndex;
     variable_struct_set(ret, "texture", pTPE != null ? pTPE.tp : -1); //ret.gmltexture = pTPE != null ? pTPE.tp : -1;
     variable_struct_set(ret, "name", pFont.pName); //ret.gmlname = pFont.pName;
     variable_struct_set(ret, "bold", pFont.bold); //ret.gmlbold = pFont.bold;
-    variable_struct_set(ret, "italic", pFont.italic); //ret.gmlitalic = pFont.italic;
+    variable_struct_set(ret, "italic", pFont.italic); //ret.gmlitalic = pFont.italic;	
+
+	variable_struct_set(ret, "effectsEnabled", pFont.effect_params.enabled);
+	variable_struct_set(ret, "effectParams", pFont.GetEffectParams());
+
     variable_struct_set(ret, "glyphs", new GMLObject()); //ret.gmlglyphs = new GMLObject();
     var glyphs = variable_struct_get(ret, "glyphs");
 

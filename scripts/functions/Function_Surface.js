@@ -30,8 +30,7 @@ var g_createsurfacedepthbuffers = true;
 ///				
 ///			</returns>
 // #############################################################################################
-var surface_resize = surface_resize_RELEASE;
-function surface_resize_RELEASE(_id, _w, _h) 
+function surface_resize(_id, _w, _h) 
 {
     _id = yyGetInt32(_id);
     _w = yyGetInt32(_w);
@@ -90,6 +89,28 @@ function surface_get_depth_disable()
     return g_createsurfacedepthbuffers ? false : true;
 }
 
+function surface_has_depth(_id)
+{
+    _id = yyGetInt32(_id);
+
+    if (!surface_exists(_id))
+    {
+        yyError("surface_has_depth() - surface does not exist!");
+        return false;
+    }
+
+    if (g_webGL)
+    {
+        var pSurf = g_Surfaces.Get(_id);
+        if (!g_SupportDepthTexture) {
+            return (pSurf.FrameBufferData.RenderBuffer != null);
+        }
+        return (pSurf.textureDepth != null
+            && pSurf.textureDepth.webgl_textureid instanceof yyGLTexture);
+    }
+
+    return false;
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -110,6 +131,10 @@ function surface_create_RELEASE(_w, _h, _format, _forceid)
 {
     _w = yyGetInt32(_w);
     _h = yyGetInt32(_h);
+
+    if (_w <= 0 || _h <= 0) {
+        yyError("create_surface : Trying to create a surface with size equal to or less than zero.");
+    }
 
 	var pSurf = document.createElement(g_CanvasName);
     pSurf.m_Width = pSurf.width = _w;
@@ -353,6 +378,16 @@ function surface_get_texture(_id)
     return -1;
 }
 
+function surface_get_texture_depth(_id)
+{
+    var pSurf = g_Surfaces.Get(yyGetInt32(_id));
+    if (pSurf != null && g_SupportDepthTexture)
+    {
+        return ({ WebGLTexture: pSurf.textureDepth, TPE: pSurf.m_pTPE });
+    }
+    return -1;
+}
+
 // #############################################################################################
 /// Function:<summary>
 ///             Search for a surface ID in the current surface stack list
@@ -365,11 +400,18 @@ function CheckForSurface(_id)
 {
     _id = yyGetInt32(_id);
 
-    if (g_CurrentSurfaceId == _id) return true;
-    var len = g_CurrentSurfaceIdStack.length;
-    for (var i = 0; i < len; i++) {
-        if (g_CurrentSurfaceIdStack[i] == _id) return true;
+    if (g_CurrentSurfaceId == _id
+        || g_CurrentDepthId == _id) {
+        return true;
     }
+
+    for (var i = g_CurrentSurfaceIdStack.length - 1; i >= 0; --i) {
+        if (g_CurrentSurfaceIdStack[i] == _id
+        || g_CurrentDepthIdStack[i] == _id) {
+            return true;
+        }
+    }
+
     return false;
 }
 
@@ -386,18 +428,23 @@ function CheckForSurface(_id)
 ///			</returns>
 // #############################################################################################
 var surface_set_target_system = surface_set_target_system_RELEASE;
-function surface_set_target_system_RELEASE(_id) 
+function surface_set_target_system_RELEASE(_id, _depth_id) 
 {
     _id = yyGetInt32(_id);
+    _depth_id = (_depth_id !== undefined && yyGetInt32(_depth_id) >= 0)
+        ? yyGetInt32(_depth_id) : _id;
 
     var pSurf = g_Surfaces.Get(_id);
-    if (pSurf != null) {
+    var pSurfDepth = g_Surfaces.Get(_depth_id);
+
+    if (pSurf != null && pSurfDepth != null) {
 
         if (!g_webGL) Graphics_Save();
 
         // Store the current settings on the stack
         g_SurfaceStack.push({
             FrameBuffer: g_CurrentFrameBuffer,
+            DepthBuffer: g_CurrentDepthBuffer,
             RenderTargetActive: g_RenderTargetActive,
             cannvas_graphics: graphics,
             worldx: g_worldx,
@@ -412,11 +459,16 @@ function surface_set_target_system_RELEASE(_id)
         });
 
         g_CurrentSurfaceIdStack.push(g_CurrentSurfaceId);
+        g_CurrentDepthIdStack.push(g_CurrentDepthId);
         g_CurrentSurfaceId = _id;
+        g_CurrentDepthId = _depth_id;
 
         if (g_webGL) {
             g_CurrentFrameBuffer = pSurf.FrameBuffer;
-            g_webGL.SetRenderTarget(pSurf.FrameBuffer);
+            g_CurrentDepthBuffer = g_SupportDepthTexture
+                ? pSurfDepth.textureDepth.webgl_textureid.Texture
+                : pSurfDepth.FrameBufferData.RenderBuffer;
+            g_webGL.SetRenderTarget(g_CurrentFrameBuffer, g_CurrentDepthBuffer);
             g_RenderTargetActive = -1;
         } else {
             g_CurrentGraphics = pSurf.graphics;
@@ -433,23 +485,68 @@ function surface_set_target_system_RELEASE(_id)
 ///          </summary>
 ///
 /// In:		<param name="_id"></param>
+///         <param name="_depth_id"></param>
 /// Out:	<returns>
 ///				return true;
 ///			</returns>
 // #############################################################################################
 var surface_set_target = surface_set_target_RELEASE;
-function surface_set_target_RELEASE(_id) 
+function surface_set_target_RELEASE(_id, _depth_id) 
 {
     _id = yyGetInt32(_id);
+    _depth_id = (_depth_id !== undefined && yyGetInt32(_depth_id) >= 0)
+        ? yyGetInt32(_depth_id) : _id;
 
     var pSurf = g_Surfaces.Get(_id);
-    if( pSurf != null)
-    {
-        if (!g_webGL) Graphics_Save();
+    var pSurfDepth = g_Surfaces.Get(_depth_id);
 
+    if (pSurf == null || pSurfDepth == null)
+    {
+        return false;
+    }
+
+    if (!g_webGL) Graphics_Save();
+
+    var currcam = g_pCameraManager.GetActiveCamera();
+    
+    if (currcam != null)
+    {
         g_SurfaceStack.push({
             FrameBuffer: g_CurrentFrameBuffer,
-            RenderTargetActive: g_RenderTargetActive,
+            DepthBuffer: g_CurrentDepthBuffer,
+            RenderTargetActive: g_RenderTargetActive,                
+
+            viewportx: g_clipx,
+            viewporty: g_clipy,
+            viewportw: g_clipw,
+            viewporth: g_cliph,
+
+            worldx: g_worldx,
+            worldy: g_worldy,
+            worldw: g_worldw,
+            worldh: g_worldh,                
+
+            cannvas_graphics: graphics,
+
+            ActiveCam: true,
+
+            camx: currcam.m_viewX,
+            camy: currcam.m_viewY,
+            camw: currcam.m_viewWidth,
+            camh: currcam.m_viewHeight,
+
+            cama: currcam.m_viewAngle,
+
+            camviewmat: new Matrix(currcam.m_viewMat),
+            camprojmat: new Matrix(currcam.m_projMat),
+        });
+    }
+    else
+    {
+        g_SurfaceStack.push({
+            FrameBuffer: g_CurrentFrameBuffer,
+            DepthBuffer: g_CurrentDepthBuffer,
+            RenderTargetActive: g_RenderTargetActive,                
 
             viewportx: g_clipx,
             viewporty: g_clipy,
@@ -462,39 +559,43 @@ function surface_set_target_RELEASE(_id)
             worldh: g_worldh,
 
             cannvas_graphics: graphics,
+
+            ActiveCam: false,
         });
-        g_CurrentSurfaceIdStack.push(g_CurrentSurfaceId);
-        g_CurrentSurfaceId = _id;
+    }
+    g_CurrentSurfaceIdStack.push(g_CurrentSurfaceId);
+    g_CurrentDepthIdStack.push(g_CurrentDepthId);
+    g_CurrentSurfaceId = _id;
+    g_CurrentDepthId = _depth_id;
 
 
-        if (g_webGL) {
-            g_CurrentFrameBuffer = pSurf.FrameBuffer;
-            g_webGL.SetRenderTarget(pSurf.FrameBuffer);
-            g_RenderTargetActive = -1;
-        } else {
-            g_CurrentGraphics = pSurf.graphics;
-            graphics = pSurf.graphics;
-            Graphics_SetInterpolation_Auto(graphics);
-        }
+    if (g_webGL) {
+        g_CurrentFrameBuffer = pSurf.FrameBuffer;
+        g_CurrentDepthBuffer = g_SupportDepthTexture
+            ? pSurfDepth.textureDepth.webgl_textureid.Texture
+            : pSurfDepth.FrameBufferData.RenderBuffer;
+        g_webGL.SetRenderTarget(g_CurrentFrameBuffer, g_CurrentDepthBuffer);
+        g_RenderTargetActive = -1;
+    } else {
+        g_CurrentGraphics = pSurf.graphics;
+        graphics = pSurf.graphics;
+        Graphics_SetInterpolation_Auto(graphics);
+    }
 
 
-        Graphics_SetViewPort(0, 0, pSurf.m_Width, pSurf.m_Height);
+    Graphics_SetViewPort(0, 0, pSurf.m_Width, pSurf.m_Height);
 
-        if (g_isZeus) {
-            UpdateDefaultCamera(0, 0, pSurf.m_Width, pSurf.m_Height, 0);
-        }
-        else {
-            Graphics_SetViewArea(0, 0, pSurf.m_Width, pSurf.m_Height, 0);
-        }
+    UpdateDefaultCamera(0, 0, pSurf.m_Width, pSurf.m_Height, 0);
 
-        if (g_webGL) g_webGL.Flush();
-        DirtyRoomExtents();
+    if (g_webGL) g_webGL.Flush();
+    DirtyRoomExtents();
 
 
-        if (!g_webGL) {
-            Graphics_SetInterpolation_Auto(graphics);
-        }
-	}	
+    if (!g_webGL) {
+        Graphics_SetInterpolation_Auto(graphics);
+    }
+	
+    return true;
 }
 
 function surface_get_target() {
@@ -503,7 +604,9 @@ function surface_get_target() {
 
 }
 
-
+function surface_get_target_depth() {
+    return g_CurrentDepthId;
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -531,12 +634,27 @@ function surface_reset_target_RELEASE()
         g_worldw = storedState.worldw;
         g_worldh = storedState.worldh;
 
+        var activeCam = storedState.ActiveCam;
+        var camx, camy, camw, camh, cama, camviewmat, camprojmat;
+
+        if (activeCam == true)
+        {
+            camx = storedState.camx;
+            camy = storedState.camy;
+            camw = storedState.camw;
+            camh = storedState.camh;
+            cama = storedState.cama;
+            camviewmat = storedState.camviewmat;
+            camprojmat = storedState.camprojmat;
+        }
+
         if (!g_webGL) {
             graphics = storedState.cannvas_graphics;
             Graphics_Restore();
         } else {
             g_RenderTargetActive = storedState.RenderTargetActive;
             g_CurrentFrameBuffer = storedState.FrameBuffer;
+            g_CurrentDepthBuffer = storedState.DepthBuffer;
         }
 
         if (g_InGUI_Zone && g_SurfaceStack.length == 0) {
@@ -546,20 +664,29 @@ function surface_reset_target_RELEASE()
             Calc_GUI_Scale();
         } else {
             Graphics_SetViewPort(g_clipx, g_clipy, g_clipw, g_cliph);
-            if (g_isZeus) {
-                UpdateDefaultCamera(g_worldx, g_worldy, g_worldw, g_worldh, 0);
+            var currcam = g_pCameraManager.GetActiveCamera();
+            if ((activeCam == true) && (currcam != null))
+            {
+                UpdateCamera(camx, camy, camw, camh, cama, currcam);
+                currcam.SetViewMat(new Matrix(camviewmat));
+                currcam.SetProjMat(new Matrix(camprojmat));
+                currcam.ApplyMatrices();
             }
-            else {
-                Graphics_SetViewArea(g_worldx, g_worldy, g_worldw, g_worldh, 0);
+            else
+            {
+                UpdateDefaultCamera(g_worldx, g_worldy, g_worldw, g_worldh, 0);
             }
         }
     }
     else {
-        ErrorOnce("Error: Surface stacking error detected");
+        yyError("surface_reset_target : Surface stacking error detected");
     }
-    if (g_webGL) g_webGL.SetRenderTarget(g_CurrentFrameBuffer);
+    if (g_webGL) g_webGL.SetRenderTarget(g_CurrentFrameBuffer, g_CurrentDepthBuffer);
     g_CurrentSurfaceId = g_CurrentSurfaceIdStack.pop();
     if (g_CurrentSurfaceId == null) g_CurrentSurfaceId = -1;
+
+    g_CurrentDepthId = g_CurrentDepthIdStack.pop();
+    if (g_CurrentDepthId == null) g_CurrentDepthId = -1;
 
     if (!g_webGL) Graphics_SetInterpolation_Auto(graphics);
     DirtyRoomExtents();
@@ -615,12 +742,9 @@ function GetCanvasPixel(_buffer, _x, _y)
 ///				
 ///			</returns>
 // #############################################################################################
-var surface_getpixel = surface_getpixel_RELEASE;
-var surface_getpixel_ext = surface_getpixel_ext_RELEASE;
-function surface_getpixel_RELEASE(_id, _x, _y) 
-{
-    return surface_getpixel_ext_RELEASE(_id, _x, _y) &0xffffff;
-}
+function surface_getpixel(){}
+function surface_getpixel_ext(){}
+// @if feature("2d")
 function surface_getpixel_ext_RELEASE(_id, _x, _y) 
 {
     var pSurf = g_Surfaces.Get(yyGetInt32(_id));
@@ -630,6 +754,9 @@ function surface_getpixel_ext_RELEASE(_id, _x, _y)
 	}
 	return 0x00000000;
 }
+compile_if_used(surface_getpixel = (_id, _x, _y) => surface_getpixel_ext_RELEASE(_id, _x, _y) & 0xffffff);
+compile_if_used(surface_getpixel_ext = surface_getpixel_ext_RELEASE);
+// @endif
 
 
 
@@ -703,7 +830,8 @@ function surface_save_part(_id,_fname,_x,_y,_w,_h)
 ///				
 ///			</returns>
 // #############################################################################################
-var draw_surface = draw_surface_RELEASE;
+function draw_surface(){}
+// @if feature("2d")
 function draw_surface_RELEASE(_id, _x, _y) 
 {
     var pSurf = g_Surfaces.Get(yyGetInt32(_id));
@@ -721,6 +849,8 @@ function draw_surface_RELEASE(_id, _x, _y)
     }
     graphics.globalAlpha = alpha;
 }
+compile_if_used(draw_surface = draw_surface_RELEASE);
+// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -1028,7 +1158,9 @@ function draw_surface_general(_id,_left,_top,_width,_height,_x,_y,_xscale,_yscal
 ///				
 ///			</returns>
 // #############################################################################################
-function surface_copy(_destination,_x,_y,_source) {
+function surface_copy(){}
+// @if feature("2d") && function("surface_copy")
+surface_copy = (_destination,_x,_y,_source) => {
 
     var pDest = g_Surfaces.Get(yyGetInt32(_destination));
     var pSrc = g_Surfaces.Get(yyGetInt32(_source));
@@ -1041,7 +1173,8 @@ function surface_copy(_destination,_x,_y,_source) {
 		pImg.drawImage(pSrc, yyGetInt32(_x), yyGetInt32(_y));
 		pImg.restore();
 	}
-}
+};
+// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -1061,8 +1194,9 @@ function surface_copy(_destination,_x,_y,_source) {
 ///				
 ///			</returns>
 // #############################################################################################
-function surface_copy_part(_destination,_x,_y, _source,_xs,_ys,_ws,_hs) 
-{
+function surface_copy_part(){}
+// @if feature("2d") && function("surface_copy_part")
+surface_copy_part = (_destination,_x,_y, _source,_xs,_ys,_ws,_hs) => {
     var pDest = g_Surfaces.Get(yyGetInt32(_destination));
     var pSrc = g_Surfaces.Get(yyGetInt32(_source));
 	if( pDest!=null && pSrc!=null)
@@ -1095,7 +1229,8 @@ function surface_copy_part(_destination,_x,_y, _source,_xs,_ys,_ws,_hs)
 		pImg.drawImage(pSrc,  _xs,_ys,_ws,_hs,  _x, _y, _ws,_hs);
 		pImg.restore();
 	} 
-}
+};
+// @endif
 
 function SurfaceFormatSupported(_format)
 {        

@@ -244,6 +244,141 @@ function yyBuffer( _size, _type, _alignment, _srcbytebuff ) {
 	}
 }
 
+
+// #################################################################################################
+/// Function: yygetFloat16
+/// Description:
+///     Retrieve and decode a 16-bit floating-point number from a DataView.
+///
+/// Parameters:
+///     byteOffset - The offset where the 16-bit float is stored.
+///     littleEndian - Specifies the endianness of the data (true for little-endian, false for big-endian).
+///
+/// Returns:
+///     The decoded 16-bit floating-point number.
+///     If the input data is invalid or out of range, NaN is returned.
+// #################################################################################################
+DataView.prototype.yygetFloat16 = function (byteOffset, littleEndian) {
+    // byteOffset: The offset where the 16-bit float is stored
+    // littleEndian: Specifies the endianness of the data
+
+    // Used references: https://en.wikipedia.org/wiki/Half-precision_floating-point_format
+
+    // Read the 16-bit float as an unsigned integer
+    const uint16 = this.getUint16(byteOffset, littleEndian);
+
+    // Extract the sign bit (bit 15)
+    const sign = (uint16 & 0x8000) ? -1 : 1;
+
+    // Extract the exponent bits (bits 10-14)
+    const exponent = (uint16 >> 10) & 0x1F;
+
+    // Extract the mantissa bits (bits 0-9)
+    const mantissa = uint16 & 0x3FF;
+
+    if (exponent === 0) {
+        // If exponent is 0, it's a denormalized number or zero
+        if (mantissa === 0) {
+            // Zero
+            return sign * 0.0;
+        } else {
+            // Denormalized number
+            // Calculate the value using the formula for denormalized numbers
+            return sign * Math.pow(2, -14) * (mantissa / 1024);
+        }
+    } else if (exponent === 31) {
+        // If exponent is 31, it's infinity or NaN
+        if (mantissa === 0) {
+            // Positive or negative infinity
+            return (sign === 1) ? Infinity : -Infinity;
+        } else {
+            // NaN
+            return NaN;
+        }
+    } else {
+        // Normalized number
+        // Calculate the value using the formula for normalized numbers
+        return sign * Math.pow(2, exponent - 15) * (1 + mantissa / 1024);
+    }
+};
+
+// #################################################################################################
+/// Function: yysetFloat16
+/// Description:
+///     Encode and write a 16-bit floating-point number (float16) to a DataView.
+///
+/// Parameters:
+///     offset - The offset where the float16 will be written in the DataView.
+///     value - The float16 value to encode and write.
+///     littleEndian - Optional. Specifies the endianness of the data (true for little-endian, false for big-endian).
+///
+/// Returns:
+///     None.
+///
+/// Details:
+///     The function encodes the provided float16 value as per IEEE 754-2008 standard for half-precision
+///     floating-point numbers and writes it to the specified offset in the DataView. If the value is
+///     outside the representable range for float16, a RangeError is thrown.
+///
+///     Special cases:
+///     - If the value is 0, it is written as a positive zero.
+///     - If the value is NaN, it is written as the NaN representation.
+///
+/// Example Usage:
+///     const dataView = new DataView(new ArrayBuffer(2));
+///     dataView.yysetFloat16(0, 1.0, true); // Write float16 value 1.0 in little-endian
+// #################################################################################################
+DataView.prototype.yysetFloat16 = function(offset, value, littleEndian = true) {
+    let sign = 0;
+    let exponent = 0;
+    let mantissa = 0;
+
+    // Used references: https://en.wikipedia.org/wiki/Half-precision_floating-point_format
+    if (isNaN(value)) {
+        // If the value is NaN, use the standard NaN representation for float16.
+        mantissa = 0x200;
+        exponent = 0x1F;
+    } else if (value === Infinity || value === -Infinity) {
+        // Handling Infinity.
+        exponent = 0x1F;
+    } else if (value === 0) {
+        // Handling zero (both positive and negative).
+        sign = (1 / value === -Infinity) ? 0x8000 : 0;
+    } else {
+        sign = value < 0 ? 0x8000 : 0;
+        value = Math.abs(value);
+
+        if (value >= Math.pow(2, -14)) {
+            // Handle normal numbers.
+            let exponentAndMantissa = Math.floor(Math.log2(value) + 15);
+            exponent = exponentAndMantissa;
+            mantissa = Math.floor((value / Math.pow(2, exponent - 15) - 1) * 1024);
+
+            if (mantissa === 1024) {
+                // We might end in an exponent overflow state.
+                exponentAndMantissa += 1;
+                exponent = exponentAndMantissa;
+                mantissa = 0;
+            }
+
+            // Check if we overflow into Infinity.
+            if (exponentAndMantissa > 30) {
+                // Handle overflow to Infinity.
+                exponent = 0x1F;
+                mantissa = 0;
+            }
+        } else {
+            // Handle subnormal numbers.
+            mantissa = Math.floor(value / Math.pow(2, -24));
+        }
+    }
+
+    const float16 = sign | (exponent << 10) | mantissa;
+    this.setUint16(offset, float16, littleEndian);
+};
+
+
+
 // #############################################################################################
 /// Function:<summary>
 ///          	Return the size of a "type"
@@ -470,6 +605,11 @@ yyBuffer.prototype.yyb_read = function(_type) {
             res = new Long( this.m_DataView.getUint32(this.m_BufferIndex, true), 0);
             this.m_BufferIndex += 4;
             break;
+
+        case eBuffer_F16:
+            res = this.m_DataView.yygetFloat16(this.m_BufferIndex, true);
+            this.m_BufferIndex += 2;
+            break;
         case eBuffer_F32:
             res = this.m_DataView.getFloat32(this.m_BufferIndex, true);
             this.m_BufferIndex += 4;
@@ -478,6 +618,7 @@ yyBuffer.prototype.yyb_read = function(_type) {
             res = this.m_DataView.getFloat64(this.m_BufferIndex, true);
             this.m_BufferIndex += 8;
             break;
+            
         case eBuffer_U64:
             var low = this.m_DataView.getUint32(this.m_BufferIndex, true);
             this.m_BufferIndex += 4;
@@ -537,6 +678,7 @@ function BufferSizeOf(_type) {
 
 }
 
+// @if function("buffer_md5")
 function yyMD5(){
     this.i = new Uint32Array(2);   //[2];       //uint32
     this.buf = new Uint32Array(4); //[4];    //uint32
@@ -881,7 +1023,9 @@ function DoMD5(_buff, _size,_offset)
 	MD5Final( mdContext );
     return mdContext.yyb_hex();
 }
+// @endif buffer_md5
 
+// @if function("buffer_crc32")
 function crc32_init() { 
     var poly = -306674912; 
     var tab = new Array(256); 
@@ -908,6 +1052,7 @@ function crc32(b, pos, len) {
         crc = (tab[(crc ^ b[i]) & 255] ^ ((crc >>> 8) & 0x00ffffff)) >>> 0;
     return crc; 
 }
+// @endif
 
 
 // #############################################################################################
@@ -954,6 +1099,7 @@ yyBuffer.prototype.yyb_crc32 = function(_offset, _size)
 /// Function:<summary>
 ///          </summary>
 // #############################################################################################
+// @if function("buffer_md5")
 yyBuffer.prototype.yyb_md5 = function(_offset, _size) {
 
     if (this.m_Size == 0)
@@ -988,12 +1134,14 @@ yyBuffer.prototype.yyb_md5 = function(_offset, _size) {
         return DoMD5( new Uint8Array(this.m_pRAWUnderlyingBuffer, _offset, _size),_size, 0 );
     }
 };
+// @endif
 
 
 // #############################################################################################
 /// Function:<summary>
 ///          </summary>
 // #############################################################################################
+// @if function("buffer_sha1")
 yyBuffer.prototype.yyb_sha1 = function(_offset, _size) {
 
     if (this.m_Size == 0)
@@ -1027,6 +1175,7 @@ yyBuffer.prototype.yyb_sha1 = function(_offset, _size) {
     else
         return sha1_string_utf8(String.fromCharCode.apply(null, new Uint8Array(this.m_pRAWUnderlyingBuffer, _offset, _size)));
 };
+// @endif
 
 
 // #############################################################################################
@@ -1189,6 +1338,9 @@ yyBuffer.prototype.yyb_write = function(_type, _value) {
             var oldsize = this.m_Size;
             var newSize = this.m_Size;
 
+            if(newSize<4) 
+                newSize = 4;
+
             while ((this.m_BufferIndex + sizeneeded) > newSize) {
                 newSize = (newSize << 1); 
             }
@@ -1252,6 +1404,11 @@ yyBuffer.prototype.yyb_write = function(_type, _value) {
             this.m_DataView.setUint32(this.m_BufferIndex, _value, true);
             this.m_BufferIndex += 4;
             break;
+
+        case eBuffer_F16:
+            this.m_DataView.yysetFloat16(this.m_BufferIndex, _value, true);
+            this.m_BufferIndex += 2;
+            break;
         case eBuffer_F32:
             this.m_DataView.setFloat32(this.m_BufferIndex, _value, true);
             this.m_BufferIndex += 4;
@@ -1260,6 +1417,7 @@ yyBuffer.prototype.yyb_write = function(_type, _value) {
             this.m_DataView.setFloat64(this.m_BufferIndex, _value, true);
             this.m_BufferIndex += 8;
             break;
+        
         case eBuffer_U64:
             var int64Val = yyGetInt64(_value);
             this.m_DataView.setUint32(this.m_BufferIndex, int64Val.low, true);
@@ -1328,12 +1486,17 @@ yyBuffer.prototype.yyb_peek = function(_type, _offset) {
         case eBuffer_U32:
             res = this.m_DataView.getUint32(_offset, true);
             break;
+
+        case eBuffer_F16:
+            res = this.m_DataView.yygetFloat16(_offset, true);
+            break;
         case eBuffer_F32:
             res = this.m_DataView.getFloat32(_offset, true);
             break;
         case eBuffer_F64:
             res = this.m_DataView.getFloat64(_offset, true);
             break;
+
         case eBuffer_U64:
             var low = this.m_DataView.getUint32(_offset, true);
             var high = this.m_DataView.getUint32(_offset + 4, true);
@@ -1750,11 +1913,12 @@ function  buffer_create_from_vertex_buffer( vbindex, _type, _alignment )
         var buffindex = buffer_create(size, yyGetInt32(_type), _alignment);
         if (buffindex >= 0)
         {
+            var buffobj = g_BufferStorage.Get(buffindex);
             var ua0 = new Int8Array(vbuff.GetArrayBuffer(), 0, vbuff.GetVertexCount() * vbuff.GetFormat().ByteSize);
-            var ua1 = new Int8Array(g_BufferStorage.Get(buffindex).m_pRAWUnderlyingBuffer);
+            var ua1 = new Int8Array(buffobj.m_pRAWUnderlyingBuffer);
             for (var i = 0; i < size; i++)
                 ua1[i] = ua0[i];
-
+            buffobj.m_UsedSize = size;
             return buffindex;
         }
         else
@@ -1809,11 +1973,12 @@ function  buffer_create_from_vertex_buffer_ext( vbindex, _type, _alignment, _sta
         var buffindex = buffer_create(size, yyGetInt32(_type), _alignment);
         if (buffindex >= 0)
         {
+            var buffobj = g_BufferStorage.Get(buffindex);
             var ua0 = new Int8Array(vbuff.GetArrayBuffer(), offset, size);
-            var ua1 = new Int8Array(g_BufferStorage.Get(buffindex).m_pRAWUnderlyingBuffer);
+            var ua1 = new Int8Array(buffobj.m_pRAWUnderlyingBuffer);
             for (var i = 0; i < size; i++)
                 ua1[i] = ua0[i];
-
+            buffobj.m_UsedSize = size;
             return buffindex;
         }
         else
@@ -2130,6 +2295,131 @@ function buffer_copy(src_buffer, src_offset, size, dest_buffer, dest_offset) {
 
 }
 
+function _WrapIndex(index, size)
+{
+	return (index % size + size) % size;
+}
+
+// #############################################################################################
+/// Function:<summary>
+///             Copies number of elements with given stride from the source buffer to the destination
+///             buffer. Stride between copied elements can be different in the destination buffer
+///             than in the source buffer.
+///          </summary>
+// #############################################################################################
+function buffer_copy_stride(_src_buffer, _src_offset, _src_size, _src_stride, _src_count, _dest_buffer, _dest_offset, _dest_stride)
+{
+    var srcIndex = yyGetInt32(_src_buffer);
+    var srcBuffer = g_BufferStorage.Get(srcIndex);
+    if (!srcBuffer)
+    {
+        yyError("Illegal Source Buffer Index " + srcIndex);
+        return;
+    }
+
+    _src_offset = yyGetInt32(_src_offset);
+    if (_src_offset < 0)
+    {
+        src_offset = _WrapIndex(_src_offset, srcBuffer.m_Size);
+    }
+
+    _src_size = yyGetInt32(_src_size);
+    if (_src_size < 0)
+    {
+        yyError("Size cannot be a negative number");
+        return;
+    }
+
+    _src_stride = yyGetInt32(_src_stride);
+
+    _src_count = yyGetInt32(_src_count);
+    if (_src_count < 0)
+    {
+        yyError("Count cannot be a negative number");
+        return;
+    }
+
+    var destIndex = yyGetInt32(_dest_buffer);
+    var destBuffer = g_BufferStorage.Get(destIndex);
+    if (!destBuffer)
+    {
+        yyError("Illegal Destination Buffer Index " + destIndex);
+        return;
+    }
+
+    if (srcBuffer == destBuffer)
+    {
+        yyError("Source and Destination buffers can't be the same");
+        return;
+    }
+
+    if (_src_size == 0 || _src_count == 0)
+    {
+        // Nothing to copy...
+        return;
+    }
+
+    _dest_offset = yyGetInt32(_dest_offset);
+    if (_dest_offset < 0)
+    {
+        _dest_offset = _WrapIndex(_dest_offset, destBuffer.m_Size);
+    }
+
+    _dest_stride = yyGetInt32(_dest_stride);
+
+    // Grow destination buffer if possible
+    if (destBuffer.m_Type == eBuffer_Format_Grow)
+	{
+		var destSizeMin = Math.max(
+			_dest_offset + _src_size, // First element
+			_dest_offset + (_dest_stride * (_src_count - 1)) + _src_size); // Last element
+		if (destBuffer.m_Size < destSizeMin)
+		{
+			destBuffer.yyb_resize(destSizeMin);
+		}
+	}
+
+    // Copy data
+    var srcBytes = new Uint8Array(srcBuffer.m_pRAWUnderlyingBuffer);
+    var destBytes = new Uint8Array(destBuffer.m_pRAWUnderlyingBuffer);
+    var srcBuffSize = srcBuffer.m_Size;
+    var destBuffSize = destBuffer.m_Size;
+
+    for (var i = 0; i < _src_count; ++i)
+	{
+		for (var j = 0; j < _src_size; ++j)
+		{
+			var indexFrom = _src_offset + j;
+			if ((indexFrom < 0) || (indexFrom >= srcBuffSize))
+			{
+				if (srcBuffer.m_Type != eBuffer_Format_Wrap)
+				{
+					// Cannot wrap index in the source buffer...
+					return;
+				}
+				indexFrom = _WrapIndex(indexFrom, srcBuffSize);
+			}
+
+			var indexTo = _dest_offset + j;
+			if ((indexTo < 0) || (indexTo >= destBuffSize))
+			{
+				if (destBuffer.m_Type != eBuffer_Format_Wrap)
+				{
+					// Cannot wrap index in the destination buffer...
+					return;
+				}
+				indexTo = _WrapIndex(indexTo, destBuffSize);
+			}
+
+			destBytes[indexTo] = srcBytes[indexFrom];
+            destBuffer.m_UsedSize = Math.max(destBuffer.m_UsedSize, indexTo + 1);
+		}
+
+		_src_offset += _src_stride;
+		_dest_offset += _dest_stride;
+	}
+}
+
 // #############################################################################################
 /// Function:<summary>
 ///          </summary>
@@ -2388,6 +2678,7 @@ function buffer_load_async(_buffer, _fname, _offset, _size) {
     _buffer = yyGetInt32(_buffer);
     _fname = yyGetString(_fname);
     _offset = yyGetInt32(_offset);
+    _size = yyGetInt32(_size);
 
     var pBuff = g_BufferStorage.Get(_buffer);
     if (!pBuff) return -1;
@@ -2396,23 +2687,31 @@ function buffer_load_async(_buffer, _fname, _offset, _size) {
     var pTextFile = LoadBinaryFile_Block(_fname, true);
     if (pTextFile)
     {
-        if (_size >= 0 && pTextFile.length > _size)
+        // files from local storage are base64 encoded so "some trickery required"
+        var tmpbuffid = buffer_base64_decode(pTextFile);
+        // if we decoded successfully
+        if (tmpbuffid >= 0)
         {
-            pTextFile = pTextFile.slice(0, _size);
+            if (_size >= 0 && buffer_get_size(tmpbuffid) > _size)
+            {
+                // shrink the buffer down if we have to, this will change the size
+                // if _size is larger than our buffer size then this if block won't execute
+                // as if _size was -1
+                buffer_resize(tmpbuffid, _size);
+            }
+
+            // poll for the buffer size again as it could've been modified
+            buffer_copy(tmpbuffid, 0, buffer_get_size(tmpbuffid), _buffer, _offset);
+            buffer_delete(tmpbuffid);
+            tmpbuffid = -1; // we no longer need the decoded data, it should be copied.
+            
+            var pFile = g_pASyncManager.Add(_buffer, _fname, ASYNC_BINARY, undefined);
+            pFile.m_Complete = true;
+            pFile.m_Status = 200;   // HTTP okay
+            g_LastErrorStatus = 0;
+            return _buffer;
         }
-
-        var oldPos = pBuff.m_BufferIndex;
-
-        pBuff.m_BufferIndex = _offset;
-        pBuff.yyb_write(eBuffer_Text, pTextFile);
-
-        pBuff.m_BufferIndex = oldPos;
-        
-        var pFile = g_pASyncManager.Add(_buffer, _fname, ASYNC_BINARY, undefined);
-        pFile.m_Complete = true;
-        pFile.m_Status = 200;   // HTTP okay
-        g_LastErrorStatus = 0;
-        return _buffer;
+        // if not, try loading via http then
     }
     
     // kick off a load, and then file an async callback
@@ -2423,7 +2722,7 @@ function buffer_load_async(_buffer, _fname, _offset, _size) {
         X.responseType = "arraybuffer";
         X.onload = ASync_ImageLoad_Callback;
         X.ms_offset = _offset;
-        X.ms_size = yyGetInt32(_size);
+        X.ms_size = _size;
         X.ms_filename = _fname;
         X.ms_buffer = _buffer;
        
@@ -2621,6 +2920,38 @@ function buffer_get_surface(_buffer, _surface, _offset) {
     return true;
 }
 
+// #############################################################################################
+/// Function:<summary>
+///          	Copy contents of a depth buffer into a regular buffer.
+///          </summary>
+///
+/// In:		<param name="_buffer">The buffer to copy into.</param>
+///			<param name="_surface">The surface whose depth buffer to copy.</param>
+///			<param name="_offset">An offset (in bytes) within the buffer to start writing at.</param>
+///
+/// Out:	 <returns>
+///				Returns true on success or false on fail.
+///			 </returns>
+// #############################################################################################
+function buffer_get_surface_depth(_buffer, _surface, _offset)
+{
+    var pBuff = g_BufferStorage.Get(yyGetInt32(_buffer));
+    var pSurf = g_Surfaces.Get(yyGetInt32(_surface));
+    _offset = yyGetInt32(_offset);
+
+    if (!pBuff) {
+        yyError("buffer_get_surface_depth() - illegal buffer index " + yyGetInt32(_buffer));
+        return false;
+    }
+
+    if (!pSurf) {
+        yyError("buffer_get_surface_depth() - surface does not exist " + yyGetInt32(_surface));
+        return false;
+    }
+
+    // Surfaces don't have depth buffers when WebGL is disabled...
+    return false;
+}
 
 function buffer_set_used_size(_index, _size)
 {
@@ -2659,11 +2990,12 @@ function buffer_set_surface(_buffer, _surface, _offset)
         // Make new image data with space for the data
         var imgData = pImg.createImageData(pSurf.m_Width, pSurf.m_Height);
         var data = imgData.data;
+        var dataView = pBuff.m_DataView;
 
         // Copy in data
         var len = pSurf.m_Width * pSurf.m_Height * 4;
         for (var i = 0; i < len; i++) {
-            data[i] = pBuff.yyb_peek(eBuffer_U8, i+_offset);
+            data[i] = dataView.getUint8(i+_offset);
         }
 
         // SET the image data
@@ -2675,3 +3007,35 @@ function buffer_set_surface(_buffer, _surface, _offset)
     return true;
 }
 
+// #############################################################################################
+/// Function:<summary>
+///          	Copy data from a regular buffer into a surface's depth buffer.
+///          </summary>
+///
+/// In:		<param name="_buffer">The buffer to copy from.</param>
+///			<param name="_surface">The surface whose depth buffer to copy into.</param>
+///			<param name="_offset">An offset (in bytes) within the buffer to start reading from.</param>
+///
+/// Out:	 <returns>
+///				Returns true on success or false on fail.
+///			 </returns>
+// #############################################################################################
+function buffer_set_surface_depth(_buffer, _surface, _offset)
+{
+    var pBuff = g_BufferStorage.Get(yyGetInt32(_buffer));
+    var pSurf = g_Surfaces.Get(yyGetInt32(_surface));
+    _offset = yyGetInt32(_offset);
+
+    if (!pBuff) {
+        yyError("buffer_set_surface_depth() - illegal buffer index " + yyGetInt32(_buffer));
+        return false;
+    }
+
+    if (!pSurf) {
+        yyError("buffer_set_surface_depth() - surface does not exist " + yyGetInt32(_surface));
+        return false;
+    }
+
+    // Surfaces don't have depth buffers when WebGL is disabled...
+    return false;
+}

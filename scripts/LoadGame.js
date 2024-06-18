@@ -1,4 +1,4 @@
-﻿// **********************************************************************************************************************
+// **********************************************************************************************************************
 // 
 // Copyright (c)2011, YoYo Games Ltd. All Rights reserved.
 // 
@@ -36,7 +36,9 @@ function InitAboyne()
     global = new yyGameGlobals();
     g_pBuiltIn = new yyBuiltIn();
 	g_pIOManager = new yyIOManager();
+	/// @if feature("gamepad")
 	g_pGamepadManager = new yyGamepadManager();
+	/// @endif
 
 	g_pBuiltIn.pointer_null = new ArrayBuffer(1);
 	g_pBuiltIn.pointer_invalid = new ArrayBuffer(1);	
@@ -48,30 +50,45 @@ function InitAboyne()
     g_pInstanceManager = new yyInstanceManager();
 	g_pObjectManager = new yyObjectManager();
     g_pRoomManager = new yyRoomManager();
+	// @if feature("sprites")
 	g_pSpriteManager = new yySpriteManager();
+	// @endif sprites
 	g_pTextureGroupInfoManager = new yyTextureGroupInfoManager();
     g_pBackgroundManager = new yyBackgroundManager();
+	// @if feature("audio")
     g_pSoundManager = new yySoundManager();
+	// @endif audio
+	// @if feature("fonts")
     g_pFontManager = new yyFontManager();
+	// @endif fonts
     g_pCollisionList = [];
+	// @if feature("paths")
     g_pPathManager = new yyPathManager();
+	// @endif
+	// @if feature("timelines")
     g_pTimelineManager = new yyTimelineManager();
+	// @endif
+	// @if feature("animcurves")
     g_pAnimCurveManager = new yyAnimCurveManager();
+	// @endif
+	// @if feature("sequences")
     g_pSequenceManager = new yySequenceManager();
+	// @endif
     g_pTagManager = new TagManager();
     g_pASyncManager = new yyASyncManager();
     g_pLayerManager = new LayerManager();
+	// @if feature("layerEffects")
 	g_pEffectsManager = new yyEffectsManager();
+	// @endif
     g_pCameraManager = new CameraManager();
     InitAboyneGlobals();
 
-    Audio_Init(); 
+    // @if feature("audio")
+	Audio_Init(); 
+	// @endif audio
 
-	if (g_isZeus)
-	{
-		g_pCameraManager.Clean();
-		CreateDefaultCamera();
-	}
+	g_pCameraManager.Clean();
+	CreateDefaultCamera();
 }
 
 
@@ -170,6 +187,7 @@ function LoadedGame_ExtensionError(_event) {
 ///          	Callbacks for sound loading... (this is set to the image)
 ///          </summary>  
 // #############################################################################################
+// @if feature("audio")
 function ClearEventListeners(_snd) {
 	_snd.removeEventListener('canplaythrough', LoadGame_SoundLoad, false);
 	_snd.removeEventListener('error', LoadGame_SoundLoad_Error, false);
@@ -227,7 +245,7 @@ function LoadGame_SoundLoad_Suspended(_event) {
 function LoadGame_SoundLoad_Stalled(_event) {
 	//debug(this.URL + ' loading stalled');
 }
-
+// @endif audio
 
 
 // #############################################################################################
@@ -339,7 +357,7 @@ function PreLoadExtensions(_GameFile) {
 ///          </summary>
 // #############################################################################################
 function LoadSkeletonData(_filename) {
-
+	// @if feature("spine")
     g_LoadingTotal++;
 	var request = new XMLHttpRequest();
     request.open('GET', CheckWorkingDirectory(_filename), true);        
@@ -349,6 +367,7 @@ function LoadSkeletonData(_filename) {
         g_pSpriteManager.SkeletonLoad(request.responseText); 
     };
     request.onerror = function (ev) { g_LoadingCount++; };    
+	// @endif spine
 }
 
 
@@ -358,7 +377,7 @@ function LoadSkeletonData(_filename) {
 ///          </summary>
 // #############################################################################################
 function LoadSwfData(_filename) {
-
+	// @if feature("swf")
     g_LoadingTotal++;	    
 	var request = new XMLHttpRequest();
     request.open('GET', CheckWorkingDirectory(_filename), true);
@@ -369,6 +388,7 @@ function LoadSwfData(_filename) {
         g_pSpriteManager.SWFLoad(request.response || request.responseText); 
     };
     request.onerror = function (ev) { g_LoadingCount++; };    
+	// @endif swf
 }
 
 // #############################################################################################
@@ -439,16 +459,21 @@ function LoadGame_PreLoadAssets(_GameFile)
 	}
 	
 	// Load SWF data if it's present
+	// @if feature("swf")
 	if ((_GameFile.Swfs !== null) && (_GameFile.Swfs !== undefined)) {	
 	    LoadSwfData(_GameFile.Swfs);
     }
+	// @endif
     
     // Load Spine data if it's present
+	// @if feature("spine")
 	if ((_GameFile.Skel !== null) && (_GameFile.Skel !== undefined)) {	
 	    LoadSkeletonData(_GameFile.Skel);
     }
+	// @endif
 
 	// Load the particle textures
+	// @if feature("particles") && feature("particle_images")
 	if (true == g_pGMFile.Options.UseParticles) {
 		for (var i = 2; i < 16; i++){
 			g_LoadingTotal++;
@@ -460,14 +485,16 @@ function LoadGame_PreLoadAssets(_GameFile)
 			g_Textures[t].URL = "particles/IDR_GIF" + i + ".png";		
 		}
 	}
+	// @endif
 
 
 	// Now load WAV files (not mp3/ogg)
+	// @if feature("audio")
 	if(g_AudioModel == Audio_WebAudio)
     {
         for (index = 0; index < _GameFile.Sounds.length; index++)
 	    {
-		    if(  _GameFile.Sounds[index]!==null)
+		    if( _GameFile.Sounds[index] && (  _GameFile.Sounds[index]!==null))
 		    {
 	            var groupId = 0;    //default
 	            if( _GameFile.Sounds[index].groupId !== undefined ){
@@ -531,6 +558,7 @@ function LoadGame_PreLoadAssets(_GameFile)
 		    }
 	    }
 	}		
+	// @endif audio load
 }
 
 
@@ -676,6 +704,7 @@ function CreateCollisionArrays() {
 	for (var ID1 = 0; ID1 < pool.length; ID1++)
 	{
 		var pObj = pool[ID1];
+		if (pObj === undefined) continue;
 		if (pObj.pParent !== null){
 			AddCollision(pObj.pParent.ID, pObj.pParent);
 		}
@@ -720,7 +749,7 @@ function LoadGame(_GameFile)
     for (var index = 0; index < _GameFile.GMObjects.length; index++)
     {
         var pObjStorage = _GameFile.GMObjects[index];        
-        if( pObjStorage!==null ){
+        if (( pObjStorage!==null ) && (pObjStorage !== undefined)) {
             var pObject = CreateObjectFromStorage( id,pObjStorage );
 	        g_pObjectManager.Add( pObject );
 	    }
@@ -741,24 +770,31 @@ function LoadGame(_GameFile)
 	Graphics_SetEntryTable(_GameFile.TPageEntries);
 
     // Load Sprites
+	// @if feature("sprites")
     for(index=0; index<_GameFile.Sprites.length; index++ ){
-        if(  _GameFile.Sprites[index]===null ){
+        if (!_GameFile.Sprites[index] || (  _GameFile.Sprites[index]===null )) {
             g_pSpriteManager.AddSprite( null );
         }else{
             var pSprite = CreateSpriteFromStorage( _GameFile.Sprites[index] ); 
             g_pSpriteManager.AddSprite( pSprite );
         }
     }
+	// @endif sprites
     
 
     // Load Backgrounds
-    for(index=0; index<_GameFile.Backgrounds.length; index++ ){
-    	var im = g_pBackgroundManager.AddImage(_GameFile.Backgrounds[index]);
-    	var pImage = g_pBackgroundManager.GetImage(im);
-		if( pImage!==null ) pImage.copy = TPE_Copy;
+    for(index=0; index<_GameFile.Backgrounds.length; index++ ){    	
+    	if (!_GameFile.Backgrounds[index]) {
+			g_pBackgroundManager.AddImage(null);
+    	} else {
+	    	var im = g_pBackgroundManager.AddImage(_GameFile.Backgrounds[index]);
+	    	var pImage = g_pBackgroundManager.GetImage(im);
+			if( pImage!==null ) pImage.copy = TPE_Copy;
+		} // end else
     }
     
     // Load Fonts
+	// @if feature("fonts")
     for(index=0; index<_GameFile.Fonts.length; index++ ){
         g_pFontManager.Add( _GameFile.Fonts[index]);
     }
@@ -771,12 +807,13 @@ function LoadGame(_GameFile)
     		g_pFontManager.AddEmbedded(_GameFile.EmbeddedFonts[index]);
 		}
 	}
+	// @endif fonts
 
     //Make Rooms    
     for (var index = 0; index < _GameFile.GMRooms.length; index++)
     {
         var pRoomStorage = _GameFile.GMRooms[index];
-        if( pRoomStorage !== null ){
+        if(pRoomStorage && ( pRoomStorage !== null )){
             pRoom = new yyRoom();
 
             // MJD: NO idea why this is done. Rooms are re-created from storage on ROOM START 
@@ -827,34 +864,43 @@ function LoadGame(_GameFile)
 
 
     // Load Sounds
+	// @if feature("audio")
     for(index=0; index<_GameFile.Sounds.length; index++ ){
         g_pSoundManager.Add( _GameFile.Sounds[index]);
     }
+	// @endif audio
     
 
     // Load Timelines
+	// @if feature("timelines")
     if (_GameFile.Timelines !== undefined) {
         for(index=0; index<_GameFile.Timelines.length; index++ ){
             g_pTimelineManager.Add( _GameFile.Timelines[index]);
         }
     }
+	// @endif
 
 
     // Load AnimCurves
+	// @if feature("animcurves")
     if (_GameFile.AnimCurves !== undefined) {
         for (index = 0; index < _GameFile.AnimCurves.length; index++) {
             g_pAnimCurveManager.Add(_GameFile.AnimCurves[index]);
         }
     }
+	// @endif
 
     // Load Sequences
+	// @if feature("sequences")
     if (_GameFile.Sequences !== undefined) {
         for (index = 0; index < _GameFile.Sequences.length; index++) {
             g_pSequenceManager.Add(_GameFile.Sequences[index]);
         }
     }
+	// @endif
 
 	// Load Particle System Emitters
+	// @if feature("particles")
     if (_GameFile.PSEmitters !== undefined) {
 		ParticleSystem_Emitters_Load(_GameFile);
     }
@@ -865,14 +911,17 @@ function LoadGame(_GameFile)
 			CParticleSystem.CreateFromJSON(_GameFile.ParticleSystems[index]);
         }
     }
+	// @endif
 
 	// Load Effect Defs
+	// @if feature("layerEffects")
 	if (_GameFile.FiltersAndEffectDefs !== undefined) {
 		for (index = 0; index < _GameFile.FiltersAndEffectDefs.length; index++) {
 			var def = _GameFile.FiltersAndEffectDefs[index];
             g_pEffectsManager.AddEffectInfo(def.name, def.json);
         }
 	}
+	// @endif
 
     //Load Tags
     if( Tags !== undefined && IDToTagList !== undefined ) {
@@ -895,6 +944,7 @@ function LoadGame(_GameFile)
 					pTGInfo.textures[i] = g_YYTextures[pStore.TextureIDs[i]];			// need to remap the texture IDs here
 				}
 			}
+			// @if feature("sprites")
 			if (pStore.SpriteIDs !== undefined)
 			{
 				for(var i = 0; i < pStore.SpriteIDs.length; i++)
@@ -902,6 +952,8 @@ function LoadGame(_GameFile)
 					pTGInfo.sprites[i] = pStore.SpriteIDs[i];
 				}
 			}
+			// @endif sprites
+			// @if feature("spine")
 			if (pStore.SpineSpriteIDs !== undefined)
 			{
 				for(var i = 0; i < pStore.SpineSpriteIDs.length; i++)
@@ -909,6 +961,8 @@ function LoadGame(_GameFile)
 					pTGInfo.spinesprites[i] = pStore.SpineSpriteIDs[i];
 				}
 			}
+			// @endif
+			// @if feature("fonts")
 			if (pStore.FontIDs !== undefined)
 			{
 				for(var i = 0; i < pStore.FontIDs.length; i++)
@@ -916,6 +970,7 @@ function LoadGame(_GameFile)
 					pTGInfo.fonts[i] = pStore.FontIDs[i];
 				}
 			}
+			// @endif fonts
 			if (pStore.TilesetIDs !== undefined)
 			{
 				for(var i = 0; i < pStore.TilesetIDs.length; i++)
@@ -931,8 +986,10 @@ function LoadGame(_GameFile)
 	}
 
 	// Load the games hiscore table
+	// @if function("draw_highscore") || function("highscore_*")
 	highscore_clear();
     highscore_load();
+	// @endif
 
 
 

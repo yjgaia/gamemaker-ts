@@ -20,6 +20,20 @@ function yyBitField(_numbits)
 {     
     var m_val = []; 
     var m_arraysize; 
+    var m_remaindermask;
+    var m_numbits;
+
+    var _CalcRemainderMask = function()
+    {
+        var remainingbits = m_numbits - ((m_arraysize - 1) * 32);
+        m_remaindermask = 0xffffffff;        
+        for(var i = 0; i < remainingbits; i++)
+        {
+            m_remaindermask <<= 1;            
+        }
+
+        m_remaindermask = ~m_remaindermask;
+    };
  
     (function() { 
      
@@ -27,10 +41,10 @@ function yyBitField(_numbits)
         // on 32 bit values, so we'll store an array of 32 bit chunks 
         if (_numbits == undefined) 
             _numbits = 32; 
+
+        m_numbits = _numbits;
  
-        m_arraysize = ~~(_numbits / 32); 
-        if (m_arraysize == 0) 
-            m_arraysize = 1; 
+        m_arraysize = ~~((m_numbits + 31) / 32);
  
         m_val = new Array(m_arraysize); 
  
@@ -38,16 +52,23 @@ function yyBitField(_numbits)
         { 
             m_val[i] = 0x0; 
         } 
-    })(); 
+
+        _CalcRemainderMask();
+    })();     
  
     this.NumBits = function() 
     { 
-        return _numbits; 
+        return m_numbits; 
+    };
+
+    this.Val = function()
+    {
+        return m_val;
     };
  
     this.SetBit = function(_bit) 
     { 
-        if (_bit >= _numbits) 
+        if (_bit >= m_numbits) 
             return; 
  
         var entry = ~~(_bit / 32); 
@@ -57,7 +78,7 @@ function yyBitField(_numbits)
  
     this.ClearBit = function(_bit) 
     { 
-        if (_bit >= _numbits) 
+        if (_bit >= m_numbits) 
             return; 
  
         var entry = ~~(_bit / 32); 
@@ -67,7 +88,7 @@ function yyBitField(_numbits)
  
     this.GetBit = function(_bit) 
     { 
-        if (_bit >= _numbits) 
+        if (_bit >= m_numbits) 
             return 0; 
  
         var entry = ~~(_bit / 32); 
@@ -78,22 +99,13 @@ function yyBitField(_numbits)
  
     this.SetAllBits = function() 
     { 
-        // Set full DWORDS first 
         var i; 
-        for(i = 0; i < (m_arraysize-1); i++) 
+        for(i = 0; i < m_arraysize; i++) 
         { 
             m_val[i] = 0xffffffff; 
         } 
- 
-        var bitsleft = _numbits - (i * 32); 
-        var j; 
-        var bit = 1; 
-        for(j = 0; j < bitsleft; j++ ) 
-        { 
-            m_val[i] |= bit; 
-            bit<<=1; 
-        } 
-         
+
+        m_val[m_arraysize - 1] &= m_remaindermask;
     };
  
     this.ClearAllBits = function() 
@@ -118,51 +130,286 @@ function yyBitField(_numbits)
  
     this.Or = function(_other) 
     { 
-        // Not particularly efficient 
-        // TODO: do in 4 byte chunks 
-        var numBits = _other.NumBits() > this.NumBits() ? _other.NumBits() : this.NumBits(); 
-        var newBits = new yyBitField(numBits); 
- 
-        for(var i = 0; i < numBits; i++) 
-        { 
-            var bitVal = this.GetBit(i) | _other.GetBit(i); 
-            if (bitVal == 1)             
+        var newBits;
+        if (this.NumBits() < _other.NumBits())
+        {
+            newBits = new yyBitField(_other.NumBits());                        
+            
+            var i;
+            for(i = 0; i < m_arraysize; i++) 
             { 
-                newBits.SetBit(i); 
-            }  
-        }         
+                newBits.m_val[i] = m_val[i] | _other.Val()[i];                    
+            }
+
+            for(; i < _other.m_arraysize; i++) 
+            { 
+                newBits.m_val[i] = _other.Val()[i];                    
+            }
+        }
+        else
+        {           
+            newBits = new yyBitField(this.NumBits());
+                 
+            var i;
+            for(i = 0; i < _other.m_arraysize; i++) 
+            { 
+                newBits.m_val[i] = m_val[i] | _other.Val()[i];
+            }   
+
+            for(; i < m_arraysize; i++) 
+            { 
+                newBits.m_val[i] = m_val[i];
+            }   
+        }           
  
         return newBits; 
     };
  
     this.And = function(_other) 
     { 
-        // Not particularly efficient 
-        // TODO: do in 4 byte chunks 
-        var numBits = _other.NumBits() > this.NumBits() ? _other.NumBits() : this.NumBits(); 
-        var newBits = new yyBitField(numBits); 
- 
-        for(var i = 0; i < numBits; i++) 
-        { 
-            var bitVal = this.GetBit(i) & _other.GetBit(i); 
-            if (bitVal == 1)             
+        var newBits;
+        if (this.NumBits() < _other.NumBits())
+        {
+            newBits = new yyBitField(_other.NumBits());                        
+            
+            for(var i = 0; i < m_arraysize; i++) 
             { 
-                newBits.SetBit(i); 
+                newBits.m_val[i] = m_val[i] & _other.Val()[i];                    
+            }            
+        }
+        else
+        {           
+            newBits = new yyBitField(this.NumBits());
+                        
+            for(var i = 0; i < _other.m_arraysize; i++) 
+            { 
+                newBits.m_val[i] = m_val[i] & _other.Val()[i];
             }   
-        }         
- 
+        }           
         return newBits; 
     };
+
+    this.Not = function()
+    {
+        var newBits = new yyBitField(_numbits);
+        for(i = 0; i < m_arraysize; i++)
+        {
+            newBits.m_val[i] = ~(m_val[i]);
+        }
+        newBits.val[m_arraysize - 1] &= newBits.m_remaindermask;    // mask off unused bits
+
+        return newBits;
+    };
+
+    this.OrEquals = function(_other) 
+    { 
+        // This all assumes that bits outside of the _numbits range are zeroed
+        if (_other.NumBits() == this.NumBits())
+        {
+            for(var i = 0; i < m_arraysize; i++)
+            {
+                m_val[i] |= _other.Val()[i];
+            }
+        }
+        else
+        {            
+            if (this.NumBits() < _other.NumBits())
+            {
+                var newArraySize = _other.m_arraysize;
+                var newVal = new Array(newArraySize);                 
+    
+                var i;
+                for(i = 0; i < m_arraysize; i++) 
+                { 
+                    newVal[i] = m_val[i] | _other.Val()[i];                    
+                }
+
+                for(; i < newArraySize; i++)
+                {
+                    newVal[i] = _other.Val()[i];
+                }
+
+                m_arraysize = newArraySize;
+                m_val = newVal;       
+                
+                _CalcRemainderMask();
+            }
+            else
+            {           
+                var otherArraySize = _other.m_arraysize;
+                var i;
+                for(i = 0; i < otherArraySize; i++) 
+                { 
+                    m_val[i] |= _other.Val()[i];
+                }            
+            }            
+        }         
+    };
+
+    this.AndEquals = function(_other) 
+    { 
+        // This all assumes that bits outside of the _numbits range are zeroed        
+        if (_other.NumBits() == this.NumBits())
+        {
+            for(var i = 0; i < m_arraysize; i++)
+            {
+                m_val[i] &= _other.Val()[i];
+            }
+        }
+        else
+        {            
+            if (this.NumBits() < _other.NumBits())
+            {
+                var newArraySize = _other.m_arraysize;
+                var newVal = new Array(newArraySize);                 
+    
+                var i;
+                for(i = 0; i < m_arraysize; i++) 
+                { 
+                    newVal[i] = m_val[i] & _other.Val()[i];                    
+                }
+
+                for(; i < newArraySize; i++)
+                {
+                    newVal[i] = 0;
+                }
+
+                m_arraysize = newArraySize;
+                m_val = newVal;    
+                
+                _CalcRemainderMask();
+            }
+            else
+            {           
+                var otherArraySize = _other.m_arraysize;
+                var i;
+                for(i = 0; i < otherArraySize; i++) 
+                { 
+                    m_val[i] &= _other.Val()[i];                    
+                }   
+                
+                for(; i < m_arraysize; i++)
+                {
+                    m_val[i] = 0;
+                }
+            }            
+        }         
+    };
 }
+
+// Specialised version of the above for more efficient 64bit bitfield handling
+function yyBitField64() 
+{ 
+    this.m_hi = 0;
+    this.m_lo = 0;        
+}
+
+yyBitField64.prototype.SetBit = function(_bit) 
+{ 
+    if (_bit > 31)
+    {
+        this.m_hi |= 1 << (_bit - 32);
+    }
+    else
+    {
+        this.m_lo |= 1 << _bit;
+    }
+};
+ 
+yyBitField64.prototype.ClearBit = function(_bit) 
+{ 
+    if (_bit > 31)
+    {
+        this.m_hi &= ~(1 << (_bit - 32));
+    }
+    else
+    {
+        this.m_lo &= ~(1 << _bit);
+    }        
+};
+ 
+yyBitField64.prototype.GetBit = function(_bit) 
+{ 
+    if (_bit > 31)
+    {
+        return (this.m_hi >> (_bit - 32)) & 0x1;
+    }
+    else
+    {
+        return (this.m_lo >> _bit) & 0x1;
+    }        
+};
+ 
+yyBitField64.prototype.SetAllBits = function() 
+{ 
+    this.m_hi = 0xffffffff;
+    this.m_lo = 0xffffffff;
+};
+ 
+yyBitField64.prototype.ClearAllBits = function() 
+{ 
+    this.m_hi = 0;
+    this.m_lo = 0;        
+};
+ 
+yyBitField64.prototype.AnyBitSet = function() 
+{ 
+    return (this.m_hi | this.m_lo) ? 1 : 0;        
+};
+ 
+yyBitField64.prototype.Or = function(_other) 
+{ 
+    var newBits = new yyBitField64();
+    newBits.m_hi = this.m_hi | _other.m_hi;
+    newBits.m_lo = this.m_lo | _other.m_lo;        
+
+    return newBits; 
+};
+ 
+yyBitField64.prototype.And = function(_other) 
+{ 
+    var newBits = new yyBitField64();
+    newBits.m_hi = this.m_hi & _other.m_hi;
+    newBits.m_lo = this.m_lo & _other.m_lo;        
+
+    return newBits;         
+};
+
+yyBitField64.prototype.Not = function()
+{
+    var newBits = new yyBitField64();
+    newBits.m_hi = ~this.m_hi;
+    newBits.m_lo = ~this.m_lo;        
+
+    return newBits;              
+};
+
+yyBitField64.prototype.OrEquals = function(_other) 
+{ 
+    this.m_hi |= _other.m_hi;
+    this.m_lo |= _other.m_lo;        
+};
+
+yyBitField64.prototype.AndEquals = function(_other) 
+{ 
+    this.m_hi &= _other.m_hi;
+    this.m_lo &= _other.m_lo;        
+};
  
 function yyRenderStateCollection(_numrenderstates, _numsamplers, _numsamplerstates) 
 { 
     var renderStates = []; 
     var samplerStates = [];     
+
+    // These are not applied in a deferred way like other states
+	// But are just here so we can track this information
+    var textures = [];
  
     (function() { 
         renderStates = new Array(_numrenderstates); 
         samplerStates = new Array(_numsamplers * _numsamplerstates); 
+
+        textures = new Array(_numsamplers);        
     })(); 
 
     Object.defineProperties(this, {
@@ -174,6 +421,11 @@ function yyRenderStateCollection(_numrenderstates, _numsamplers, _numsamplerstat
         m_samplerStates: {
 	        get: function () { return samplerStates; },
             set: function (val) { samplerStates = val; }
+	    },
+
+        m_textures: {
+	        get: function () { return textures; },
+            set: function (val) { textures = val; }
 	    },
 	});
 } 
@@ -260,8 +512,8 @@ function yyRenderStateManager(_numTextureStages,_stackSize,_commandBuilder,_inte
         m_current.m_renderStates[yyGL.RenderState_StencilPass]=yyGL.StencilOp_Keep; 
         m_current.m_renderStates[yyGL.RenderState_StencilFunc]=yyGL.CmpFunc_CmpAlways; 
         m_current.m_renderStates[yyGL.RenderState_StencilRef]=0; 
-        m_current.m_renderStates[yyGL.RenderState_StencilMask]=0xffffffff; 
-        m_current.m_renderStates[yyGL.RenderState_StencilWriteMask]=0xffffffff; 
+        m_current.m_renderStates[yyGL.RenderState_StencilMask]=0xff; 
+        m_current.m_renderStates[yyGL.RenderState_StencilWriteMask]=0xff; 
         m_current.m_renderStates[yyGL.RenderState_SeparateAlphaBlendEnable]=false; 
         m_current.m_renderStates[yyGL.RenderState_SrcBlendAlpha]=yyGL.Blend_SrcAlpha; 
         m_current.m_renderStates[yyGL.RenderState_DestBlendAlpha]=yyGL.Blend_InvSrcAlpha; 
@@ -296,6 +548,12 @@ function yyRenderStateManager(_numTextureStages,_stackSize,_commandBuilder,_inte
         { 
             m_next.m_samplerStates[i] = m_current.m_samplerStates[i]; 
         } 
+
+        // Set up initial texture info
+        for (i = 0; i < _numTextureStages; i++)
+        {
+            m_current.m_textures[i] = null;
+        }
  
         m_stackTop = 0; 
     };
@@ -375,6 +633,39 @@ function yyRenderStateManager(_numTextureStages,_stackSize,_commandBuilder,_inte
         // having to constantly allocate new instances         
         m_anyChange = m_changeFlags.AnyBitSet() || m_changeSamplerFlags.AnyBitSet(); 
     };
+
+    this.SetTexture = function(_stage, _texture)
+    {
+        // This doesn't set the texture on the back end but just caches the value
+        // It would probably make sense to actually make this a deferred thing like other state
+        if ((_stage < 0) || (_stage >= _numTextureStages))
+            return;
+
+        // Note that since we're not deferring texture setting we're using m_current rather than m_next        
+        m_current.m_textures[_stage] = _texture;
+    };
+
+    this.ClearTexture = function(_texture)
+    {
+        if (_texture != null)
+        {
+            for(var i = 0; i < _numTextureStages; i++)
+            {
+                if (m_current.m_textures[i] == _texture)
+                {
+                    m_current.m_textures[i] = null;
+                }
+
+                for(var j = 0; j < m_stackTop; j++)
+                {
+                    if (m_stack[j].m_textures[i] == _texture)
+                    {
+                        m_stack[j].m_textures[i] = null;
+                    }
+                }
+            }
+        }
+    };    
  
     this.GetRenderState = function(_state) 
     { 
@@ -385,11 +676,22 @@ function yyRenderStateManager(_numTextureStages,_stackSize,_commandBuilder,_inte
     { 
         return m_next.m_samplerStates[(_stage*yyGL.SamplerState_MAX)+_state]; 
     };
+
+    this.GetTexture = function(_stage)
+    {
+        if ((_stage < 0) || (_stage >= _numTextureStages))
+            return null;
+
+        return m_current.textures[_stage];
+    };
  
     this.SaveStates = function() 
     { 
         m_stack[m_stackTop].m_renderStates = m_next.m_renderStates.slice(); 
         m_stack[m_stackTop].m_samplerStates = m_next.m_samplerStates.slice(); 
+
+        // Note that because texture setting isn't currently deferred we're copying from m_current rather than m_next
+        m_stack[m_stackTop].m_textures = m_current.m_textures.slice();
  
         if (m_stackTop < _stackSize) 
         { 
@@ -401,7 +703,7 @@ function yyRenderStateManager(_numTextureStages,_stackSize,_commandBuilder,_inte
         } 
     };
  
-    this.RestoreStates = function() 
+    this.RestoreStates = function(_setTextures) 
     { 
         if (m_stackTop > 0) 
         { 
@@ -427,6 +729,17 @@ function yyRenderStateManager(_numTextureStages,_stackSize,_commandBuilder,_inte
                 this.SetSamplerState(i, j, m_stack[m_stackTop].m_samplerStates[(i * _numTextureStages) + j]); 
             } 
         } 
+
+        if ((_setTextures != undefined) && (_setTextures == true))
+        {
+            if (g_webGL)
+            {
+                for(i = 0; i < _numTextureStages; i++)
+                {
+                    g_webGL.SetTexture(i, m_stack[m_stackTop].m_textures[i]);
+                }
+            }
+        }
     };
  
     this.Flush = function() 

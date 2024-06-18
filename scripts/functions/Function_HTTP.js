@@ -22,17 +22,16 @@ function HTTP_onload(_xmlhttp, _pFile) {
     if ((_xmlhttp.status < 200) || (_xmlhttp.status >= 300))
 	{
 		_pFile.m_Status = ASYNC_WEB_STATUS_ERROR;
-		_pFile.m_Data = "";
-	}
-	else {
+	} else {
 	    _pFile.m_Status = ASYNC_WEB_STATUS_LOADED;
-	    try {
-	        // If the responseType was changed to 'arraybuffer' this assignment will fail and trigger an exception
-	        _pFile.m_Data = _xmlhttp.responseText;
-	    }
-	    catch (e) {
-	        _pFile.m_Data = "";
-	    }
+	}
+
+	try {
+		// If the responseType was changed to 'arraybuffer' this assignment will fail and trigger an exception
+		_pFile.m_Data = _xmlhttp.responseText;
+	}
+	catch (e) {
+		_pFile.m_Data = "";
 	}
 }
 
@@ -430,12 +429,14 @@ function http_request(_url, _method, _headerMap, _body)
 
     // Turn the supplied header ds_map into a set of key-value pairs
     var headers = [];
-    var pMap = g_ActiveMaps.Get(_headerMap);    
-    for (const [key, item] of pMap) {    
-        var v = key;
-        if (pMap.originalKeys && pMap.originalKeys.has(key))
-            v = pMap.originalKeys.get(key);        	
-	    headers.push({ key: v, value: item  });
+    var pMap = g_ActiveMaps.Get(_headerMap);
+    if (pMap !== null) {
+        for (const [key, item] of pMap) {
+            var v = key;
+            if (pMap.originalKeys && pMap.originalKeys.has(key))
+                v = pMap.originalKeys.get(key);
+            headers.push({ key: v, value: item  });
+        }
     }
     // If the "_body" is a number then it's an index to a binary buffer
     if (typeof(_body) === 'number') {

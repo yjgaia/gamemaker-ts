@@ -104,7 +104,6 @@ function yyWebGL(_canvas, _options) {
     	
         gl = BindWebGL(_canvas, _options);
         if (gl) {
-        
             // Register the gl object with all other libWebGL classes
             PropagateGL(gl);
 
@@ -154,7 +153,7 @@ function yyWebGL(_canvas, _options) {
         g_extTextureFloatLinear = gl.getExtension('OES_texture_float_linear');
         g_extColourBufferFloat = gl.getExtension('EXT_color_buffer_float');
         
-        if (gl instanceof WebGL2RenderingContext)
+        if (!(typeof WebGL2RenderingContext === typeof undefined) && (gl instanceof WebGL2RenderingContext))        
         {
             g_isWebGL2 = true;
         }
@@ -225,6 +224,9 @@ function yyWebGL(_canvas, _options) {
                 g_AppendDerivativesExtToShader = true;
             }
         }
+
+        g_extDepthTexture = gl.getExtension('WEBGL_depth_texture');
+        g_SupportDepthTexture = (g_extDepthTexture != null);
     }
             
     // #############################################################################################
@@ -1164,7 +1166,7 @@ function yyWebGL(_canvas, _options) {
     
         if (_handle != -1) {
             m_VBufferManager.Flush();
-            _shaderData = CopyArray(_handle, _shaderData);
+            _shaderData = this.CopyArray(_handle, _shaderData);
             m_CommandBuilder.SetUniformArrayI(_handle, _shaderData);        // shader data already copied
         }
     };    
@@ -1218,7 +1220,10 @@ function yyWebGL(_canvas, _options) {
     /** @this {yyWebGL} */
     this.SetTexture = function (_stage, _texture) {
     
-        yyGL.REQUIRE(_texture instanceof yyGLTexture, "Texture is not a yyGLTexture", yyGL.ERRORLEVEL_Development);
+        if (_texture != null)       // we want to allow null textures to be passed to the command builder
+        {
+            yyGL.REQUIRE(_texture instanceof yyGLTexture, "Texture is not a yyGLTexture", yyGL.ERRORLEVEL_Development);
+        }
         
         m_VBufferManager.Flush();
         m_CommandBuilder.SetTexture(_stage, _texture);
@@ -1327,7 +1332,7 @@ function yyWebGL(_canvas, _options) {
             case	eTextureFormat_DXT4:				return texFormatData;
             case	eTextureFormat_DXT5:				return texFormatData;
             case	eTextureFormat_Depth:				return texFormatData;
-            case	eTextureFormat_DepthStencil:		return texFormatData;
+            case	eTextureFormat_DepthStencil:		if (!g_SupportDepthTexture) return texFormatData; texFormatData.internalFormat = gl.DEPTH_STENCIL; texFormatData.format = gl.DEPTH_STENCIL; texFormatData.type = g_extDepthTexture.UNSIGNED_INT_24_8_WEBGL; return texFormatData;
             case	eTextureFormat_Float16:				if (!g_SupportHalfFloatSurfs || !g_SupportSubFourChannelHalfFloatSurfs) return texFormatData; texFormatData.internalFormat = g_HalfFloatSurfsUseSizedFormats ? gl.R16F : gl.RED; texFormatData.format = gl.RED; texFormatData.type = g_HalfFloatSurfsUseSizedFormats ? gl.HALF_FLOAT : gl.HALF_FLOAT_OES; return texFormatData;
             case	eTextureFormat_Float32:				if (!g_SupportFloatSurfs || !g_SupportSubFourChannelFloatSurfs) return texFormatData; texFormatData.internalFormat = g_FloatSurfsUseSizedFormats ? gl.R32F : gl.RED; texFormatData.format = gl.RED; texFormatData.type = gl.FLOAT; return texFormatData;
             case	eTextureFormat_R8:					if (!g_SupportSubFourChannelIntSurfs) return texFormatData; texFormatData.internalFormat = g_IntSurfsUseSizedFormats ? gl.R8 : gl.RED; texFormatData.format = gl.RED; texFormatData.type = gl.UNSIGNED_BYTE; return texFormatData;
@@ -1362,7 +1367,7 @@ function yyWebGL(_canvas, _options) {
         { 
 	        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, _gltexture.Image);
         }
-        
+
         if (_mipoptions !== undefined
             && (_mipoptions == yyGL.MipEnable_On)
              || (_mipoptions == yyGL.MipEnable_OnlyMarked) && ((_gltexture.Flags !== undefined && (_gltexture.Flags & eInternalTextureFlags.GenerateMips) !== 0)))
@@ -1402,9 +1407,15 @@ function yyWebGL(_canvas, _options) {
     /// Function:<summary>
     ///				Clear the region in the indicated color
     ///          </summary>
+    /// In:		<param name="_colour">Whether to clear colour (true/false).</param>
+    /// 		<param name="_depth">Whether to clear the depth buffer (true/false).</param>
+    /// 		<param name="_stencil">Whether to clear the stencil buffer (true/false).</param>
+    /// 		<param name="_clearCol">The clear color. Can be undefined if _colour is false.</param>
+    /// 		<param name="_clearDepth">The clear depth value. Can be undefined if _depth is false.</param>
+    /// 		<param name="_clearStencil">The clear stencil value. Can be undefined if _stencil is false.</param>
     // #############################################################################################
     /** @this {yyWebGL} */
-    this.ClearScreen = function (_colour, _depth, _stencil, _col) {
+    this.ClearScreen = function (_colour, _depth, _stencil, _clearCol, _clearDepth, _clearStencil) {
     
         var bits = 0;
         if (_colour) {
@@ -1416,7 +1427,10 @@ function yyWebGL(_canvas, _options) {
         if (_stencil) {
             bits |= gl.STENCIL_BUFFER_BIT;
         }
-	    m_CommandBuilder.ClearScreen(bits, _col);
+        _clearCol = (_clearCol !== undefined) ? _clearCol : 0;
+        _clearDepth = (_clearDepth !== undefined) ? _clearDepth : 1.0;
+        _clearStencil = (_clearStencil !== undefined) ? _clearStencil : 0;
+        m_CommandBuilder.ClearScreen(bits, _clearCol, _clearDepth, _clearStencil);
     };
 
     // #############################################################################################
@@ -1424,10 +1438,9 @@ function yyWebGL(_canvas, _options) {
     ///          </summary>
     // #############################################################################################
     /** @this {yyWebGL} */
-    this.SetRenderTarget = function (_target) {
-    
+    this.SetRenderTarget = function (_color, _depth) {
         m_VBufferManager.Flush();
-        m_CommandBuilder.SetRenderTarget(_target);
+        m_CommandBuilder.SetRenderTarget(_color, _depth);
     };
     
     // #############################################################################################
@@ -1539,7 +1552,7 @@ function yyWebGL(_canvas, _options) {
     ///          </summary>
     // #############################################################################################
     /** @this {yyWebGL} */
-    this.CreateTextureFromFramebuffer = function (_image, _frameBuffer, _x, _y, _w, _h, _removeback, _smooth) {
+    this.CreateTextureFromFramebuffer = function (_image, _frameBuffer, _x, _y, _w, _h, _removeback, _smooth, _scale_to_power=true) {
 
         // Execute current list to ensure what we grab is actually what should've been drawn now
 	    this.FlushAll();
@@ -1560,9 +1573,13 @@ function yyWebGL(_canvas, _options) {
 	        RemoveBackground(new Int32Array(pixelData), _w, _h);
 	    }
 				
-	    // Get the power of 2 size for the texture creation
-        var w = GetPOW2Alignment(_w);
-        var h = GetPOW2Alignment(_h);
+	    // Get the power of 2 size for the texture creation (but avoid this )
+        var w = _w;
+        var h = _h;
+        if (_scale_to_power) {
+            w = GetPOW2Alignment(_w);
+            h = GetPOW2Alignment(_h);
+        }
         
         // Store the current texture before rebinding the texture unit
         var storedTexture = gl.getParameter(gl.TEXTURE_BINDING_2D);
@@ -1942,7 +1959,7 @@ function yyWebGL(_canvas, _options) {
 
 	    // Clear the command builder state
 	    m_CommandBuilder.Reset();
-	    return col;
+	    return new Long(col);
     };    
     
     // #############################################################################################
@@ -1999,7 +2016,9 @@ function yyWebGL(_canvas, _options) {
         // Grab the current state that we're going to alter
         var storedTexture = gl.getParameter(gl.TEXTURE_BINDING_2D);
         var storedFrameBuffer = gl.getParameter(gl.FRAMEBUFFER_BINDING);        
-        var storedRenderBuffer = gl.getParameter(gl.RENDERBUFFER_BINDING);        
+        var storedRenderBuffer = gl.getParameter(gl.RENDERBUFFER_BINDING);    
+        var depthTexture = null;
+        var rttRenderbuffer = null;
         {
             var rttFramebuffer = gl.createFramebuffer();
             rttFramebuffer.width = _w;
@@ -2015,17 +2034,24 @@ function yyWebGL(_canvas, _options) {
             //var textureInternal = new yyGLTexture(rttTexture, _w, _h, isPowerOfTwo(_w) && isPowerOfTwo(_h), null); 
             var textureInternal = new yyGLTexture(undefined, _w, _h, isPowerOfTwo(_w) && isPowerOfTwo(_h), null, 0, 0, _format); 
             this.RecreateTexture(textureInternal);
-            
-            // Create depth/stencil buffer
-            var rttRenderbuffer = gl.createRenderbuffer();
-            gl.bindRenderbuffer(gl.RENDERBUFFER, rttRenderbuffer);            
             //gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, rttTexture, 0);
             gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textureInternal.Texture, 0);
-
+            
+            // Create depth/stencil buffer
             if (g_createsurfacedepthbuffers)
             {
-                gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_STENCIL, rttFramebuffer.width, rttFramebuffer.height);
-                gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.RENDERBUFFER, rttRenderbuffer);
+                if (g_SupportDepthTexture)
+                {
+                    depthTexture = new yyGLTexture(undefined, _w, _h, isPowerOfTwo(_w) && isPowerOfTwo(_h), null, 0, 0, eTextureFormat_DepthStencil); 
+                    this.RecreateTexture(depthTexture);
+                }
+                else
+                {
+                    rttRenderbuffer = gl.createRenderbuffer();
+                    gl.bindRenderbuffer(gl.RENDERBUFFER, rttRenderbuffer);            
+                    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_STENCIL, rttFramebuffer.width, rttFramebuffer.height);
+                    // gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.RENDERBUFFER, rttRenderbuffer); // Note: Not required here since we do this in SetRenderTarget...
+                }
             }
         }        
         gl.bindTexture(gl.TEXTURE_2D, storedTexture);        
@@ -2035,7 +2061,8 @@ function yyWebGL(_canvas, _options) {
         var frameBufferData = {
             FrameBuffer: rttFramebuffer, 
             RenderBuffer: rttRenderbuffer, 
-            Texture: textureInternal 
+            Texture: textureInternal,
+            textureDepth: depthTexture,
         };
         return frameBufferData;
     };
@@ -2046,13 +2073,23 @@ function yyWebGL(_canvas, _options) {
     // #############################################################################################
     /** @this {yyWebGL} */
     this.DeleteFramebuffer = function (_frameBuffer) {
+
+        // Update state manager here
+        g_webGL.RSMan.ClearTexture(_frameBuffer.Texture);
         
         gl.deleteFramebuffer(_frameBuffer.FrameBuffer);
-        gl.deleteRenderbuffer(_frameBuffer.RenderBuffer);
+        if (_frameBuffer.RenderBuffer != null) {
+            gl.deleteRenderbuffer(_frameBuffer.RenderBuffer);
+        }
         gl.deleteTexture(_frameBuffer.Texture.Texture);
+        if (_frameBuffer.textureDepth != null
+            && _frameBuffer.textureDepth.webgl_textureid instanceof yyGLTexture) {
+            gl.deleteTexture(_frameBuffer.textureDepth.webgl_textureid.Texture);
+        }
         
         // Make sure we ditch the reference to the wrapper to give the GC every chance to clean it up
         _frameBuffer.Texture = null;
+        _frameBuffer.textureDepth = null;
     };
     
 
@@ -2097,10 +2134,10 @@ function yyWebGL(_canvas, _options) {
     ///          </summary>
     // #############################################################################################
     /** @this {yyWebGL} */
-    this.DispatchVBuffer = function (_prim, _texture, _vbuffer, _vertexStart) {
+    this.DispatchVBuffer = function (_prim, _texture, _vbuffer, _vertexStart, _vertexCount) {
     
         yyGL.REQUIRE((_texture == null) || (_texture instanceof yyGLTexture), "Texture is not a yyGLTexture", yyGL.ERRORLEVEL_Development);        
-        m_VBufferManager.Dispatch(_prim, _texture, _vbuffer, _vertexStart);
+        m_VBufferManager.Dispatch(_prim, _texture, _vbuffer, _vertexStart, _vertexCount);
     };
 
 

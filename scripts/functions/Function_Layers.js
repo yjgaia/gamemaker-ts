@@ -17,7 +17,8 @@ YYLayerType_Background=1,
 YYLayerType_Instance=2,
 YYLayerType_Asset=3,
 YYLayerType_Tile=4,
-YYLayerType_Effect=5;
+YYLayerType_Particle=5,
+YYLayerType_Effect=6;
 
 
 var	eLayerElementType_Undefined = 0,
@@ -29,7 +30,7 @@ var	eLayerElementType_Undefined = 0,
     eLayerElementType_ParticleSystem=6,
     eLayerElementType_Tile = 7,					// probably replace a single oldtilemap with a whole bunch of these
     eLayerElementType_Sequence = 8,
-    eLayerElementType_Effect = 9;
+    eLayerElementType_Text = 9;
 
 var TileInherit_Shift = 31;
 var TileFlip_Shift = 29;
@@ -90,7 +91,7 @@ this.m_effectEnabled = true;
 this.m_effectToBeEnabled = true;
 this.m_effect = null; // yyEffectInstanceRef
 this.m_pInitialEffectInfo = null;
-
+this.m_effectPS = -1;
 };
 
 CLayer.prototype.SetEffect = function(_effect)
@@ -236,7 +237,7 @@ function CLayerSequenceElement() {
     this.m_id = 0;
     this.m_bRuntimeDataInitialised = false;
     this.m_layer = null;
-    this.m_dirtyflags = 0;
+    this.m_dirtyflags = new yyBitField64();
 };
 
 /** @constructor */
@@ -283,6 +284,33 @@ function CLayerTileElement()
 };
 
 /** @constructor */
+function CLayerTextElement()
+{    
+    this.m_x=0;                 // x position
+    this.m_y=0;					// y position	
+    this.m_fontIndex=-1;        // font index
+    this.m_scaleX=1;          // x scale factor
+    this.m_scaleY=1;          // y scale factor
+    this.m_angle=0;           // rotation angle
+    this.m_blend=0xffffffff;  // blending for the text
+    this.m_alpha=1;           // alpha transparency for the text
+    this.m_originX=1;          // x scale factor
+    this.m_originY=1;          // y scale factor
+    this.m_text = "";           // text string to draw
+    this.m_alignment=0;          // alignment   
+    this.m_charSpacing=0;          // character spacing value
+    this.m_lineSpacing=0;          // line spacing value
+    this.m_frameW=-1;          // x scale factor
+    this.m_frameH=-1;          // y scale factor
+    this.m_wrap=false;
+
+    this.m_type = eLayerElementType_Text;
+    this.m_name = "";
+    this.m_id=0;    
+    this.m_bRuntimeDataInitialised = false;
+};
+
+/** @constructor */
 function CLayerEffectParam()
 {
     this.pName = null;
@@ -299,7 +327,6 @@ function CLayerEffectParam()
 /** @constructor */
 function CLayerEffectInfo()
 {
-    this.m_type = eLayerElementType_Effect;
     this.pName="";
     this.numParams = 0;
     this.pParams=[];
@@ -423,6 +450,12 @@ LayerManager.prototype.RemoveSequenceElement=function(_layer,_element)
     _layer.m_elements.DeleteItem(_element);
 };
 
+LayerManager.prototype.RemoveTextElement = function(_layer,_element)
+{
+    // Don't need to do anything here    
+    _layer.m_elements.DeleteItem(_element);
+};
+
 
 LayerManager.prototype.RemoveElementFromLayer= function(_room,_el,_layer,_removeDynamicLayers,_destroyInstances)
 {
@@ -451,9 +484,11 @@ LayerManager.prototype.RemoveElementFromLayer= function(_room,_el,_layer,_remove
         case eLayerElementType_OldTilemap:
             this.RemoveOldTilemapElement(layer,element);
             break;
+        // @if feature("sprites")
         case eLayerElementType_Sprite:
             this.RemoveSpriteElement(layer,element);
             break;
+        // @endif sprites
         case eLayerElementType_Tilemap:
             this.RemoveTilemapElement(layer,element);
             break;       
@@ -463,9 +498,14 @@ LayerManager.prototype.RemoveElementFromLayer= function(_room,_el,_layer,_remove
         case eLayerElementType_Tile:
             this.RemoveTileElement(layer,element);
             break;
+        // @if feature("sequences")
         case eLayerElementType_Sequence:
             this.RemoveSequenceElement(layer,element);
-            break;    
+            break;
+        // @endif 
+        case eLayerElementType_Text:
+            this.RemoveTextElement(layer,element);
+            break;
     };
 
     // This doesn't exist just now - need to implement
@@ -522,7 +562,10 @@ LayerManager.prototype.RemoveElementById= function (_room,_elid,_removeDynamicLa
             break; 
         case eLayerElementType_Sequence:
             this.RemoveSequenceElement(layer,element);
-            break;      
+            break;            
+        case eLayerElementType_Text:
+            this.RemoveTextElement(layer,element);
+            break;        
     };
 
     // This doesn't exist just now - need to implement
@@ -536,7 +579,7 @@ LayerManager.prototype.MoveElement = function(_room, _element, _targetlayer)
     if (_room == null)
         return;
 
-    if (_element = null)
+    if (_element == null)
         return;
 
     if (_targetlayer == null)
@@ -627,11 +670,12 @@ LayerManager.prototype.BuildTilemapElementRuntimeData = function( _room ,_layer,
 
 LayerManager.prototype.BuildParticleElementRuntimeData = function( _room ,_layer,_element)
 {
+    // @if feature("particles")
     if (_element.m_ps != -1 && _element.m_systemID == -1)
     {
-        CParticleSystem.Get(_element.m_ps).MakeInstance(-1, false, _element);
+        CParticleSystem.Get(_element.m_ps).MakeInstance(_layer.m_id, false, _element);
     }
-
+    // @endif
     _element.m_bRuntimeDataInitialised=true;
 };
 
@@ -642,6 +686,7 @@ LayerManager.prototype.BuildTileElementRuntimeData = function( _room ,_layer,_el
 
 LayerManager.prototype.BuildSequenceElementRuntimeData = function (_room, _layer, _element)
 {
+    // @if feature("sequences")
     var sequenceInstance = g_pSequenceManager.GetNewInstance();
 
     sequenceInstance.m_sequenceIndex = _element.m_sequenceIndex;
@@ -657,6 +702,12 @@ LayerManager.prototype.BuildSequenceElementRuntimeData = function (_room, _layer
     g_pSequenceManager.HandleInstanceEvent(sequenceInstance, EVENT_CREATE);
 
     _element.m_bRuntimeDataInitialised = true;
+    // @endif
+};
+
+LayerManager.prototype.BuildTextElementRuntimeData = function(_room, _layer, _element)
+{
+    _element.m_bRuntimeDataInitialised=true;
 };
 
 LayerManager.prototype.BuildElementRuntimeData = function( _room ,_layer,_element)
@@ -683,7 +734,10 @@ LayerManager.prototype.BuildElementRuntimeData = function( _room ,_layer,_elemen
 		case eLayerElementType_Tilemap: this.BuildTilemapElementRuntimeData(_room, _layer, _element); break;
         case eLayerElementType_ParticleSystem: this.BuildParticleElementRuntimeData(_room, _layer, _element); break;
         case eLayerElementType_Tile: this.BuildTileElementRuntimeData(_room, _layer, _element); break;
+        // @if feature("sequences")
         case eLayerElementType_Sequence: this.BuildSequenceElementRuntimeData(_room, _layer, _element); break;
+        // @endif
+        case eLayerElementType_Text: this.BuildTextElementRuntimeData(_room, _layer, _element); break;
     }    
 };  
 
@@ -700,7 +754,7 @@ LayerManager.prototype.BuildRoomLayerRuntimeData = function(_room)
     for(var i=0;i<_room.m_Layers.length;i++)
     {
         var player = _room.m_Layers.Get(i);
-        player.m_timer = YoYo_GetTimer();
+        player.m_timer = get_timer();
         
         for(var j=0;j<player.m_elements.length;j++)
         {
@@ -870,9 +924,15 @@ LayerManager.prototype.CleanElementRuntimeData = function(_element)
             {
                 this.CleanTileElementRuntimeData(_element);
             } break;
+        // @if feature("sequences")
         case eLayerElementType_Sequence:
             {
                 this.CleanSequenceElementRuntimeData(_element);
+            } break;
+        // @endif
+        case eLayerElementType_Text:
+            {
+                this.CleanTextElementRuntimeData(_element);
             } break;
     }
 
@@ -946,6 +1006,11 @@ LayerManager.prototype.CleanSequenceElementRuntimeData = function(_seqEl)
 
     // Delete the instance associated with this element
     g_pSequenceManager.FreeInstance(sequenceInstance);    
+};
+
+LayerManager.prototype.CleanTextElementRuntimeData = function(_spriteEl)
+{
+    // No memory to free for this type, so just return to the pool	
 };
 
 LayerManager.prototype.AddDynamicLayer = function(_room, _depth)
@@ -1282,6 +1347,8 @@ LayerManager.prototype.ChangeLayerDepth = function(_room, _layer, _newDepth, _al
 
 LayerManager.prototype.GetLayerWithDepth=function(_room,_depth,_dynamicOnly)
 {
+    if (_room == null) return null;
+
     //c++ uses a hash map for this but we'll just blit through for now...    
     for(var i=0;i<_room.m_Layers.length;i++)
     {        
@@ -1384,6 +1451,24 @@ LayerManager.prototype.GetElementFromIDWithLayer=function(_layer,_elID)
 
 };
 
+LayerManager.prototype.GetFirstElementOfType=function(_layer,_eltype)
+{
+
+    if(_layer==null)
+        return null;
+        
+    for(var i=_layer.m_elements.length-1;i>=0;i--)
+    {
+        var el = _layer.m_elements.Get(i);
+        if (el == null || el===undefined)continue;
+        if (el.m_type==_eltype) 
+            return el;
+    }
+
+    return null;
+
+};
+
 LayerManager.prototype.GetElementFromName=function(_layer,_elname)
 {
 
@@ -1467,7 +1552,7 @@ LayerManager.prototype.UpdateLayers = function()
         
     var numlayers = g_RunRoom.m_Layers.length;
     
-    var time = YoYo_GetTimer();
+    var time = get_timer();
     
     for(var i=0;i<numlayers;i++)
     {
@@ -1506,8 +1591,10 @@ LayerManager.prototype.UpdateLayers = function()
                     //el.m_pBackground.image_index += el.m_pBackground.image_speed;
                 }
             }
+            // @if feature("sprites")
             else if (type == eLayerElementType_Sprite)
             {
+                
                 var sprite = g_pSpriteManager.Get(el.m_spriteIndex);
 
                 if (sprite.sequence != null)
@@ -1539,24 +1626,24 @@ LayerManager.prototype.UpdateLayers = function()
                         HandleSpriteMessageEvents(sprite.sequence, el.m_id, fps, sprite.playbackspeed, el.m_sequenceDir, lastSequenceHead, el.m_sequencePos);
                     }
                 }
+                // @if feature("spine")
                 else if(sprite.m_skeletonSprite !== undefined)
                 {
                     el.m_imageIndex += el.m_imageSpeed;
                 }
+                // @endif
                 else
                 {
-                    if (el.m_playbackspeedtype == ePlaybackSpeedType_FramesPerGameFrame)
+                    var fps = g_GameTimer.GetFPS();
+                    if (fps != 0.0)
                     {
-                        el.m_imageIndex += el.m_imageSpeed;
-                    }
-                    else
-                    {
-                        var fps = g_GameTimer.GetFPS();
-                        el.m_imageIndex += el.m_imageSpeed/fps;
-                    }            
-                    //el.m_imageIndex += el.m_imageSpeed;
+                        if (sprite.playbackspeedtype != ePlaybackSpeedType_FramesPerSecond)
+                            fps = 1.0;                        
+                        el.m_imageIndex += (sprite.playbackspeed / fps) * el.m_imageSpeed;
+                    }                    
                 }
             }
+            // @endif sprites
             else if( type == eLayerElementType_Tilemap)
             {
                 var back = g_pBackgroundManager.GetImage(el.m_backgroundIndex);
@@ -1569,7 +1656,7 @@ LayerManager.prototype.UpdateLayers = function()
                 }
             }
         }
-        layer.m_timer = YoYo_GetTimer(); 
+        layer.m_timer = get_timer(); 
     }
 };
 
@@ -1592,6 +1679,25 @@ LayerManager.prototype.CleanRoomLayers = function(_room)
         }
 
         this.RemoveLayer(_room, pLayer.m_id, false);        
+    }
+};
+
+LayerManager.prototype.CleanRoomLayerRuntimeData = function (_room)
+{
+    if(_room==null)
+        return;
+
+    if (_room.m_Layers == null)
+        return;
+
+    for (var l = 0; l < _room.m_Layers.pool.length; ++l)
+    {
+        var _layer = _room.m_Layers.pool[l];
+        for (var e = 0; e < _layer.m_elements.pool.length; ++e)
+        {
+            var _element = _layer.m_elements.pool[e];
+            this.CleanElementRuntimeData(_element);
+        }
     }
 };
 
@@ -1626,8 +1732,9 @@ LayerManager.prototype.BuildRoomLayers = function(_room,_roomLayers)
             if( pLayer.hspeed!=undefined ) NewLayer.m_hspeed = pLayer.hspeed;
             if( pLayer.vspeed!=undefined ) NewLayer.m_vspeed = pLayer.vspeed;
             if( pLayer.visible!=undefined ) NewLayer.m_visible = pLayer.visible;
+            
+            // @if feature("layerEffects")
             if( pLayer.effectEnabled!=undefined) NewLayer.m_effectEnabled = NewLayer.m_effectToBeEnabled = pLayer.effectEnabled;
-
             if (( pLayer.effectType != undefined) && (pLayer.effectType != ""))
             {
                 var pEffectInfo = new CLayerEffectInfo();					
@@ -1732,6 +1839,7 @@ LayerManager.prototype.BuildRoomLayers = function(_room,_roomLayers)
                 pEffectInfo.bAffectsSingleLayerOnly = true;
                 NewLayer.m_pInitialEffectInfo = pEffectInfo;
             }
+            // @endif
             
             if(pLayer.type === YYLayerType_Background)
             {
@@ -1845,6 +1953,7 @@ LayerManager.prototype.BuildRoomLayers = function(_room,_roomLayers)
                     this.AddNewElement(_room,NewLayer,NewTileLayer,false);*/
                 }
                 
+                // @if feature("sprites")
                 var numsprites = 0;
                 if(pLayer.scount!=undefined) numsprites = pLayer.scount;
                 if(numsprites>0)
@@ -1876,8 +1985,10 @@ LayerManager.prototype.BuildRoomLayers = function(_room,_roomLayers)
                     
                     }
                 }
+                // @endif sprites
 
                 // Sequences
+                // @if feature("sequences")
                 var numsequences = 0;
                 if (pLayer.ecount != undefined) numsequences = pLayer.ecount;
                 if (numsequences > 0) {
@@ -1903,8 +2014,10 @@ LayerManager.prototype.BuildRoomLayers = function(_room,_roomLayers)
                         this.AddNewElement(_room, NewLayer, NewSequence, false);
                     }
                 }
+                // @endif
 
                 // Particles
+                // @if feature("particles")
                 var numparticles = 0;
                 if (pLayer.pcount != undefined) numparticles = pLayer.pcount;
 
@@ -1928,6 +2041,38 @@ LayerManager.prototype.BuildRoomLayers = function(_room,_roomLayers)
                         this.AddNewElement(_room, NewLayer, NewParticle, false);
                     }
                 }
+                // @endif
+
+                var numtextitems = 0;
+                if(pLayer.tcount!=undefined) numtextitems = pLayer.tcount;
+                if(numtextitems>0)
+                {
+                    for(var i=numtextitems-1; i>=0; i--)
+                    {                   
+                        var NewTextItem = new CLayerTextElement();
+                        NewTextItem.m_x = pLayer.textitems[i].sX;
+                        NewTextItem.m_y = pLayer.textitems[i].sY;
+                        NewTextItem.m_fontIndex = pLayer.textitems[i].sFontIndex;
+                        NewTextItem.m_scaleX = pLayer.textitems[i].sXScale;
+                        NewTextItem.m_scaleY = pLayer.textitems[i].sYScale;
+                        NewTextItem.m_angle = pLayer.textitems[i].sRotation;
+                        NewTextItem.m_blend = ConvertGMColour(pLayer.textitems[i].sBlend & 0xffffff);
+                        NewTextItem.m_alpha = ((pLayer.textitems[i].sBlend>>24)&0xff) / 255.0;                        
+                        NewTextItem.m_originX = pLayer.textitems[i].sXOrigin;
+                        NewTextItem.m_originY = pLayer.textitems[i].sYOrigin;
+                        NewTextItem.m_text = pLayer.textitems[i].sText;
+                        NewTextItem.m_alignment = pLayer.textitems[i].sAlignment;
+                        NewTextItem.m_charSpacing = pLayer.textitems[i].sCharSpacing;
+                        NewTextItem.m_lineSpacing = pLayer.textitems[i].sLineSpacing;
+                        NewTextItem.m_frameW = pLayer.textitems[i].sFrameW;
+                        NewTextItem.m_frameH = pLayer.textitems[i].sFrameH;
+                        NewTextItem.m_wrap = (pLayer.textitems[i].sWrap != 0) ? true : false;
+                        NewTextItem.m_name = pLayer.textitems[i].sName;
+                        
+                        this.AddNewElement(_room,NewLayer,NewTextItem,false);
+                    
+                    }
+                }
             }
             else if(pLayer.type === YYLayerType_Tile)
             {
@@ -1939,15 +2084,15 @@ LayerManager.prototype.BuildRoomLayers = function(_room,_roomLayers)
                     TileLayer.m_backgroundIndex = pLayer.tIndex;
                     TileLayer.m_mapWidth = pLayer.tMapWidth;
                     TileLayer.m_mapHeight = pLayer.tMapHeight;
-                    TileLayer.m_pTiles=[];
+                    TileLayer.m_pTiles=expandTiles(pLayer.ttiles);
 
                     var numtiles =0;
                     if(pLayer.tcount!=undefined) numtiles =pLayer.tcount; 
                     
-                    for(var i=0;i<numtiles;i++)
-                    {
-                    TileLayer.m_pTiles[i]= pLayer.ttiles[i];
-                    }
+                    //for(var i=0;i<numtiles;i++)
+                    //{
+                    //TileLayer.m_pTiles[i]= pLayer.ttiles[i];
+                    //}
                     if(pLayer.pName!=undefined) TileLayer.m_name = pLayer.pName;
             
                     this.AddNewElement(_room,NewLayer,TileLayer,false);
@@ -2011,6 +2156,19 @@ LayerManager.prototype.GetScriptInstance = function()
     return this.m_ScriptInstance;
 };
 
+
+function layerGetObj(room, id_or_name) {
+    if (typeof (id_or_name) === "string") return g_pLayerManager.GetLayerFromName(room, yyGetString(id_or_name));
+    return g_pLayerManager.GetLayerFromID(room, yyGetInt32(id_or_name));
+};
+
+function layerGetFromTargetRoom(_id_or_name) {
+    var room = g_pLayerManager.GetTargetRoomObj();
+    if (room == null) return null;
+    
+    return layerGetObj(room, _id_or_name);
+};
+
 function layer_get_id( _name) 
 {
     var room = g_pLayerManager.GetTargetRoomObj();
@@ -2065,22 +2223,7 @@ function layer_get_id_at_depth(_depth)
 
 function layer_get_depth( _id)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if(room==null)
-    {
-        return -1;
-    }
-
-   if(room==null)
-    return -1;
-   
-   var pLayer=null;
-   
-   if ((typeof (_id) === "string") )
-        pLayer = g_pLayerManager.GetLayerFromName(room,yyGetString(_id));
-   else
-        pLayer = g_pLayerManager.GetLayerFromID(room,yyGetInt32(_id));
+    var pLayer = layerGetFromTargetRoom(_id);
    if(pLayer!=null)
    {
         return pLayer.depth;
@@ -2093,18 +2236,15 @@ function layer_get_depth( _id)
 
 function layer_create( _depth,_name) 
 {
+    var room = g_pLayerManager.GetTargetRoomObj();
+
+    if (room == null) return -1;
+
     var NewLayer = new CLayer();    
     NewLayer.m_id = g_pLayerManager.GetNextLayerID();
     NewLayer.depth = yyGetInt32(_depth);
     NewLayer.m_pName = yyGetString(_name);
     NewLayer.m_dynamic = false;
-
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if(room==null)
-    {
-        return -1;
-    }
 
     if ((NewLayer.m_pName == undefined) || (NewLayer.m_pName == null))
     {
@@ -2120,39 +2260,18 @@ function layer_create( _depth,_name)
 function layer_destroy( arg1) 
 {
     var room = g_pLayerManager.GetTargetRoomObj();
-
-    if(room==null)
-    {
-        return -1;
-    }
-
-    var pLayer=null;
-   
-    if ((typeof (arg1) === "string") )
-        pLayer = g_pLayerManager.GetLayerFromName(room, yyGetString(arg1));
-    else
-        pLayer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(arg1));
+    var pLayer = layerGetObj(room, arg1);
 
     if(pLayer!=null)
         g_pLayerManager.RemoveLayer(room,pLayer.m_id);
 
+    return -1;
 };
 
 function layer_destroy_instances(arg1)
 {
     var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null)
-    {
-        return -1;
-    }
-
-    var pLayer=null;
-   
-    if ((typeof (arg1) === "string") )
-        pLayer = g_pLayerManager.GetLayerFromName(room, yyGetString(arg1));
-    else
-        pLayer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(arg1));
+    var pLayer = layerGetObj(room, arg1);
 
     if(pLayer!=null)
     {
@@ -2168,34 +2287,22 @@ function layer_destroy_instances(arg1)
             }
         }
     }
+    return -1;
 };
 
 function layer_add_instance( arg1,arg2) 
 {
     var room = g_pLayerManager.GetTargetRoomObj();
+    var pLayer = layerGetObj(room, arg1);
 
-    if(room==null)
-    {
-        return -1;
-    }
-
-    var pLayer=null;
-   
-    if ((typeof (arg1) === "string") )
-        pLayer = g_pLayerManager.GetLayerFromName(room, yyGetString(arg1));
-    else
-        pLayer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(arg1));
-    
-    
-    if(pLayer === null)
-        return;
+    if (pLayer === null) return -1;
 
     if (room == g_RunRoom)
     {    
         var inst = g_pInstanceManager.Get(yyGetInt32(arg2));
         
         if(inst ===null)
-            return;
+            return -1;
         g_pLayerManager.RemoveInstance(room,inst);
         g_pLayerManager.AddInstanceToLayer(room,pLayer,inst);    
     }
@@ -2214,24 +2321,14 @@ function layer_add_instance( arg1,arg2)
 
         g_pLayerManager.AddNewElement(room, pLayer, instEl, false);
     }
+    return -1;
 };
 
 function layer_remove_instance( arg1,arg2) 
 {
     var room = g_pLayerManager.GetTargetRoomObj();
 
-    if(room==null)
-    {
-        return -1;
-    }
-
-   var pLayer=null;
-   
-    if ((typeof (arg1) === "string") )
-        pLayer = g_pLayerManager.GetLayerFromName(room, yyGetString(arg1));
-    else
-        pLayer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(arg1));
-    
+    var pLayer = layerGetObj(room, arg1);
     
     if(pLayer === null)
         return;
@@ -2254,22 +2351,8 @@ function layer_remove_instance( arg1,arg2)
 
 function layer_has_instance( arg1,arg2) 
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return false;
-    }
-
-    var pLayer=null;
-   
-    if ((typeof (arg1) === "string") )
-        pLayer = g_pLayerManager.GetLayerFromName(room, yyGetString(arg1));
-    else
-        pLayer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(arg1));
-    
-    
-    if(pLayer === null)
-        return false;
+    var pLayer = layerGetFromTargetRoom(arg1);
+    if (pLayer === null) return false;
         
     var inst = g_pInstanceManager.Get(yyGetInt32(arg2));
     
@@ -2289,7 +2372,7 @@ function layer_instance_get_instance(_id) {
     if (room != null) {
         var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(_id));
         if (el != null && el.m_type === eLayerElementType_Instance) {
-            return el.m_instanceID;
+            return MAKE_REF(REFID_INSTANCE, el.m_instanceID);
         }
     }
     return OBJECT_NOONE;
@@ -2297,80 +2380,32 @@ function layer_instance_get_instance(_id) {
 
 function layer_set_visible( arg1,arg2) 
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return -1;
-    }
-
-    var pLayer=null;
-   
-    if ((typeof (arg1) === "string") )
-        pLayer = g_pLayerManager.GetLayerFromName(room, yyGetString(arg1));
-    else
-        pLayer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(arg1));
-            
-    if(pLayer === null)
-        return;
+    var pLayer = layerGetFromTargetRoom(arg1);
+    if (pLayer === null) return;
    
    pLayer.m_visible = yyGetBool(arg2);
   
 };
 function layer_get_visible( arg1) 
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return -1;
-    }
-
-    var pLayer=null;
-   
-    if ((typeof (arg1) === "string") )
-        pLayer = g_pLayerManager.GetLayerFromName(room, yyGetString(arg1));
-    else
-        pLayer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(arg1));
-            
-    if(pLayer === null)
-        return 0;
+    var pLayer = layerGetFromTargetRoom(arg1);
+    if (pLayer === null) return;
     
-   
-   return pLayer.m_visible;
+    return pLayer.m_visible;
 };
 
 function layer_exists( arg1) 
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-  
-    var pLayer=null;
-   
-    if ((typeof (arg1) === "string") )
-        pLayer = g_pLayerManager.GetLayerFromName(room, yyGetString(arg1));
-    else
-        pLayer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(arg1));
-            
-    if(pLayer === null)
-        return 0;
+    var pLayer = layerGetFromTargetRoom(arg1);
+    if (pLayer === null) return false;
         
-    return 1;
+    return true;
 };
 
 function layer_script_begin( arg1,arg2) 
 {
-    
-    var layer=null;
-   
-    if ((typeof (arg1) === "string") )
-        layer = g_pLayerManager.GetLayerFromName(g_RunRoom, yyGetString(arg1));
-    else
-        layer = g_pLayerManager.GetLayerFromID(g_RunRoom, yyGetInt32(arg1));
-            
-    if(layer === null)
-        return;
+    var layer = layerGetFromTargetRoom(arg1);
+    if (layer === null) return;
 
     if(typeof (arg2) === "number")
     {
@@ -2392,15 +2427,8 @@ function layer_script_begin( arg1,arg2)
 };
 function layer_script_end( arg1,arg2) 
 {
-   var layer=null;
-   
-    if ((typeof (arg1) === "string") )
-        layer = g_pLayerManager.GetLayerFromName(g_RunRoom, yyGetString(arg1));
-    else
-        layer = g_pLayerManager.GetLayerFromID(g_RunRoom, yyGetInt32(arg1));
-            
-    if(layer === null)
-        return;
+    var layer = layerGetFromTargetRoom(arg1);
+    if (layer === null) return;
 
     if(typeof (arg2) === "number")
     {
@@ -2423,18 +2451,10 @@ function layer_script_end( arg1,arg2)
 
 function layer_shader( arg1,arg2)
 {
-    var layer=null;
-   
-    if ((typeof (arg1) === "string") )
-        layer = g_pLayerManager.GetLayerFromName(g_RunRoom, yyGetString(arg1));
-    else
-        layer = g_pLayerManager.GetLayerFromID(g_RunRoom, yyGetInt32(arg1));
-            
-    if(layer === null)
-        return;
+    var layer = layerGetFromTargetRoom(arg1);
+    if (layer === null) return;
+
     layer.m_shaderId = yyGetInt32(arg2);
-
-
 };
 
 function __find_script_id( _script )
@@ -2448,51 +2468,31 @@ function __find_script_id( _script )
         } // end if
     } // end for
     return ret;
-}
+};
 
 function layer_get_script_begin( arg1) 
 {
-    var layer=null;
-   
-    if ((typeof (arg1) === "string") )
-        layer = g_pLayerManager.GetLayerFromName(g_RunRoom, yyGetString(arg1));
-    else
-        layer = g_pLayerManager.GetLayerFromID(g_RunRoom, yyGetInt32(arg1));
-            
-    if(layer === null)
-        return -1;
-    return __find_script_id(layer.m_beginScript);
+    var layer = layerGetFromTargetRoom(arg1);
+    if (layer === null) return -1;
+    
+    _script_id = __find_script_id(layer.m_beginScript);
+    return _script_id === null ? -1 : _script_id;
 };
 function layer_get_script_end( arg1) 
 {
-     var layer=null;
-   
-    if ((typeof (arg1) === "string") )
-        layer = g_pLayerManager.GetLayerFromName(g_RunRoom, yyGetString(arg1));
-    else
-        layer = g_pLayerManager.GetLayerFromID(g_RunRoom, yyGetInt32(arg1));
-            
-    if(layer === null)
-        return -1;
-    return __find_script_id(layer.m_endScript);
+    var layer = layerGetFromTargetRoom(arg1);
+    if (layer === null) return -1;
 
-
+    _script_id = __find_script_id(layer.m_endScript);
+    return _script_id === null ? -1 : _script_id;
 };
 
 function layer_get_shader( arg1) 
 {
-
-    var layer=null;
-   
-    if ((typeof (arg1) === "string") )
-        layer = g_pLayerManager.GetLayerFromName(g_RunRoom, yyGetString(arg1));
-    else
-        layer = g_pLayerManager.GetLayerFromID(g_RunRoom, yyGetInt32(arg1));
+    var layer = layerGetFromTargetRoom(arg1);
+    if (layer === null) return -1;
             
-    if(layer === null)
-        return -1;
     return layer.m_shaderId;
-
 };
 
 function layer_set_target_room(arg1)
@@ -2511,18 +2511,20 @@ function layer_reset_target_room()
 }
 
 // Background element functions
+
+function layerBackgroudGetElement(bg_element_id) 
+{
+    var room = g_pLayerManager.GetTargetRoomObj();
+    var el = g_pLayerManager.GetElementFromID(room, bg_element_id);
+
+    if ((el != null) && (el.m_type === eLayerElementType_Background) && (el.m_pBackground != null)) return el;
+    return null;
+};
+
 function layer_background_get_id( arg1)
 {
-
-    var layer=null;
-   
-    if ((typeof (arg1) === "string") )
-        layer = g_pLayerManager.GetLayerFromName(g_RunRoom, yyGetString(arg1));
-    else
-        layer = g_pLayerManager.GetLayerFromID(g_RunRoom, yyGetInt32(arg1));
-            
-    if(layer === null)
-        return -1;
+    var layer = layerGetFromTargetRoom(arg1);
+    if (layer === null) return -1;
     
     var el = g_pLayerManager.GetElementFromName(layer,layer.m_pName);
     if(el!=null)
@@ -2534,33 +2536,23 @@ function layer_background_get_id( arg1)
 };
 function layer_background_exists( arg1,arg2) 
 {
-    var layer=null;
-   
-    if ((typeof (arg1) === "string") )
-        layer = g_pLayerManager.GetLayerFromName(g_RunRoom, yyGetString(arg1));
-    else
-        layer = g_pLayerManager.GetLayerFromID(g_RunRoom, yyGetInt32(arg1));
-            
-    if(layer === null)
-        return 0;
+    var layer = layerGetFromTargetRoom(arg1);
+    if (layer === null) return false;
 
     var el = g_pLayerManager.GetElementFromIDWithLayer(layer, yyGetInt32(arg2));
     if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
     {
-        return 1;
+        return true;
     }
-    return 0;
+    return false;
 };
 
 function layer_background_create( arg1,arg2) 
 {
-    var layer=null;
-   
-    if ((typeof (arg1) === "string") )
-        layer = g_pLayerManager.GetLayerFromName(g_RunRoom, yyGetString(arg1));
-    else
-        layer = g_pLayerManager.GetLayerFromID(g_RunRoom, yyGetInt32(arg1));
-            
+    var room = g_pLayerManager.GetTargetRoomObj();
+    if (room === null) return -1;
+
+    var layer = layerGetObj(room, arg1);        
    
     if(layer!=null)
     {
@@ -2584,7 +2576,7 @@ function layer_background_create( arg1,arg2)
         
        
        
-        g_pLayerManager.AddNewElement(g_RunRoom,layer,NewBackLayer);
+        g_pLayerManager.AddNewElement(room,layer,NewBackLayer);
     
         return NewBackLayer.m_id;
     }
@@ -2593,53 +2585,56 @@ function layer_background_create( arg1,arg2)
 };
 function layer_background_destroy( arg1) 
 {
-    g_pLayerManager.RemoveElementById(g_RunRoom, yyGetInt32(arg1));
+    var room = g_pLayerManager.GetTargetRoomObj();
+    if (room === null) return;
+
+    g_pLayerManager.RemoveElementById(room, yyGetInt32(arg1));
 };
 
 function layer_background_visible( arg1,arg2) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         el.m_pBackground.visible = yyGetBool(arg2);
     }
 };
 function layer_background_change( arg1,arg2) {
 
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         el.m_pBackground.index = yyGetInt32(arg2);
     }
 };
 function layer_background_htiled( arg1,arg2)
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         el.m_pBackground.htiled = yyGetBool(arg2);
     }
 };
 function layer_background_vtiled( arg1,arg2) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         el.m_pBackground.vtiled = yyGetBool(arg2);
     }
 };
 function layer_background_xscale( arg1,arg2) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         el.m_pBackground.xscale = yyGetReal(arg2);
     }
 };
 function layer_background_yscale( arg1,arg2) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         el.m_pBackground.yscale = yyGetReal(arg2);
     }
@@ -2648,8 +2643,8 @@ function layer_background_yscale( arg1,arg2)
 
 function layer_background_stretch( arg1,arg2) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         el.m_pBackground.stretch = yyGetBool(arg2);
     }
@@ -2657,40 +2652,43 @@ function layer_background_stretch( arg1,arg2)
 
 function layer_background_blend( arg1,arg2) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         el.m_pBackground.blend = ConvertGMColour(yyGetInt32(arg2));
     }
 };
 function layer_background_alpha( arg1,arg2) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         el.m_pBackground.alpha = yyGetReal(arg2);
     }
 };
 function layer_background_index( arg1,arg2) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
-        el.m_pBackground.image_index = yyGetInt32(arg2);
+        var image_index = yyGetInt32(arg2);
+        var max_index = sprite_get_number(el.m_pBackground.index);
+
+        el.m_pBackground.image_index = fwrap(image_index, max_index);
     }
 };
 function layer_background_sprite( arg1,arg2) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         el.m_pBackground.index = yyGetReal(arg2);
     }
 };
 function layer_background_speed( arg1,arg2) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         el.m_pBackground.image_speed = yyGetReal(arg2);
     }
@@ -2698,18 +2696,18 @@ function layer_background_speed( arg1,arg2)
 
 function layer_background_get_visible( arg1) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         return el.m_pBackground.visible;
     }
     
-    return 1;
+    return true;
 };
 function layer_background_get_sprite( arg1)
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         return el.m_pBackground.index;
     }
@@ -2720,42 +2718,41 @@ function layer_background_get_sprite( arg1)
 
 function layer_background_get_htiled( arg1) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         return el.m_pBackground.htiled;
     }
     
-    return 0;
+    return false;
 };
 function layer_background_get_vtiled( arg1) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         return el.m_pBackground.vtiled;
     }
     
-    return 0;
+    return false;
 };
 function layer_background_get_stretch( arg1) 
 {
-
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         return el.m_pBackground.stretch;
     }
     
-    return 0;
+    return false;
 
 };
 
 
 function layer_background_get_xscale( arg1) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         return el.m_pBackground.xscale;
     }
@@ -2767,8 +2764,8 @@ function layer_background_get_xscale( arg1)
 
 function layer_background_get_yscale( arg1) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         return el.m_pBackground.yscale;
     }
@@ -2780,8 +2777,8 @@ function layer_background_get_yscale( arg1)
 
 function layer_background_get_blend( arg1) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         return ConvertGMColour(el.m_pBackground.blend);
     }
@@ -2791,8 +2788,8 @@ function layer_background_get_blend( arg1)
 };
 function layer_background_get_alpha( arg1) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         return el.m_pBackground.alpha;
     }
@@ -2802,8 +2799,8 @@ function layer_background_get_alpha( arg1)
 };
 function layer_background_get_index( arg1) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         return el.m_pBackground.image_index;
     }
@@ -2814,8 +2811,8 @@ function layer_background_get_index( arg1)
 };
 function layer_background_get_speed( arg1) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Background) && (el.m_pBackground!=null))
+    var el = layerBackgroudGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         return el.m_pBackground.image_speed;
     }
@@ -2825,14 +2822,21 @@ function layer_background_get_speed( arg1)
 };
 
 // Sprite element functions
+function layerSpriteGetElement(spr_element_id) 
+{
+    var room = g_pLayerManager.GetTargetRoomObj();
+    var el = g_pLayerManager.GetElementFromID(room, spr_element_id);
+
+    if ((el != null) && (el.m_type === eLayerElementType_Sprite)) return el;
+    return null;
+};
+
 function layer_sprite_get_id( _layerid,_spritename)
 {
-    var layer=null;
-   
-    if ((typeof (_layerid) === "string") )
-        layer = g_pLayerManager.GetLayerFromName(g_RunRoom, yyGetString(_layerid));
-    else
-        layer = g_pLayerManager.GetLayerFromID(g_RunRoom, yyGetInt32(_layerid));
+    var room = g_pLayerManager.GetTargetRoomObj();
+    if (room === null) return -1;
+
+    var layer = layerGetObj(room, _layerid);
             
    
     if(layer!=null)
@@ -2847,31 +2851,27 @@ function layer_sprite_get_id( _layerid,_spritename)
 };
 function layer_sprite_exists( arg1,arg2) 
 {
+    var room = g_pLayerManager.GetTargetRoomObj();
+    if (room === null) return false;
 
-    var layer=null;
-   
-    if ((typeof (arg1) === "string") )
-        layer = g_pLayerManager.GetLayerFromName(g_RunRoom, yyGetString(arg1));
-    else
-        layer = g_pLayerManager.GetLayerFromID(g_RunRoom, yyGetInt32(arg1));
+    var layer = layerGetObj(room, arg1);
+    if (layer === null) return false;
 
     var el = g_pLayerManager.GetElementFromIDWithLayer(layer, yyGetInt32(arg2));
     if((el!=null) && (el.m_type ===eLayerElementType_Sprite) )
     {
-        return 1;
+        return true;
     }
-    return 0;
+    return false;
 
 };
 
 function layer_sprite_create( arg1,arg2,arg3,arg4) 
 {
-     var layer=null;
-   
-    if ((typeof (arg1) === "string") )
-        layer = g_pLayerManager.GetLayerFromName(g_RunRoom, yyGetString(arg1));
-    else
-        layer = g_pLayerManager.GetLayerFromID(g_RunRoom, yyGetInt32(arg1));
+    var room = g_pLayerManager.GetTargetRoomObj();
+    if (room === null) return -1;
+
+    var layer = layerGetObj(room, arg1);
         
     if(layer!=null)
     {
@@ -2882,7 +2882,7 @@ function layer_sprite_create( arg1,arg2,arg3,arg4)
         sprel.m_x = yyGetReal(arg2);
         sprel.m_y = yyGetReal(arg3);
 
-        g_pLayerManager.AddNewElement(g_RunRoom,layer,sprel);
+        g_pLayerManager.AddNewElement(room,layer,sprel);
     
         return sprel.m_id;
     }
@@ -2891,14 +2891,17 @@ function layer_sprite_create( arg1,arg2,arg3,arg4)
 };
 function layer_sprite_destroy( arg1) 
 {
-  g_pLayerManager.RemoveElementById(g_RunRoom, yyGetInt32(arg1));
+    var room = g_pLayerManager.GetTargetRoomObj();
+    if (room === null) return;
+
+    g_pLayerManager.RemoveElementById(room, yyGetInt32(arg1));
 
 };
 
 function layer_sprite_change( arg1,arg2) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
+    var el = layerSpriteGetElement(arg1);
+    if (el != null)
     {
         el.m_spriteIndex = yyGetInt32(arg2);
     }
@@ -2906,12 +2909,16 @@ function layer_sprite_change( arg1,arg2)
 };
 function layer_sprite_index( arg1,arg2) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
+    var room = g_pLayerManager.GetTargetRoomObj();
+    if (room === null) return;
+
+    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(arg1));
     if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
     {
         el.m_imageIndex = yyGetInt32(arg2);
 
         var frame = yyGetInt32(arg2);
+        // @if feature("sprites")
         var sprite = g_pSpriteManager.Get(el.m_spriteIndex);
 
         if (sprite != null)
@@ -2947,6 +2954,7 @@ function layer_sprite_index( arg1,arg2)
             }
         }
         else
+        // @endif sprites
         {
             el.m_imageIndex = frame;	// just use value as-is
         }
@@ -2954,8 +2962,8 @@ function layer_sprite_index( arg1,arg2)
 };
 function layer_sprite_speed( arg1,arg2) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
+    var el = layerSpriteGetElement(arg1);
+    if (el != null)
     {
         el.m_imageSpeed = yyGetReal(arg2);
     }
@@ -2963,56 +2971,56 @@ function layer_sprite_speed( arg1,arg2)
 };
 function layer_sprite_xscale( arg1,arg2)
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
+    var el = layerSpriteGetElement(arg1);
+    if (el != null)
     {
         el.m_imageScaleX = yyGetReal(arg2);
     }
 };
 function layer_sprite_yscale( arg1,arg2) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
+    var el = layerSpriteGetElement(arg1);
+    if (el != null)
     {
         el.m_imageScaleY = yyGetReal(arg2);
     }
 };
 function layer_sprite_angle( arg1,arg2) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
+    var el = layerSpriteGetElement(arg1);
+    if (el != null)
     {
         el.m_imageAngle = yyGetReal(arg2);
     }
 };
 function layer_sprite_blend( arg1,arg2) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
+    var el = layerSpriteGetElement(arg1);
+    if (el != null)
     {
         el.m_imageBlend =ConvertGMColour(yyGetInt32(arg2));
     }
 };
 function layer_sprite_alpha( arg1,arg2) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
+    var el = layerSpriteGetElement(arg1);
+    if (el != null)
     {
         el.m_imageAlpha = yyGetReal(arg2);
     }
 };
 function layer_sprite_x( arg1,arg2) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
+    var el = layerSpriteGetElement(arg1);
+    if (el != null)
     {
         el.m_x = yyGetReal(arg2);
     }
 };
 function layer_sprite_y( arg1,arg2) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
+    var el = layerSpriteGetElement(arg1);
+    if (el != null)
     {
         el.m_y = yyGetReal(arg2);
     }
@@ -3020,8 +3028,8 @@ function layer_sprite_y( arg1,arg2)
 
 function layer_sprite_get_sprite( arg1) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
+    var el = layerSpriteGetElement(arg1);
+    if (el != null)
     {
         return el.m_spriteIndex;
     }
@@ -3029,8 +3037,8 @@ function layer_sprite_get_sprite( arg1)
 };
 function layer_sprite_get_index( arg1) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
+    var el = layerSpriteGetElement(arg1);
+    if (el != null)
     {
         return el.m_imageIndex;
     }
@@ -3038,8 +3046,8 @@ function layer_sprite_get_index( arg1)
 };	
 function layer_sprite_get_speed( arg1) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
+    var el = layerSpriteGetElement(arg1);
+    if (el != null)
     {
         return el.m_imageSpeed;
     }
@@ -3047,8 +3055,8 @@ function layer_sprite_get_speed( arg1)
 };	
 function layer_sprite_get_xscale( arg1) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
+    var el = layerSpriteGetElement(arg1);
+    if (el != null)
     {
         return el.m_imageScaleX;
     }
@@ -3057,8 +3065,8 @@ function layer_sprite_get_xscale( arg1)
 };
 function layer_sprite_get_yscale( arg1) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
+    var el = layerSpriteGetElement(arg1);
+    if (el != null)
     {
         return el.m_imageScaleY;
     }
@@ -3067,8 +3075,8 @@ function layer_sprite_get_yscale( arg1)
 };	
 function layer_sprite_get_angle( arg1) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
+    var el = layerSpriteGetElement(arg1);
+    if (el != null)
     {
         return el.m_imageAngle;
     }
@@ -3077,8 +3085,8 @@ function layer_sprite_get_angle( arg1)
 };	
 function layer_sprite_get_blend( arg1) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
+    var el = layerSpriteGetElement(arg1);
+    if (el != null)
     {
         return ConvertGMColour(el.m_imageBlend);
     }
@@ -3087,8 +3095,8 @@ function layer_sprite_get_blend( arg1)
 };
 function layer_sprite_get_alpha( arg1) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
+    var el = layerSpriteGetElement(arg1);
+    if (el != null)
     {
         return el.m_imageAlpha;
     }
@@ -3097,8 +3105,8 @@ function layer_sprite_get_alpha( arg1)
 };			
 function layer_sprite_get_x( arg1) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
+    var el = layerSpriteGetElement(arg1);
+    if (el != null)
     {
         return el.m_x;
     }
@@ -3106,8 +3114,8 @@ function layer_sprite_get_x( arg1)
 };	
 function layer_sprite_get_y( arg1) 
 {
-    var el = g_pLayerManager.GetElementFromID(g_RunRoom, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Sprite))
+    var el = layerSpriteGetElement(arg1);
+    if (el != null)
     {
         return el.m_y;
     }
@@ -3115,36 +3123,459 @@ function layer_sprite_get_y( arg1)
 
 };
 
-// Tilemap element functions
-function layer_tilemap_get_id( arg1) 
+// Text element functions
+function layerTextGetElement(_text_element_id) 
 {
-    var layer=null;
-   
-    if ((typeof (arg1) === "string") )
-        layer = g_pLayerManager.GetLayerFromName(g_RunRoom, yyGetString(arg1));
-    else
-        layer = g_pLayerManager.GetLayerFromID(g_RunRoom, yyGetInt32(arg1));
+    var room = g_pLayerManager.GetTargetRoomObj();
+    var el = g_pLayerManager.GetElementFromID(room, _text_element_id);
+
+    if ((el != null) && (el.m_type === eLayerElementType_Text)) return el;
+    return null;
+};
+
+function layer_text_get_id(_layerid,_textname)
+{
+    var room = g_pLayerManager.GetTargetRoomObj();
+    if (room === null) return -1;
+
+    var layer = layerGetObj(room, _layerid);            
    
     if(layer!=null)
     {
-        var element = g_pLayerManager.GetElementFromName(layer,layer.m_pName);
-        if(element!=null && element.m_type == eLayerElementType_Tilemap)
+        var element = g_pLayerManager.GetElementFromName(layer, yyGetString(_textname));
+        if(element!=null && element.m_type == eLayerElementType_Text)
         {
             return element.m_id;
         }
     }
     return -1;
+};
+
+function layer_text_exists( _layerid,_textelementid) 
+{
+    var room = g_pLayerManager.GetTargetRoomObj();
+    if (room === null) return false;
+
+    var layer = layerGetObj(room, _layerid);
+    if (layer === null) return false;
+
+    var el = g_pLayerManager.GetElementFromIDWithLayer(layer, yyGetInt32(_textelementid));
+    if((el!=null) && (el.m_type ===eLayerElementType_Text) )
+    {
+        return true;
+    }
+    return false;
+};
+
+function layer_text_create( _layerid,_x,_y,_font,_text) 
+{
+    var room = g_pLayerManager.GetTargetRoomObj();
+    if (room === null) return -1;
+
+    var layer = layerGetObj(room, _layerid);
+        
+    if(layer!=null)
+    {
+    
+        var textel = new CLayerTextElement();
+        
+        textel.m_fontIndex = yyGetRef(_font, REFID_FONT, g_pFontManager.Fonts.length, g_pFontManager.Fonts);
+        textel.m_x = yyGetReal(_x);
+        textel.m_y = yyGetReal(_y);
+        textel.m_text = yyGetString(_text);
+
+        g_pLayerManager.AddNewElement(room,layer,textel);
+    
+        return textel.m_id;
+    }
+    return -1;
+};
+
+function layer_text_destroy(_textelID) 
+{
+    var room = g_pLayerManager.GetTargetRoomObj();
+    if (room === null) return;
+
+    g_pLayerManager.RemoveElementById(room, yyGetInt32(_textelID));
+};
+
+function layer_text_font( _textelID,_font) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        el.m_fontIndex = yyGetRef(_font, REFID_FONT, g_pFontManager.Fonts.length, g_pFontManager.Fonts);        
+    }
+};
+
+function layer_text_text( _textelID,_text) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        el.m_text = yyGetString(_text);
+    }
+};
+
+function layer_text_halign( _textelID,_halign) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        var halign = yyGetInt32(_halign);
+        el.m_alignment = (el.m_alignment & ~0xff) | (halign & 0xff);
+    }
+};
+
+function layer_text_valign( _textelID,_valign) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        var valign = yyGetInt32(_valign);
+        el.m_alignment = (el.m_alignment & 0xff) | ((valign & 0xff) << 8);
+    }
+};
+
+function layer_text_x( _textelID,_x) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        el.m_x = yyGetReal(_x);
+    }
+};
+
+function layer_text_y( _textelID,_y) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        el.m_y = yyGetReal(_y);
+    }
+};
+
+function layer_text_xscale( _textelID,_xscale) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        el.m_scaleX = yyGetReal(_xscale);
+    }
+};
+
+function layer_text_yscale( _textelID,_yscale) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        el.m_scaleY = yyGetReal(_yscale);
+    }
+};
+
+function layer_text_angle( _textelID,_angle) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        el.m_angle = yyGetReal(_angle);
+    }
+};
+
+function layer_text_blend( _textelID,_blend) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        el.m_blend = ConvertGMColour(yyGetInt32(_blend));
+    }
+};
+
+function layer_text_alpha( _textelID,_alpha) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        el.m_alpha = yyGetReal(_alpha);
+    }
+};
+
+function layer_text_xorigin( _textelID,_xorigin) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        el.m_originX = yyGetReal(_xorigin);
+    }
+};
+
+function layer_text_yorigin( _textelID,_yorigin) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        el.m_originY = yyGetReal(_yorigin);
+    }
+};
+
+function layer_text_charspacing( _textelID,_charspacing) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        el.m_charSpacing = yyGetReal(_charspacing);
+    }
+};
+
+function layer_text_linespacing( _textelID,_linespacing) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        el.m_lineSpacing = yyGetReal(_linespacing);
+    }
+};
+
+function layer_text_framew( _textelID,_framew) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        el.m_frameW = yyGetReal(_framew);
+    }
+};
+
+function layer_text_frameh( _textelID,_frameh) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        el.m_frameH = yyGetReal(_frameh);
+    }
+};
+
+function layer_text_wrap( _textelID,_wrap) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        el.m_wrap = yyGetBool(_wrap);
+    }
+};
+
+function layer_text_get_font( _textelID) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        return MAKE_REF(REFID_FONT, el.m_fontIndex);
+    }
+    return -1;
+};	
+
+function layer_text_get_text( _textelID) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        return el.m_text;
+    }
+    return -1;
+};	
+
+function layer_text_get_halign( _textelID) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        return (el.m_alignment & 0xff);
+    }
+    return 0;
+};	
+
+function layer_text_get_valign( _textelID) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        return ((el.m_alignment >> 8) & 0xff);
+    }
+    return 0;
+};	
+
+function layer_text_get_x( _textelID) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        return el.m_x;
+    }
+    return 0;
+};	
+
+function layer_text_get_y( _textelID) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        return el.m_y;
+    }
+    return 0;
+};	
+
+function layer_text_get_xscale( _textelID) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        return el.m_scaleX;
+    }
+    return 1;
+};	
+
+function layer_text_get_yscale( _textelID) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        return el.m_scaleY;
+    }
+    return 1;
+};	
+
+function layer_text_get_angle( _textelID) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        return el.m_angle;
+    }
+    return 0;
+};
+
+function layer_text_get_blend( _textelID) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        return ConvertGMColour(el.m_blend);
+    }
+    return 0xffffff;
+};
+
+function layer_text_get_alpha( _textelID) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        return el.m_alpha;
+    }
+    return 1;
+};
+
+function layer_text_get_xorigin( _textelID) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        return el.m_originX;
+    }
+    return 0;
+};
+
+function layer_text_get_yorigin( _textelID) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        return el.m_originY;
+    }
+    return 0;
+};
+
+function layer_text_get_charspacing( _textelID) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        return el.m_charSpacing;
+    }
+    return 0;
+};
+
+function layer_text_get_linespacing( _textelID) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        return el.m_lineSpacing;
+    }
+    return 0;
+};
+
+function layer_text_get_framew( _textelID) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        return el.m_frameW;
+    }
+    return 0;
+};
+
+function layer_text_get_frameh( _textelID) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        return el.m_frameH;
+    }
+    return 0;
+};
+
+function layer_text_get_wrap( _textelID) 
+{
+    var el = layerTextGetElement(_textelID);
+    if (el != null)
+    {
+        return el.m_wrap;
+    }
+    return 0;
+};
+
+// Tilemap element functions
+function layerTilemapGetElement(tm_element_id)
+{
+    var room = g_pLayerManager.GetTargetRoomObj();
+    var el = g_pLayerManager.GetElementFromID(room, tm_element_id);
+
+    if ((el != null) && (el.m_type === eLayerElementType_Tilemap)) return el;
+    return null;
+}
+
+function layer_tilemap_get_id( arg1) 
+{
+    var room = g_pLayerManager.GetTargetRoomObj();
+    if (room === null) return MAKE_REF(REFID_TILEMAP,-1);
+
+    var layer = layerGetObj(room, arg1); 
+    if(layer!=null)
+    {
+        var element = g_pLayerManager.GetFirstElementOfType(layer,eLayerElementType_Tilemap);
+        if(element!=null && element.m_type == eLayerElementType_Tilemap)
+        {
+            return MAKE_REF(REFID_TILEMAP,element.m_id);
+        }
+    }
+    return MAKE_REF(REFID_TILEMAP,-1);
 
 };
 function layer_tilemap_exists( arg1,arg2) 
 {
-    var layer=null;
-   
-    if ((typeof (arg1) === "string") )
-        layer = g_pLayerManager.GetLayerFromName(g_RunRoom, yyGetString(arg1));
-    else
-        layer = g_pLayerManager.GetLayerFromID(g_RunRoom, yyGetInt32(arg1));
-   
+    var room = g_pLayerManager.GetTargetRoomObj();
+    if (room === null) return false;
+
+    var layer = layerGetObj(room, arg1);
     if(layer!=null)
     {
         // did we get a tilemap name, or a tilemap ID?
@@ -3152,21 +3583,19 @@ function layer_tilemap_exists( arg1,arg2)
 
         if(element!=null && element.m_type == eLayerElementType_Tilemap)
         {
-            return 1;
+            return true;
         }
     }
-    return 0;
+    return false;
 
 };
 
 function layer_tilemap_create( arg1,arg2,arg3,arg4,arg5,arg6) 
 {
-    var layer=null;
-   
-    if ((typeof (arg1) === "string") )
-        layer = g_pLayerManager.GetLayerFromName(g_RunRoom, yyGetString(arg1));
-    else
-        layer = g_pLayerManager.GetLayerFromID(g_RunRoom, yyGetInt32(arg1));
+    var room = g_pLayerManager.GetTargetRoomObj();
+    if (room === null) return MAKE_REF(REFID_TILEMAP,-1);;
+
+    var layer = layerGetObj(room, arg1);
    
     if(layer!=null)
     {
@@ -3188,30 +3617,24 @@ function layer_tilemap_create( arg1,arg2,arg3,arg4,arg5,arg6)
         }
        // if(pLayer.pName!=undefined) TileLayer.m_name = pLayer.pName;
    
-        g_pLayerManager.AddNewElement(g_RunRoom,layer,TileLayer,true);
+        g_pLayerManager.AddNewElement(room,layer,TileLayer,true);
 
-        return TileLayer.m_id;
+        return MAKE_REF(REFID_TILEMAP,TileLayer.m_id);
+       
     }
+    return MAKE_REF(REFID_TILEMAP,-1);
 };
 function layer_tilemap_destroy( arg1) 
 {
-    g_pLayerManager.RemoveElementById(g_RunRoom, yyGetInt32(arg1));
+    var room = g_pLayerManager.GetTargetRoomObj();
+    if (room === null) return;
+    
+    g_pLayerManager.RemoveElementById(room, yyGetInt32(arg1));
 };
 
 function layer_x(arg1,arg2)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var layer=null;
-   
-    if ((typeof (arg1) === "string") )
-        layer = g_pLayerManager.GetLayerFromName(room, yyGetString(arg1));
-    else
-        layer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(arg1));
+    var layer = layerGetFromTargetRoom(arg1);
    
     if(layer!=null)
     {
@@ -3221,18 +3644,7 @@ function layer_x(arg1,arg2)
 
 function layer_y(arg1,arg2)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var layer=null;
-   
-    if ((typeof (arg1) === "string") )
-        layer = g_pLayerManager.GetLayerFromName(room, yyGetString(arg1));
-    else
-        layer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(arg1));
+    var layer = layerGetFromTargetRoom(arg1);
    
     if(layer!=null)
     {
@@ -3243,18 +3655,7 @@ function layer_y(arg1,arg2)
 
 function layer_get_x(arg1)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var layer=null;
-   
-    if ((typeof (arg1) === "string") )
-        layer = g_pLayerManager.GetLayerFromName(room, yyGetString(arg1));
-    else
-        layer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(arg1));
+    var layer = layerGetFromTargetRoom(arg1);
    
     if(layer!=null)
     {
@@ -3266,18 +3667,7 @@ function layer_get_x(arg1)
 
 function layer_get_y(arg1)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var layer=null;
-   
-    if ((typeof (arg1) === "string") )
-        layer = g_pLayerManager.GetLayerFromName(room, yyGetString(arg1));
-    else
-        layer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(arg1));
+    var layer = layerGetFromTargetRoom(arg1);
    
     if(layer!=null)
     {
@@ -3289,18 +3679,7 @@ function layer_get_y(arg1)
 
 function layer_hspeed(layer_id, speed)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var layer = null;
-
-    if ((typeof (layer_id) === "string"))
-        layer = g_pLayerManager.GetLayerFromName(room, yyGetString(layer_id));
-    else
-        layer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(layer_id));
+    var layer = layerGetFromTargetRoom(layer_id);
 
     if (layer != null) {
         layer.m_hspeed = yyGetReal(speed);
@@ -3311,18 +3690,7 @@ function layer_hspeed(layer_id, speed)
 
 function layer_vspeed(layer_id, speed)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var layer = null;
-
-    if ((typeof (layer_id) === "string"))
-        layer = g_pLayerManager.GetLayerFromName(room, yyGetString(layer_id));
-    else
-        layer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(layer_id));
+    var layer = layerGetFromTargetRoom(layer_id);
 
     if (layer != null) {
         layer.m_vspeed = yyGetReal(speed);
@@ -3333,18 +3701,7 @@ function layer_vspeed(layer_id, speed)
 
 function layer_get_hspeed(layer_id)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var layer = null;
-
-    if ((typeof (layer_id) === "string"))
-        layer = g_pLayerManager.GetLayerFromName(room, yyGetString(layer_id));
-    else
-        layer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(layer_id));
+    var layer = layerGetFromTargetRoom(layer_id);
 
     if (layer != null) {
         return layer.m_hspeed;
@@ -3355,18 +3712,7 @@ function layer_get_hspeed(layer_id)
 
 function layer_get_vspeed(layer_id)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var layer = null;
-
-    if ((typeof (layer_id) === "string"))
-        layer = g_pLayerManager.GetLayerFromName(room, yyGetString(layer_id));
-    else
-        layer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(layer_id));
+    var layer = layerGetFromTargetRoom(layer_id);
 
     if (layer != null) {
         return layer.m_vspeed;
@@ -3377,14 +3723,8 @@ function layer_get_vspeed(layer_id)
 
 function tilemap_tileset( arg1,arg2) 
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Tilemap))
+    var el = layerTilemapGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         el.m_backgroundIndex = yyGetInt32(arg2);
     } 
@@ -3392,28 +3732,16 @@ function tilemap_tileset( arg1,arg2)
 
 function tilemap_x( arg1,arg2) 
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Tilemap))
+    var el = layerTilemapGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         el.m_x = yyGetReal(arg2);
     } 
 };
 function tilemap_y( arg1,arg2) 
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Tilemap))
+    var el = layerTilemapGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         el.m_y = yyGetReal(arg2);
     } 
@@ -3424,14 +3752,8 @@ function tilemap_set( arg1,arg2,arg3,arg4)
     arg3 = yyGetInt32(arg3);
     arg4 = yyGetInt32(arg4);
 
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Tilemap))
+    var el = layerTilemapGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         if(arg3<0)
         {
@@ -3484,17 +3806,9 @@ function CLayerElement()
 function tilemap_set_at_pixel( arg1,arg2,arg3,arg4) 
 {
     var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-    
     var ret = g_pLayerManager.GetElementAndLayerFromID(room, yyGetInt32(arg1));
-    
-    if(ret==null)
-    {
-        return -1;
-    }
+
+    if (ret == null) return -1;
     
     
     var el = ret.element;
@@ -3630,6 +3944,7 @@ function tileset_get_info(_ind) {
         variable_struct_set(ret, "tile_vertical_separator", pDest.tilevsep); 
         variable_struct_set(ret, "tile_columns", pDest.tilecolumns); 
         variable_struct_set(ret, "tile_count", pDest.tilecount); 
+        variable_struct_set(ret, "sprite_index", pDest.spriteindex); 
         variable_struct_set(ret, "frame_count", pDest.frames); 
         variable_struct_set(ret, "frame_length_ms", pDest.framelength); 
 
@@ -3670,14 +3985,8 @@ function tileset_get_info(_ind) {
 
 function tilemap_get_tileset( arg1) 
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Tilemap))
+    var el = layerTilemapGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         return el.m_backgroundIndex;
     }
@@ -3686,14 +3995,8 @@ function tilemap_get_tileset( arg1)
 };
 function tilemap_get_tile_width( arg1) 
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Tilemap))
+    var el = layerTilemapGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
     	var back = g_pBackgroundManager.GetImage(el.m_backgroundIndex);
 
@@ -3707,14 +4010,8 @@ function tilemap_get_tile_width( arg1)
 };
 function tilemap_get_tile_height( arg1) 
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Tilemap))
+    var el = layerTilemapGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
     	var back = g_pBackgroundManager.GetImage(el.m_backgroundIndex);
 
@@ -3727,14 +4024,8 @@ function tilemap_get_tile_height( arg1)
 };
 function tilemap_get_width( arg1) 
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Tilemap))
+    var el = layerTilemapGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         return el.m_mapWidth;
     }
@@ -3743,14 +4034,8 @@ function tilemap_get_width( arg1)
 };
 function tilemap_get_height( arg1) 
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Tilemap))
+    var el = layerTilemapGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         return el.m_mapHeight;
     }
@@ -3789,40 +4074,26 @@ function tilemap_resize(_tilemap, _newWidth, _newHeight)
 
 function tilemap_set_width(_tilemap, _newWidth)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-    if( room != null)
+    var el = layerTilemapGetElement(yyGetInt32(_tilemap));
+    if (el != null)
     {
-        var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(_tilemap));
-        if((el!=null) && (el.m_type ===eLayerElementType_Tilemap))
-        {
-            tilemap_resize(el, yyGetInt32(_newWidth), el.m_mapHeight);
-        }
+        tilemap_resize(el, yyGetInt32(_newWidth), el.m_mapHeight);
     }
 }
 
 function tilemap_set_height(_tilemap, _newHeight)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-    if (room != null)
+    var el = layerTilemapGetElement(yyGetInt32(_tilemap));
+    if (el != null)
     {
-        var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(_tilemap));
-        if ((el != null) && (el.m_type === eLayerElementType_Tilemap))
-        {
-            tilemap_resize(el, el.m_mapWidth, yyGetInt32(_newHeight));
-        }
+        tilemap_resize(el, el.m_mapWidth, yyGetInt32(_newHeight));
     }
 }
 
 function tilemap_get_x( arg1) 
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Tilemap))
+    var el = layerTilemapGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         return el.m_x;
     }
@@ -3830,14 +4101,8 @@ function tilemap_get_x( arg1)
 };
 function tilemap_get_y( arg1) 
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Tilemap))
+    var el = layerTilemapGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         return el.m_y;
     }
@@ -3889,11 +4154,6 @@ function tilemap_get( arg1,arg2,arg3)
 function tilemap_get_at_pixel( arg1,arg2,arg3) 
 {
     var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
     var ret = g_pLayerManager.GetElementAndLayerFromID(room, yyGetInt32(arg1));
     
     if(ret==null)
@@ -3960,11 +4220,6 @@ function tilemap_get_at_pixel( arg1,arg2,arg3)
 function tilemap_get_cell_x_at_pixel( arg1,arg2,arg3) 
 {
     var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
     var ret = g_pLayerManager.GetElementAndLayerFromID(room, yyGetInt32(arg1));
     
     if(ret==null)
@@ -4024,11 +4279,6 @@ function tilemap_get_cell_x_at_pixel( arg1,arg2,arg3)
 function tilemap_get_cell_y_at_pixel( arg1,arg2,arg3) 
 {
     var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
     var ret = g_pLayerManager.GetElementAndLayerFromID(room, yyGetInt32(arg1));
     
     if(ret==null)
@@ -4086,11 +4336,6 @@ function tilemap_get_cell_y_at_pixel( arg1,arg2,arg3)
 function tilemap_clear(arg1,arg2)
 {
     var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
     var ret = g_pLayerManager.GetElementAndLayerFromID(room, yyGetInt32(arg1));
     
     if(ret==null)
@@ -4116,9 +4361,6 @@ function tilemap_clear(arg1,arg2)
         }
     
     }
-    
-    
-
 };
 
 function tilemap_set_global_mask(arg1)
@@ -4133,14 +4375,8 @@ function tilemap_get_global_mask()
 
 function tilemap_get_mask(arg1)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return -1;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Tilemap))
+    var el = layerTilemapGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         return el.m_tiledataMask;
     }
@@ -4149,14 +4385,8 @@ function tilemap_get_mask(arg1)
 
 function tilemap_get_frame(arg1)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return -1;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Tilemap))
+    var el = layerTilemapGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         return el.m_frame;
     }
@@ -4165,37 +4395,24 @@ function tilemap_get_frame(arg1)
 
 function tilemap_set_mask(arg1,arg2)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Tilemap))
+    var el = layerTilemapGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
         el.m_tiledataMask = yyGetInt32(arg2);
     }
-    
-
 };
 
 
 
 function draw_tilemap(inst, arg1,arg2,arg3) 
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(arg1));
-    if((el!=null) && (el.m_type ===eLayerElementType_Tilemap))
+    var el = layerTilemapGetElement(yyGetInt32(arg1));
+    if (el != null)
     {
+        var room = g_pLayerManager.GetTargetRoomObj();
         var x = yyGetReal(arg2);
         var y = yyGetReal(arg3);
-        var depth = GetInstanceDepth(inst);
+        var depth = GR_Depth;
         room.DrawLayerTilemapElement(g_roomExtents, null, el, x, y, depth);
     }
 
@@ -4334,9 +4551,11 @@ function ShallowCopyVars( _dest, _other)
 
 function instance_create_depth( _x,_y,_depth,_objind, _basis) 
 {
-		
+	if (g_pLayerManager.GetTargetRoomObj() != g_RunRoom) return -1;
+
 	if(_depth == undefined)
 		_depth = 0;
+    _objind = yyGetInt32(_objind);
 	
     var o = g_pObjectManager.Get(_objind);
 	if (!o)
@@ -4344,14 +4563,14 @@ function instance_create_depth( _x,_y,_depth,_objind, _basis)
 		yyError("Error: Trying to create an instance using non-existent object type (" + _objind + ")");
 		return OBJECT_NOONE;
 	}
-    var inst =g_RunRoom.GML_AddInstanceDepth(yyGetReal(_x), yyGetReal(_y), yyGetInt32(_depth), yyGetInt32(_objind));
+    var inst =g_RunRoom.GML_AddInstanceDepth(yyGetReal(_x), yyGetReal(_y), yyGetInt32(_depth), _objind);
   
     if(inst!=null)
     {
         inst.PerformEvent(EVENT_PRE_CREATE, 0, inst, inst );
         ShallowCopyVars( inst, _basis );
         inst.PerformEvent(EVENT_CREATE, 0, inst, inst );
-	    return inst.id;
+	    return MAKE_REF(REFID_INSTANCE, inst.id);
     }
 
 	return OBJECT_NOONE;
@@ -4361,6 +4580,8 @@ function instance_create_depth( _x,_y,_depth,_objind, _basis)
 
 function instance_create_layer( _x,_y,_layerid,_obj, _basis)
 {
+    if (g_pLayerManager.GetTargetRoomObj() != g_RunRoom) return -1;
+
     _obj = yyGetInt32(_obj);
 
     var o = g_pObjectManager.Get(_obj);
@@ -4382,7 +4603,7 @@ function instance_create_layer( _x,_y,_layerid,_obj, _basis)
         pInst.PerformEvent(EVENT_PRE_CREATE, 0, pInst, pInst);
         ShallowCopyVars( pInst, _basis );
         pInst.PerformEvent(EVENT_CREATE, 0, pInst, pInst);
-        return pInst.id;
+        return MAKE_REF(REFID_INSTANCE, pInst.id);
     } else {
         yyError("Error: Trying to create an instance on a non-existant layer");
     }
@@ -4394,11 +4615,10 @@ function instance_create_layer( _x,_y,_layerid,_obj, _basis)
 function layer_get_all() {
     var room = g_pLayerManager.GetTargetRoomObj();
 
-    if (room == null) {
-        return -1;
-    }
-
     var arr = [];
+    if (room == null) {
+        return arr;
+    }
     var numlayers = 0;
 
     for (var i = 0; i < room.m_Layers.length; i++) {
@@ -4415,16 +4635,7 @@ function layer_get_all() {
 
 function layer_get_all_elements(_layerid) {
     var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return -1;
-    }
-
-    var layer = null;
-    if (typeof (_layerid) == "string")
-        layer = g_pLayerManager.GetLayerFromName(room, yyGetString(_layerid));
-    else
-        layer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(_layerid));
+    var layer = layerGetObj(room, _layerid);
 
     var arr = [];
     var numelements = 0;
@@ -4441,18 +4652,7 @@ function layer_get_all_elements(_layerid) {
 };
 
 function layer_get_name(_layerid) {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return "";
-    }
-
-    var layer = null;
-    if (typeof (_layerid) == "string")
-        layer = g_pLayerManager.GetLayerFromName(room, yyGetString(_layerid));
-    else
-        layer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(_layerid));
-
+    var layer = layerGetFromTargetRoom(_layerid);
     if (layer != null)
     {
         if (layer.m_pName == null)
@@ -4471,16 +4671,7 @@ function layer_get_name(_layerid) {
 function layer_depth(_layerid, _depth)
 {
     var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return;
-    }
-
-    var layer = null;
-    if (typeof (_layerid) == "string")
-        layer = g_pLayerManager.GetLayerFromName(room, yyGetString(_layerid));
-    else
-        layer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(_layerid));
+    var layer = layerGetObj(room, _layerid);
 
     if (layer != null)
     {
@@ -4498,11 +4689,6 @@ function layer_depth(_layerid, _depth)
 function layer_get_element_layer(_elid)
 {
     var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return -1;
-    }
-
     var elandlay = g_pLayerManager.GetElementAndLayerFromID(room, yyGetInt32(_elid));
     if (elandlay != null)
     {
@@ -4530,18 +4716,13 @@ function layer_get_element_type(_elid) {
 
 function layer_element_move(_elid, _targetlayerID) {
     var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return -1;
-    }
-
     var elandlay = g_pLayerManager.GetElementAndLayerFromID(room, yyGetInt32(_elid));
     if (elandlay == null)
     {
         return -1;
     }
 
-    var targetlayer = g_pLayerManager.GetLayerFromID(yyGetInt32(_targetlayerID));
+    var targetlayer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(_targetlayerID));
     if (targetlayer != null)
     {
         g_pLayerManager.MoveElement(room, elandlay.element, targetlayer);
@@ -4554,12 +4735,21 @@ function layer_force_draw_depth(_force, _depth) {
 };
 
 function layer_is_draw_depth_forced() {
-    return g_pLayerManager.IsDepthForced() ? 1.0 : 0.0;
+    return g_pLayerManager.IsDepthForced() ? true : false;
 };
 
 function layer_get_forced_depth() {
     return g_pLayerManager.GetForcedDepth();
 };
+
+
+function layerTileGetElement(tile_element_id)
+{
+    var room = g_pLayerManager.GetTargetRoomObj();
+    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(tile_element_id));
+    if ((el != null) && (el.m_type === eLayerElementType_Tile)) return el;
+    return null;
+}
 
 function layer_tile_exists(_layerid, _arg2) {
     var room = g_pLayerManager.GetTargetRoomObj();
@@ -4601,16 +4791,7 @@ function layer_tile_exists(_layerid, _arg2) {
 
 function layer_tile_create(_layerid, _x, _y, _tileset, _left, _top, _width, _height) {
     var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var layer = null;
-    if (typeof (_layerid) == "string")
-        layer = g_pLayerManager.GetLayerFromName(room, yyGetString(_layerid));
-    else
-        layer = g_pLayerManager.GetLayerFromID(room, yyGetInt32(_layerid));
+    var layer = layer = layerGetObj(room, _layerid);
 
     if (layer != null)
     {
@@ -4634,23 +4815,14 @@ function layer_tile_create(_layerid, _x, _y, _tileset, _left, _top, _width, _hei
 function layer_tile_destroy(_elid)
 {
     var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return -1;
-    }
-
     g_pLayerManager.RemoveElementById(room, yyGetInt32(_elid));
+
+    return -1;
 };
 
 function layer_tile_change(tile_element_id, sprite)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return -1;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(tile_element_id));
+    var el = layerTileGetElement(tile_element_id);
     if (el != null)
     {
         el.m_index = yyGetInt32(sprite);
@@ -4659,13 +4831,7 @@ function layer_tile_change(tile_element_id, sprite)
 
 function layer_tile_xscale(tile_element_id, scale)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return -1;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(tile_element_id));
+    var el = layerTileGetElement(tile_element_id);
     if (el != null) {
         el.m_imageScaleX = yyGetReal(scale);
     }
@@ -4673,13 +4839,7 @@ function layer_tile_xscale(tile_element_id, scale)
 
 function layer_tile_yscale(tile_element_id, scale)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return -1;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(tile_element_id));
+    var el = layerTileGetElement(tile_element_id);
     if (el != null) {
         el.m_imageScaleY = yyGetReal(scale);
     }
@@ -4687,13 +4847,7 @@ function layer_tile_yscale(tile_element_id, scale)
 
 function layer_tile_blend(tile_element_id, col)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return -1;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(tile_element_id));
+    var el = layerTileGetElement(tile_element_id);
     if (el != null) {
         el.m_imageBlend = yyGetInt32(col);
     }
@@ -4701,13 +4855,7 @@ function layer_tile_blend(tile_element_id, col)
 
 function layer_tile_alpha(tile_element_id, alpha)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return -1;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(tile_element_id));
+    var el = layerTileGetElement(tile_element_id);
     if (el != null) {
         el.m_imageAlpha = yyGetReal(alpha);
     }
@@ -4715,13 +4863,7 @@ function layer_tile_alpha(tile_element_id, alpha)
 
 function layer_tile_x(tile_element_id, x)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return -1;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(tile_element_id));
+    var el = layerTileGetElement(tile_element_id);
     if (el != null) {
         el.m_x = yyGetReal(x);
     }
@@ -4729,13 +4871,7 @@ function layer_tile_x(tile_element_id, x)
 
 function layer_tile_y(tile_element_id, y)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return -1;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(tile_element_id));
+    var el = layerTileGetElement(tile_element_id);
     if (el != null) {
         el.m_y = yyGetReal(y);
     }
@@ -4743,13 +4879,7 @@ function layer_tile_y(tile_element_id, y)
 
 function layer_tile_region(tile_element_id, left, top, width, height)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return -1;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(tile_element_id));
+    var el = layerTileGetElement(tile_element_id);
     if (el != null) {
         el.m_xo = yyGetInt32(left);
         el.m_yo = yyGetInt32(top);
@@ -4759,13 +4889,7 @@ function layer_tile_region(tile_element_id, left, top, width, height)
 };
 
 function layer_tile_visible(tile_element_id, visible) {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return -1;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(tile_element_id));
+    var el = layerTileGetElement(tile_element_id);
     if (el != null) {
         el.m_visible = yyGetBool(visible);
     }
@@ -4773,111 +4897,70 @@ function layer_tile_visible(tile_element_id, visible) {
 
 function layer_tile_get_sprite(tile_element_id)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return -1;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(tile_element_id));
+    var el = layerTileGetElement(tile_element_id);
     if (el != null) {
         return el.m_index;
     }
+    return -1;
 };
 
 function layer_tile_get_xscale(tile_element_id)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 1;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(tile_element_id));
+    var el = layerTileGetElement(tile_element_id);
     if (el != null) {
         return el.m_imageScaleX;
     }
+    return 1;
 };
 
 function layer_tile_get_yscale(tile_element_id)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 1;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(tile_element_id));
+    var el = layerTileGetElement(tile_element_id);
     if (el != null) {
         return el.m_imageScaleY;
     }
+    return 1;
 };
 
 function layer_tile_get_blend(tile_element_id)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(tile_element_id));
+    var el = layerTileGetElement(tile_element_id);
     if (el != null) {
         return el.m_imageBlend;
     }
+    return 0;
 };
 
 function layer_tile_get_alpha(tile_element_id)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0.0;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(tile_element_id));
+    var el = layerTileGetElement(tile_element_id);
     if (el != null) {
         return el.m_imageAlpha;
     }
+    return 0;
 };
 
 function layer_tile_get_x(tile_element_id)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(tile_element_id));
+    var el = layerTileGetElement(tile_element_id);
     if (el != null) {
         return el.m_x;
     }
+    return 0;
 };
 
 function layer_tile_get_y(tile_element_id)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(tile_element_id));
+    var el = layerTileGetElement(tile_element_id);
     if (el != null) {
         return el.m_y;
     }
+    return 0;
 };
 
 function layer_tile_get_region(tile_element_id)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return -1;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(tile_element_id));
+    var el = layerTileGetElement(tile_element_id);
     if (el != null) {
         var arr = [];
         arr[0] = el.m_xo;
@@ -4886,20 +4969,16 @@ function layer_tile_get_region(tile_element_id)
         arr[3] = el.m_h;
         return arr;
     }
+    return -1;
 };
 
 function layer_tile_get_visible(tile_element_id)
 {
-    var room = g_pLayerManager.GetTargetRoomObj();
-
-    if (room == null) {
-        return 0;
-    }
-
-    var el = g_pLayerManager.GetElementFromID(room, yyGetInt32(tile_element_id));
+    var el = layerTileGetElement(tile_element_id);
     if (el != null) {
         return el.m_visible;
     }
+    return false;
 };
 
 
@@ -4967,8 +5046,8 @@ function layer_sequence_create(layer_id, posx, posy, sequence_id)
     newSeqEl.m_blend = -1;
     newSeqEl.m_scaleX = 1;
     newSeqEl.m_scaleY = 1;
-    newSeqEl.m_x = posx;
-    newSeqEl.m_y = posy;
+    newSeqEl.m_x = yyGetReal(posx);
+    newSeqEl.m_y = yyGetReal(posy);
     newSeqEl.m_angle = 0;
     newSeqEl.m_name = sequence.name;
 
@@ -4980,6 +5059,7 @@ function layer_sequence_create(layer_id, posx, posy, sequence_id)
 
 function layer_sequence_destroy(sequence_element_id)
 {
+    var room = g_pLayerManager.GetTargetRoomObj();
     var el = layerSequenceGetInstance(yyGetInt32(sequence_element_id));
 
     if (el == null)
@@ -4994,24 +5074,19 @@ function layer_sequence_destroy(sequence_element_id)
         g_pSequenceManager.HandleInstanceEvent(inst, EVENT_DESTROY);
     }
 
-    g_pLayerManager.RemoveElementById(g_RunRoom, yyGetInt32(sequence_element_id));
+    g_pLayerManager.RemoveElementById(room, yyGetInt32(sequence_element_id));
 }
 
 function layer_sequence_exists(arg1, arg2)
 {
-    var layer = null;
-
-    if ((typeof (arg1) === "string"))
-        layer = g_pLayerManager.GetLayerFromName(g_RunRoom, yyGetString(arg1));
-    else
-        layer = g_pLayerManager.GetLayerFromID(g_RunRoom, yyGetInt32(arg1));
-
+    var layer = layerGetFromTargetRoom(arg1);
     var el = g_pLayerManager.GetElementFromIDWithLayer(layer, yyGetInt32(arg2));
     if ((el != null) && (el.m_type === eLayerElementType_Sequence))
+    if (el != null)
     {
-        return 1;
+        return true;
     }
-    return 0;
+    return false;
 
 };
 
@@ -5023,7 +5098,7 @@ function layer_sequence_x(sequence_element_id, pos_x)
         if (seqInst != null)
 		{
             el.m_x = yyGetReal(pos_x);
-            el.m_dirtyflags |= (1<<eT_Position);
+            el.m_dirtyflags.SetBit(eT_Position);
 		}
     }
 
@@ -5038,7 +5113,7 @@ function layer_sequence_y(sequence_element_id, pos_y)
         if (seqInst != null)
 		{
             el.m_y = yyGetReal(pos_y);
-            el.m_dirtyflags |= (1 << eT_Position);
+            el.m_dirtyflags.SetBit(eT_Position);
 		}
     }
 
@@ -5054,7 +5129,7 @@ function layer_sequence_angle(sequence_element_id, angle)
         if (seqInst != null)
         {
             el.m_angle = yyGetReal(angle);
-            el.m_dirtyflags |= (1 << eT_Rotation);
+            el.m_dirtyflags.SetBit(eT_Rotation);
         }
     }
 
@@ -5070,7 +5145,7 @@ function layer_sequence_xscale(sequence_element_id, xscale)
         if (seqInst != null)
         {
             el.m_scaleX = yyGetReal(xscale);
-            el.m_dirtyflags |= (1 << eT_Scale);
+            el.m_dirtyflags.SetBit(eT_Scale);
         }
     }
 
@@ -5086,7 +5161,7 @@ function layer_sequence_yscale(sequence_element_id, yscale)
         if (seqInst != null)
         {
             el.m_scaleY = yyGetReal(yscale);
-            el.m_dirtyflags |= (1 << eT_Scale);
+            el.m_dirtyflags.SetBit(eT_Scale);
         }
     }
 
@@ -5116,7 +5191,7 @@ function layer_sequence_headpos(sequence_element_id, position)
                 seqInst.m_headPosition = headPos;
                 seqInst.lastHeadPosition = headPos; // don't want to treat this like a normal time step
 
-                el.m_dirtyflags |= (1 << eT_HeadPosChanged);
+                el.m_dirtyflags.SetBit(eT_HeadPosChanged);
                 //seqInst.m_finished = tmp.finished;
             }
 		}
@@ -5175,7 +5250,7 @@ function layer_sequence_play(sequence_element_id)
                     var seq = g_pSequenceManager.GetSequenceFromID(seqInst.m_sequenceIndex);
                     if(seq != null)
                     {
-                        seqInst.m_headPosition = seqInst.lastHeadPosition = (seq.length - 1);
+                        seqInst.m_headPosition = seqInst.lastHeadPosition = (seq.m_length - 1);
                     }
                 }
                 else
@@ -5370,12 +5445,13 @@ function layer_sequence_get_length(sequence_element_id)
 
 function sequence_instance_exists(_objectID)
 {
-    if(g_RunRoom != null)
+    var room = g_pLayerManager.GetTargetRoomObj();
+    if(room != null)
     {
-        for (var instanceIndex = 0; instanceIndex < g_RunRoom.m_SequenceInstancesIds.length; ++instanceIndex)
+        for (var instanceIndex = 0; instanceIndex < room.m_SequenceInstancesIds.length; ++instanceIndex)
         {
-            var sequenceInstanceId = g_RunRoom.m_SequenceInstancesIds[instanceIndex];
-            var sequenceElement = g_pLayerManager.GetElementFromID(g_RunRoom, sequenceInstanceId);
+            var sequenceInstanceId = room.m_SequenceInstancesIds[instanceIndex];
+            var sequenceElement = g_pLayerManager.GetElementFromID(room, sequenceInstanceId);
             if(_objectID == sequenceElement.m_sequenceIndex)
             {
                 return true;
@@ -5486,12 +5562,16 @@ function fx_get_single_layer(_effect)
 		return -1;
     }
 
-    var varId = "gml" + EFFECT_AFFECT_SINGLE_LAYER_VAR;
-	if ((typeof g_var2obf !== "undefined") && (g_var2obf[EFFECT_AFFECT_SINGLE_LAYER_VAR] != undefined)) {
-		varId = g_var2obf[EFFECT_AFFECT_SINGLE_LAYER_VAR];
-	}
-
-    return _effect.instance.pEffectObj[varId];
+    // To read the value we cannot use 'GetParamVar' because that will only return values that are defined in the 'pEffectInfo.pParams' array.
+    var varId = EFFECT_AFFECT_SINGLE_LAYER_VAR;
+    if (_effect.instance.pEffectInfo.type == FAE_TYPE_EFFECT) {
+        var varId = "gml" + EFFECT_AFFECT_SINGLE_LAYER_VAR; 
+        if ((typeof g_var2obf !== "undefined") && (g_var2obf[EFFECT_AFFECT_SINGLE_LAYER_VAR] != undefined)) { 
+            varId = g_var2obf[EFFECT_AFFECT_SINGLE_LAYER_VAR]; 
+        }
+    }
+ 
+    return _effect.instance.pEffectObj[varId] == 1 ? true : false;
 }
 
 function fx_set_parameter(_effect, _name, _val)
@@ -5514,7 +5594,7 @@ function fx_set_parameter(_effect, _name, _val)
     }
     else
     {
-        var arr = arguments.slice(2);
+        var arr = Array.prototype.slice.call(arguments, 2);
         _effect.instance.SetParamVar(_name, arr);
     }
 }
@@ -5561,12 +5641,7 @@ function fx_set_single_layer(_effect, _val)
 		return -1;
     }
 
-    var varId = "gml" + EFFECT_AFFECT_SINGLE_LAYER_VAR;
-	if ((typeof g_var2obf !== "undefined") && (g_var2obf[EFFECT_AFFECT_SINGLE_LAYER_VAR] != undefined)) {
-		varId = g_var2obf[EFFECT_AFFECT_SINGLE_LAYER_VAR];
-	}
-
-    _effect.instance.pEffectObj[varId] = _val;
+    _effect.instance.SetParam(EFFECT_AFFECT_SINGLE_LAYER_VAR, FAE_PARAM_BOOL, 1, [ yyGetBool(_val) ]);
 }
 
 function layer_set_fx(_layerId, _effect)
@@ -5583,17 +5658,8 @@ function layer_set_fx(_layerId, _effect)
 		return -1;
 	}
 
-    var pRoom = g_RunRoom;
-
-	var pLayer = null;
-	if (typeof _layerId == "string")
-	{
-		pLayer = g_pLayerManager.GetLayerFromName(pRoom, yyGetString(_layerId));
-	}
-	else
-	{
-		pLayer = g_pLayerManager.GetLayerFromID(pRoom, yyGetInt32(_layerId));
-	}
+    var pRoom = g_pLayerManager.GetTargetRoomObj();
+    var pLayer = layerGetObj(pRoom, _layerId);
 
 	if (pLayer == null)
 	{
@@ -5613,17 +5679,8 @@ function layer_get_fx(_layerId)
 		return -1;
 	}
 
-    var pRoom = g_RunRoom;
-
-	var pLayer = null;
-	if (typeof _layerId == "string")
-	{
-		pLayer = g_pLayerManager.GetLayerFromName(pRoom, yyGetString(_layerId));
-	}
-	else
-	{
-		pLayer = g_pLayerManager.GetLayerFromID(pRoom, yyGetInt32(_layerId));
-	}
+    var pRoom = g_pLayerManager.GetTargetRoomObj();
+    var pLayer = layerGetObj(pRoom, _layerId);
 
 	if (pLayer == null)
 	{
@@ -5648,17 +5705,8 @@ function layer_clear_fx(_layerId)
 		return -1;
 	}
 
-    var pRoom = g_RunRoom;
-
-	var pLayer = null;
-	if (typeof _layerId == "string")
-	{
-		pLayer = g_pLayerManager.GetLayerFromName(pRoom, yyGetString(_layerId));
-	}
-	else
-	{
-		pLayer = g_pLayerManager.GetLayerFromID(pRoom, yyGetInt32(_layerId));
-	}
+    var pRoom = g_pLayerManager.GetTargetRoomObj();
+    var pLayer = layerGetObj(pRoom, _layerId);
 
 	if (pLayer == null)
 	{
@@ -5678,17 +5726,8 @@ function layer_enable_fx(_layerId, _enable)
 		return -1;
 	}	
 
-    var pRoom = g_RunRoom;
-
-	var pLayer = null;
-	if (typeof _layerId == "string")
-	{
-		pLayer = g_pLayerManager.GetLayerFromName(pRoom, yyGetString(_layerId));
-	}
-	else
-	{
-		pLayer = g_pLayerManager.GetLayerFromID(pRoom, yyGetInt32(_layerId));
-	}
+    var pRoom = g_pLayerManager.GetTargetRoomObj();
+    var pLayer = layerGetObj(pRoom, _layerId);
 
 	if (pLayer == null)
 	{
@@ -5707,22 +5746,13 @@ function layer_fx_is_enabled(_layerId)
 		return 1;
 	}	
 
-    var pRoom = g_RunRoom;
-
-	var pLayer = null;
-	if (typeof _layerId == "string")
-	{
-		pLayer = g_pLayerManager.GetLayerFromName(pRoom, yyGetString(_layerId));
-	}
-	else
-	{
-		pLayer = g_pLayerManager.GetLayerFromID(pRoom, yyGetInt32(_layerId));
-	}
+    var pRoom = g_pLayerManager.GetTargetRoomObj();
+    var pLayer = layerGetObj(pRoom, _layerId);
 
 	if (pLayer == null)
 	{
 		// Couldn't find specified layer
-		return 1;
+		return true;
 	}
 
     return pLayer.m_effectToBeEnabled;	

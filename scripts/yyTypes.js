@@ -1,4 +1,4 @@
-﻿// **********************************************************************************************************************
+// **********************************************************************************************************************
 // 
 // Copyright (c)2011, YoYo Games Ltd. All Rights reserved.
 // 
@@ -14,6 +14,152 @@
 // 
 // **********************************************************************************************************************
 
+var AT_None = -1,
+    AT_Object = 0,
+	AT_Sprite = 1,
+	AT_Sound = 2,
+	AT_Room = 3,
+	AT_Path = 4,
+	AT_Script = 5,
+	AT_Font = 6,
+	AT_Timeline = 7,
+	AT_Shader = 8,
+    AT_Sequence = 9,
+    AT_AnimCurve = 10,
+    AT_ParticleSystem = 11,
+    AT_Tilemap = 12, 
+    AT_Tileset = 13;
+
+var REFCAT_RESOURCE			= 0x01000000;
+var REFCAT_DATA_STRUCTURE	= 0x02000000;
+var REFCAT_INSTANCE			= 0x04000000;
+var REFCAT_GENERAL          = 0x08000000;
+
+// Runtime instances of resources
+var REFID_INSTANCE			= (0x00000001 | REFCAT_INSTANCE);
+var REFID_DBG				= (0x00000002 | REFCAT_INSTANCE);
+var REFID_PART_SYSTEM		= (0x00000004 | REFCAT_INSTANCE);
+var REFID_PART_EMITTER		= (0x00000008 | REFCAT_INSTANCE);
+var REFID_PART_TYPE			= (0x00000010 | REFCAT_INSTANCE);
+
+// 
+var REFID_OBJECT			= (AT_Object | REFCAT_RESOURCE);
+var REFID_SPRITE			= (AT_Sprite | REFCAT_RESOURCE);
+var REFID_SOUND				= (AT_Sound | REFCAT_RESOURCE);
+var REFID_ROOM				= (AT_Room | REFCAT_RESOURCE);
+var REFID_PATH				= (AT_Path | REFCAT_RESOURCE);
+var REFID_SCRIPT			= (AT_Script | REFCAT_RESOURCE);
+var REFID_FONT				= (AT_Font | REFCAT_RESOURCE);
+var REFID_TIMELINE			= (AT_Timeline | REFCAT_RESOURCE);
+var REFID_SHADER			= (AT_Shader | REFCAT_RESOURCE);
+var REFID_SEQUENCE			= (AT_Sequence | REFCAT_RESOURCE);
+var REFID_ANIMCURVE			= (AT_AnimCurve | REFCAT_RESOURCE);
+var REFID_PARTICLESYSTEM	= (AT_ParticleSystem | REFCAT_RESOURCE);
+var REFID_TILEMAP			= (AT_Tilemap | REFCAT_RESOURCE);
+var REFID_TILESET			= (AT_Tileset | REFCAT_RESOURCE);
+
+var REFID_DS_LIST		= (0x00000001 | REFCAT_DATA_STRUCTURE);
+var REFID_DS_MAP		= (0x00000002 | REFCAT_DATA_STRUCTURE);
+var REFID_DS_GRID		= (0x00000004 | REFCAT_DATA_STRUCTURE);
+var REFID_DS_QUEUE		= (0x00000008 | REFCAT_DATA_STRUCTURE);
+var REFID_DS_STACK		= (0x00000010 | REFCAT_DATA_STRUCTURE);
+var REFID_DS_PRIORITY	= (0x00000020 | REFCAT_DATA_STRUCTURE);
+
+
+var REFID_BUFFER = (0x00000001 | REFCAT_GENERAL);
+var REFID_VERTEX_BUFFER = (0x00000002 | REFCAT_GENERAL);
+var REFID_VERTEX_FORMAT = (0x00000003 | REFCAT_GENERAL);
+var REFID_SURFACE = (0x00000004 | REFCAT_GENERAL);
+var REFID_TIME_SOURCE = (0x00000005 | REFCAT_GENERAL);
+
+
+function YYRef(_type, _value)
+{
+    this.type = _type;
+    this.value = _value;
+}
+
+function MAKE_REF(a, b)
+{
+    return new YYRef(a, b);
+}
+
+function YYASSET_REF(a)
+{
+    var index = a & 0x00ffffff;
+    var type = (a >> 24) & 0xff | REFCAT_RESOURCE;
+
+    switch (type)
+    {
+    // TODO: Move resources to references
+    case REFID_OBJECT:
+    case REFID_PARTICLESYSTEM:
+        return MAKE_REF(type, index);
+    
+    default:
+        return index;
+    }
+}
+
+var  g_name2ref = [
+    {   "name" : "instance", "type" : REFID_INSTANCE },
+    {   "name" : "ds_list",  "type" : REFID_DS_LIST },
+    {   "name" : "ds_map", "type" : REFID_DS_MAP},
+    {   "name" : "ds_grid", "type" : REFID_DS_GRID},
+    {   "name" : "ds_queue", "type" : REFID_DS_QUEUE},
+    {   "name" : "ds_stack", "type" : REFID_DS_STACK},
+    {   "name" : "ds_priority", "type" : REFID_DS_PRIORITY},
+    {   "name" : "object", "type" : REFID_OBJECT},
+    {   "name" : "sprite", "type" : REFID_SPRITE},
+    {   "name" : "sound", "type" : REFID_SOUND},
+    {   "name" : "room", "type" : REFID_ROOM},
+    {   "name" : "path", "type" : REFID_PATH},
+    {   "name" : "script", "type" : REFID_SCRIPT},
+    {   "name" : "font", "type" : REFID_FONT},
+    {   "name" : "timeline", "type" : REFID_TIMELINE},
+    {   "name" : "shader", "type" : REFID_SHADER},
+    {   "name" : "sequence", "type" : REFID_SEQUENCE},
+    {   "name" : "animcurve", "type" : REFID_ANIMCURVE},
+    {   "name" : "particle system resource", "type" : REFID_PARTICLESYSTEM},
+    {   "name" : "dbgref", "type" : REFID_DBG},
+    {   "name" : "particle system instance", "type" : REFID_PART_SYSTEM},
+    {   "name" : "particle emitter","type" : REFID_PART_EMITTER},
+    {   "name" : "particle type", "type" : REFID_PART_TYPE},
+    {   "name" : "buffer", "type" : REFID_BUFFER},
+    {   "name" : "vertex buffer", "type" : REFID_VERTEX_BUFFER},
+    {   "name" : "vertex format", "type" : REFID_VERTEX_FORMAT},
+    {   "name" : "surface", "type" : REFID_SURFACE},
+    {   "name" : "time source", "type" : REFID_TIME_SOURCE},
+    {   "name" : "tilemap", "type" : REFID_TILEMAP},
+    {   "name" : "tileset", "type" : REFID_TILESET},
+
+];
+
+
+function RefName(_ref)
+{
+    var pRet = "unknown";
+    for( var n=0; n<g_name2ref.length; ++n) {
+        if (g_name2ref[n].type == _ref) {
+            pRet = g_name2ref[n].name;
+            break;
+        } // end if
+    } // end for
+    return pRet;
+} // end RefName
+
+function Name2Ref( _name )
+{
+    var pRet = -1;
+    for( var n=0; n<g_name2ref.length; ++n) {
+        if (g_name2ref[n].name == _name) {
+            pRet = g_name2ref[n].type;
+            break;
+        } // end if
+    } // end for
+    return pRet;    
+}
+
 // #############################################################################################
 /// Function:<summary>
 ///				Converts the given type to a real number if required and returns the result.
@@ -26,7 +172,9 @@
 // #############################################################################################
 function yyGetReal(_v)
 {
-    if (typeof _v === "number")
+    if (_v instanceof YYRef)
+        return _v.value;
+    else if (typeof _v === "number")
         return _v;
     else if (typeof _v === "boolean") 
         return _v ? 1 : 0;
@@ -72,7 +220,9 @@ function yyGetReal(_v)
 ///			 </returns>
 // #############################################################################################
 function yyGetInt64(_v) {
-    if (typeof _v === "number")
+    if (_v instanceof YYRef)
+        return _v.value;
+    else if (typeof _v === "number")
         return Long.fromValue(_v, false);
     else if (typeof _v === "boolean") 
         return Long.fromValue(_v ? 1 : 0, false);
@@ -118,7 +268,9 @@ function yyGetInt64(_v) {
 ///			 </returns>
 // #############################################################################################
 function yyGetInt32(_v) {
-    if (typeof _v === "number")
+    if (_v instanceof YYRef)
+        return _v.value;
+    else if (typeof _v === "number")
         return ~~_v;
     else if (typeof _v === "boolean") 
         return _v ? 1 : 0;
@@ -164,7 +316,9 @@ function yyGetInt32(_v) {
 ///			 </returns>
 // #############################################################################################
 function yyGetBool(_v) {
-    if (typeof _v === "boolean") 
+    if (_v instanceof YYRef)
+        return _v.value > 0;
+    else if (typeof _v === "boolean") 
         return _v;
     else if (_v === undefined) 
         return false;
@@ -211,6 +365,29 @@ function yyGetBool(_v) {
     return false;
 }
 
+function yyGetRef(_value, _ref, _maxNum, _array, _allowOutOfRange) {
+    var ret = -1;
+    if (_value instanceof YYRef) {
+        var type = _value.type;
+        if (type != _ref) {
+            if(!_allowOutOfRange)
+                yyError("incorrect type (" + RefName(type) + ") expecting a " + RefName(_ref));
+        }
+        else
+            ret = _value.value;
+    }
+    else {
+        ret = yyGetInt32(_value);
+    }
+
+    if (!_allowOutOfRange) {
+        if (ret < 0 || ret >= _maxNum || (_array && !_array[ret])) {
+            yyError("invalid reference to (" + RefName(_ref) + ")");
+        }
+    }
+
+    return ret;
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -247,7 +424,10 @@ function STRING_RemoveVisited( _v )
 
 
 function yyGetString(_v) {
-    if (typeof _v === "string") {
+    if (_v instanceof YYRef) {
+        return "ref " + RefName(_v.type) + " " + _v.value;
+    } // end if
+    else if (typeof _v === "string") {
         var ret = "";
         if (g_incQuotesSTRING_RValue > 0)
             ret += "\"";
@@ -318,7 +498,12 @@ function yyGetString(_v) {
 
                 retString = _v.gmltoString( _v, _v );
 
-            } else {
+            } 
+            else if ((typeof g_var2obf !== "undefined") && (g_var2obf["toString"] != undefined) && (_v[ g_var2obf["toString"]]!=undefined)) {
+                
+                retString = _v[ g_var2obf["toString"]]( _v, _v );
+            }
+            else {
 
                 ++g_incQuotesSTRING_RValue;
                 if (!STRING_HasBeenVisited(_v)) {

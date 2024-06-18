@@ -14,20 +14,6 @@
 // 25/02/2011		V1.0        MJD     1st version.
 // 
 // **********************************************************************************************************************
-var AT_Object = 0,
-	AT_Sprite = 1,
-	AT_Sound = 2,
-	AT_Room = 3,
-	AT_Background = 4,
-	AT_Path = 5,
-	AT_Script = 6,
-	AT_Font = 7,
-	AT_Timeline = 8,
-    AT_Tiles = 9, // In HTML5 tile resources are added as part of the background array
-	AT_Shader = 10,
-    AT_Sequence = 11,
-    AT_AnimCurve = 12;
-    AT_ParticleSystem = 13;
 
 var TimingMethod = 1;       //tm_countvsyncs=1, tm_sleep=0
 
@@ -81,20 +67,7 @@ function display_set_timing_method(_method){
 function display_get_timing_method() {
     return TimingMethod;
 }
-// #############################################################################################
-/// Function:<summary>
-///             get a list of instances for this object (recursive)
-///          </summary>
-///
-/// In:		 <param name="_obj">object ID to use</param>
-/// Out:	 <returns>
-///				list of active instances - recursive
-///			 </returns>
-// #############################################################################################
-//function    instance_number( _obj )
-//{   
-//    return g_pObjectManager.Get(_obj).Instances_Recursive.length;
-//}
+
 
 
 // #############################################################################################
@@ -108,7 +81,7 @@ function yy_HiScoreContainer(_value, _name) {
 	this.value = _value;
 }
 
-
+// @if function("draw_highscore") || function("highscore_*")
 
 // #############################################################################################
 /// Function:<summary>
@@ -152,8 +125,6 @@ function highscore_save() {
 	var file = JSON.stringify(HighScores);
 	SaveTextFile_Block("hiscores_data_", file);
 }
-
-
 // #############################################################################################
 /// Function:<summary>
 ///          	Draws the highscore table in the room in the indicated box, using the current font. 
@@ -169,6 +140,7 @@ function highscore_save() {
 // #############################################################################################
 function draw_highscore(_x1, _y1, _x2, _y2)
 {
+    // @if feature("fonts")
     _x1 = yyGetInt32(_x1);
     _y1 = yyGetInt32(_y1);
     _x2 = yyGetInt32(_x2);
@@ -187,10 +159,8 @@ function draw_highscore(_x1, _y1, _x2, _y2)
 		_y1 += dy;
 	}
 	g_pFontManager.halign = halign;
+    // @endif fonts
 }
-
-
-
 
 // #############################################################################################
 /// Function:<summary>
@@ -203,26 +173,11 @@ function draw_highscore(_x1, _y1, _x2, _y2)
 // #############################################################################################
 function highscore_clear() 
 {
-    g_HighScoreValues[0]=
-    g_HighScoreValues[1]=
-    g_HighScoreValues[2]=
-    g_HighScoreValues[3]=
-    g_HighScoreValues[4]=
-    g_HighScoreValues[5]=
-    g_HighScoreValues[6]=
-    g_HighScoreValues[7]=
-    g_HighScoreValues[8]=
-    g_HighScoreValues[9]=0;
-    g_HighScoreNames[0]=
-    g_HighScoreNames[1]=
-    g_HighScoreNames[2]=
-    g_HighScoreNames[3]=
-    g_HighScoreNames[4]=
-    g_HighScoreNames[5]=
-    g_HighScoreNames[6]=
-    g_HighScoreNames[7]=
-    g_HighScoreNames[8]=
-    g_HighScoreNames[9] = g_HighscoreNobody;
+    for (var i = 0; i < 10; i++)
+    {
+        g_HighScoreValues[i] = 0;
+        g_HighScoreNames[i] = g_HighscoreNobody;
+    }
 }
 
 // #############################################################################################
@@ -300,7 +255,7 @@ function highscore_name(_place)
 	if (_place < 1 || _place > MAX_HIGHSCORE) return "";
     return g_HighScoreNames[_place-1];
 }
-
+// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -353,8 +308,24 @@ function Color_Merge(_col1, _col2, _value)
 	return Color_MergeRGB(_col1, _col2, _value);
 }
 
-
-
+// #############################################################################################
+/// Function:<summary>
+///				Multiplies two colors
+///          </summary>
+///
+/// In:		 <param name="_col1">Colour #1</param>
+///			 <param name="_col2">Colour #2</param>
+/// Out:	 <returns>
+///				Resulting color
+///			 </returns>
+// #############################################################################################
+function Color_Multiply(_col1, _col2)
+{
+    return make_color_rgb(
+		(color_get_red(_col1) * color_get_red(_col2)) / 255,
+		(color_get_green(_col1) * color_get_green(_col2)) / 255,
+		(color_get_blue(_col1) * color_get_blue(_col2)) / 255);
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -397,12 +368,12 @@ function event_perform(_pInst, _pOther, _event, _subevent)
 // #############################################################################################
 function event_perform_async(_pInst, _pOther, _event, _ds_map)
 {
-	var current_async_map = g_pBuiltIn.async_load
+	var current_async_map = g_pBuiltIn.async_load;
 	
     _event = yyGetInt32(_event);
     _ds_map = yyGetInt32(_ds_map);
     g_pBuiltIn.async_load = _ds_map;
-    g_pObjectManager.ThrowEvent(EVENT_OTHER,_event);
+    g_pObjectManager.ThrowEvent(EVENT_OTHER | _event,0,true);
 	
 	ds_map_destroy(_ds_map);
 	
@@ -424,6 +395,7 @@ function event_perform_async(_pInst, _pOther, _event, _ds_map)
 // #############################################################################################
 function event_perform_timeline(_pInst, _other, _timelineInd, _eventInd)
 {
+    // @if feature("timelines")
     var timeline = g_pTimelineManager.Get(_timelineInd);
     if ((timeline != null) && (timeline != undefined))
     {
@@ -434,6 +406,7 @@ function event_perform_timeline(_pInst, _other, _timelineInd, _eventInd)
             eventData.Event(_pInst, _pInst);
         }
     }
+    // @endif
 }
 
 // #############################################################################################
@@ -452,20 +425,21 @@ function event_perform_timeline(_pInst, _other, _timelineInd, _eventInd)
 // #############################################################################################
 function event_perform_object(_pInst, _pOther, _obj, _event, _subevent) 
 {
-    _obj = yyGetInt32(_obj);
-    _event = yyGetInt32(_event);
-    _subevent = yyGetInt32(_subevent);
+	_obj = yyGetInt32(_obj);
+	_event = yyGetInt32(_event);
+	_subevent = yyGetInt32(_subevent);
+
+	if(YYInstanceof(_pInst) != "instance")
+	{
+		yyError("Attempt to dispatch event on non-instance object");
+	}
 
 	var event = event_lookup(_event, _subevent);
 	var index = event_array_index_lookup(_event, _subevent);
 
 	var pObject = g_pObjectManager.Get(_obj);
-	
-	if(!pObject )
-	{
-	    yyError("Error: undefined object id passed to event_perform_object: " + _obj);
-	}
-	else
+
+	if (pObject)
 	{
 	    var oldobj = Current_Object;
 	    var oldtype = Current_Event_Type;
@@ -476,7 +450,7 @@ function event_perform_object(_pInst, _pOther, _obj, _event, _subevent)
 	    Current_Event_Number = index;
 
         var pCurrObj = pObject;
-        while(pCurrObj != null)
+        while (pCurrObj != null)
         {
             // Check whether the object has the current event and if not
             // check the object's parent until the event is found.
@@ -510,12 +484,13 @@ function event_user(_pInst, _pOther, _subevent) {
 
     _subevent = yyGetInt32(_subevent);
 
-	if (_subevent < 0 || _subevent > 15)
+	if (_subevent >= 0 && _subevent <= 15)
 	{
-		yyError("Error: illegal user event ID: " + _subevent);
+		// @if event("UserEvent*")
+		_subevent += GML_EVENT_OTHER_USER0;
+		event_perform(_pInst, _pOther, GML_EVENT_OTHER, _subevent);
+		// @endif
 	}
-	_subevent += GML_ev_user0;
-	event_perform(_pInst, _pOther, GML_EVENT_OTHER, _subevent);
 }
 
 
@@ -531,7 +506,10 @@ function event_user(_pInst, _pOther, _subevent) {
 ///			</returns>
 // #############################################################################################
 function event_inherited(_pInst, _pOther) {
-
+    if(YYInstanceof(_pInst) != "instance")
+    {
+        yyError("Attempt to dispatch event on non-instance object");
+    }
     _pInst.PerformEventInherited(g_LastEvent, g_LastEventArrayIndex, _pOther);
 }
 
@@ -1071,6 +1049,7 @@ function sha1_file(_fname) { return "unsupported"; }
  * See http://pajhome.org.uk/crypt/md5 for more info.
  */
 
+// @if function("md5_*")
 /*
  * Configurable variables. You may need to tweak these to be compatible with
  * the server-side, but the defaults work in most cases.
@@ -1126,6 +1105,7 @@ function rstr_hmac_md5(key, data)
   var hash = binl_md5(ipad.concat(rstr2binl(data)), 512 + data.length * 8);
   return binl2rstr(binl_md5(opad.concat(hash), 512 + 128));
 }
+// @endif md5
 
 /*
  * Convert a raw string to a hex string
@@ -1302,6 +1282,7 @@ function binl2rstr(input)
   return output;
 }
 
+// @if function("md5_*")
 /*
  * Calculate the MD5 of an array of little-endian words, and a bit length.
  */
@@ -1422,6 +1403,7 @@ function md5_ii(a, b, c, d, x, s, t)
 {
   return md5_cmn(c ^ (b | (~d)), a, b, x, s, t);
 }
+// @endif md5
 
 /*
  * Add integers, wrapping at 2^32. This uses 16-bit operations internally
@@ -1442,7 +1424,7 @@ function bit_rol(num, cnt)
   return (num << cnt) | (num >>> (32 - cnt));
 }
 
-
+// @if function("sha1_string_*") || function("ds_map_secure_*") || function("buffer_sha1")
 //and the sha-1 version from same place
 
 function hex_sha1(s)    { return rstr2hex(rstr_sha1(str2rstr_utf8(s))); }
@@ -1604,6 +1586,7 @@ function sha1_kt(t)
   return (t < 20) ?  1518500249 : (t < 40) ?  1859775393 :
          (t < 60) ? -1894007588 : -899497514;
 }
+// @endif sha1
 
 // #############################################################################################
 /// Function:<summary>
@@ -1614,7 +1597,19 @@ function Resource_Find(_name, _array) {
     for (var index = 0; index < _array.length; index++)
     {
         var pObjStorage = _array[index];
-        if (pObjStorage.pName == _name) {
+        if ( pObjStorage && (pObjStorage.pName == _name)) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+function Resource_Find_Shader(_name, _array) {
+    
+    for (var index = 0; index < _array.length; index++)
+    {
+        var pObjStorage = _array[index];
+        if ( pObjStorage && (pObjStorage.name == _name)) {
             return index;
         }
     }
@@ -1628,7 +1623,7 @@ function Resource_Find_Script(_name, _array) {
     for (var index = 0; index < _array.length; index++)
     {
         var scrName = _array[index];
-        if( scrName.endsWith(_name)){
+        if(scrName &&  scrName.endsWith(_name)){
             if( scrName == gmlName )
                 return index + 100000;
             else if( scrName == _name ) 
@@ -1642,7 +1637,7 @@ function Resource_Find_Script(_name, _array) {
         for (var index = 0; index < _array.length; index++)
         {
             var scrName = _array[index];
-            if( scrName.endsWith(_name)){
+            if(scrName && scrName.endsWith(_name)){
                 if( scrName == globalName )
                     return index + 100000;
             }
@@ -1661,15 +1656,23 @@ function ResourceGetTypeIndex(_name )
 	if ((ret = Resource_Find(_name, g_pGMFile.Sprites)) >= 0)                  { typeId.type=AT_Sprite;     typeId.id = ret; return typeId; }
     if ((ret = Resource_Find(_name, g_pGMFile.GMRooms)) >= 0)                  { typeId.type=AT_Room;       typeId.id = ret; return typeId; }
 	if ((ret = Resource_Find(_name, g_pGMFile.Sounds)) >= 0)	               { typeId.type=AT_Sound;      typeId.id = ret; return typeId; }
-	if ((ret = Resource_Find(_name, g_pGMFile.Backgrounds)) >= 0)              { typeId.type= g_isZeus ? AT_Tiles : AT_Background,      typeId.id = ret; return typeId; }
+	if ((ret = Resource_Find(_name, g_pGMFile.Backgrounds)) >= 0)              { typeId.type=AT_Tileset;    typeId.id = ret; return typeId; }
 	if ((ret = Resource_Find(_name, g_pGMFile.Paths)) >= 0)                    { typeId.type=AT_Path;       typeId.id = ret; return typeId; }
 	if ((ret = Resource_Find(_name, g_pGMFile.Fonts)) >= 0)                    { typeId.type=AT_Font;       typeId.id = ret; return typeId; }
+    // @if feature("timelines")
 	if ((ret = Resource_Find(_name, g_pGMFile.Timelines)) >= 0)                { typeId.type=AT_Timeline;   typeId.id = ret; return typeId; }
+    // @endif
 	if ((ret = Resource_Find_Script(_name, g_pGMFile.ScriptNames)) >= 0)       { typeId.type=AT_Script;     typeId.id = ret; return typeId; }
-	if ((ret = Resource_Find(_name, g_pGMFile.Shaders)) >= 0)                  { typeId.type=AT_Shader;     typeId.id = ret; return typeId; }
+	if ((ret = Resource_Find_Shader(_name, g_pGMFile.Shaders)) >= 0)           { typeId.type=AT_Shader;     typeId.id = ret; return typeId; }
+    // @if feature("sequences")
     if ((ret = Resource_Find(_name, g_pGMFile.Sequences)) >= 0)                { typeId.type=AT_Sequence;   typeId.id = ret; return typeId; }
+    // @endif
+    // @if feature("animcurves")
     if ((ret = Resource_Find(_name, g_pGMFile.AnimCurves)) >= 0)               { typeId.type=AT_AnimCurve;  typeId.id = ret; return typeId; }
+    // @endif
+    // @if feature("particles")
     if ((ret = CParticleSystem.Find(_name)) >= 0)                              { typeId.type=AT_ParticleSystem;  typeId.id = ret; return typeId; }
+    // @endif
     
     return typeId;
 }
@@ -1682,15 +1685,24 @@ function ResourceGetName( _index, _assetType )
         case AT_Sprite:	        return (sprite_exists(_index)) ? sprite_get_name(_index) : "";
         case AT_Sound:		    return (sound_exists(_index)) ? sound_get_name(_index) : "";
         case AT_Room:		    return (room_exists(_index)) ? room_get_name(_index) : "";
-        case AT_Tiles:
-        case AT_Background:     return (background_exists(_index)) ? background_get_name(_index) : "";
+        case AT_Tileset:        return (background_exists(_index)) ? background_get_name(_index) : "";
         case AT_Path:		    return ( path_exists(_index)) ? path_get_name(_index) : "";
         case AT_Script:	        return ( script_exists(_index)) ? script_get_name(_index) : "";
         case AT_Font:		    return ( font_exists(_index)) ? font_get_name(_index) : "";
+        // @if feature("timelines")
         case AT_Timeline:	    return ( timeline_exists(_index)) ? timeline_get_name(_index) : "";
+        // @endif
         case AT_Shader:	        return ( shader_exists(_index)) ? shader_get_name(_index) : "";
+        // @if feature("sequences")
         case AT_Sequence:	    return ( _sequence_exists(_index)) ? sequence_get_name(_index) : "";
+        // @endif
+        // @if feature("animcurves")
         case AT_AnimCurve:	    return ( _animcurve_exists(_index)) ? animcurve_get_name(_index) : "";
+        // @endif
+        case AT_ParticleSystem:	{
+            var ps = CParticleSystem.Get(_index);
+            return (ps != null) ? ps.name : "";
+        }
     }
     return "";
 }
@@ -1727,19 +1739,60 @@ function asset_get_type(_name)
     _name = yyGetString(_name);
     var typeId = ResourceGetTypeIndex(_name);
     return typeId.type;
-/*
-    if (Resource_Find(_name, g_pGMFile.GMObjects) >= 0)     { return AT_Object; }
-    if (Resource_Find(_name, g_pGMFile.GMRooms) >= 0)       { return AT_Room; }
-	if (Resource_Find(_name, g_pGMFile.Sprites) >= 0)       { return AT_Sprite; }
-	if (Resource_Find(_name, g_pGMFile.Sounds) >= 0)	    { return AT_Sound; }
-	if (Resource_Find(_name, g_pGMFile.Backgrounds) >= 0)   { return AT_Background; }
-	if (Resource_Find(_name, g_pGMFile.Paths) >= 0)         { return AT_Path; }
-	if (Resource_Find(_name, g_pGMFile.Fonts) >= 0)         { return AT_Font; }	
-	if (Resource_Find(_name, g_pGMFile.Timelines) >= 0)     { return AT_Timeline; }
-	// if (Resource_Find(_name, g_pGMFile.Scripts) >= 0)       { return AT_Script; }
-	if (Resource_Find(_name, g_pGMFile.Shaders) >= 0)       { return AT_Shader; }
-	return -1;
-*/
+}
+
+// #############################################################################################
+/// Function:<summary>
+///          	Returns an array of all assets IDs of given type
+///          </summary>
+// #############################################################################################
+function asset_get_ids(_assetType)
+{
+    var ids;
+    var refs = false;
+
+    switch (_assetType)
+    {
+    case AT_None:           break;
+    case AT_Object:         ids = g_pObjectManager.List(); refs = true; break;
+    case AT_Sprite:         ids = g_pSpriteManager.List(); break;
+    case AT_Room:           ids = g_pRoomManager.List(); break;
+    case AT_Tileset:        ids = g_pBackgroundManager.List(); refs = true; break;
+    case AT_Path:           ids = g_pPathManager.List(); break;
+    case AT_Script: {
+        ids = [];
+        for (var i = 0; i < g_pGMFile.Scripts.length; ++i) {
+            if (g_pGMFile.Scripts[i]) {
+                ids.push(100000 + i);
+            }
+        }
+    } break;
+    case AT_Font:           ids = g_pFontManager.List(); break;
+    case AT_Timeline:       ids = g_pTimelineManager.List(); break;
+    case AT_Shader: {
+        ids = [];
+        for (var i = 0; i < g_shaderPrograms.length; ++i) {
+            if (g_shaderPrograms[i]) {
+                ids.push(i);
+            }
+        }
+    } break;
+    case AT_Sequence:       ids = g_pSequenceManager.List(); break;
+    case AT_AnimCurve:      ids = g_pAnimCurveManager.List(); break;
+    case AT_Sound:          ids = g_pSoundManager.List(); break;
+    case AT_ParticleSystem: ids = CParticleSystem.List(); refs = true; break;
+    default:                break;
+    }
+
+    if (refs)
+    {
+        for (var i = 0; i < ids.length; ++i)
+        {
+            ids[i] = MAKE_REF(_assetType | REFCAT_RESOURCE, ids[i]);
+        }
+    }
+
+    return ids;
 }
 
 function alarm_get(inst, index)
@@ -1817,7 +1870,7 @@ CTimingSource.prototype.Reset= function()
     this.m_elapsed_micros = 0;
     if(this.m_fps >0.0)
     {
-        this.m_last_micros = YoYo_GetTimer();
+        this.m_last_micros = get_timer();
     }
     else
     {
@@ -1836,7 +1889,7 @@ CTimingSource.prototype.Update=function()
         current = this.m_last_micros + 1000000.0/this.m_fps;
     }
     else
-        current = YoYo_GetTimer();
+        current = get_timer();
         
    this.m_delta_micros = current - this.m_last_micros;
    

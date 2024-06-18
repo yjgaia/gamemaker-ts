@@ -1,4 +1,4 @@
-﻿// **********************************************************************************************************************
+// **********************************************************************************************************************
 //
 // Copyright (c)2011, YoYo Games Ltd. All Rights reserved.
 //
@@ -21,10 +21,11 @@ var ASYNC_UNKNOWN = 0,
     ASYNC_SOUND = 4,
     ASYNC_WEB = 5,
     ASYNC_USER = 6,
-	ASYNC_BINARY = 7,
-	ASYNC_NETWORKING = 8,
-	ASYNC_AUDIO_PLAYBACK = 9,
+    ASYNC_BINARY = 7,
+    ASYNC_NETWORKING = 8,
+    ASYNC_AUDIO_PLAYBACK = 9,
     ASYNC_SYSTEM_EVENT = 10,            // device discovery/loss, user login
+    ASYNC_AUDIO_PLAYBACK_ENDED = 11,
 
     ASYNC_STATUS_NONE=0,
     ASYNC_STATUS_LOADED=1,
@@ -33,8 +34,7 @@ var ASYNC_UNKNOWN = 0,
     ASYNC_WEB_STATUS_LOADED=0,
     ASYNC_WEB_STATUS_LOADING=1,
     ASYNC_WEB_STATUS_ERROR=-1;
-    
-    
+
 
 var g_AsyncLookup_obj = [];
 var g_AsyncLookup_data = [];
@@ -104,18 +104,19 @@ function ASync_ImageLoad_Callback(_event) {
     pFile.m_Complete = true;
     pFile.m_Status = ASYNC_STATUS_LOADED;
     
-    
+    // @if feature("sprites")
     if( pFile.m_Type == ASYNC_SPRITE )
     {
         // Now actually UPDATE the sprite and TPage stuff.
         var pSpr = g_pSpriteManager.Get( pFile.m_ID );
-        if (pSpr === null) return;
-		if (!pSpr.ppTPE) return;
-		if (!pSpr.ppTPE[0]) return;
-        if (!pSpr.ppTPE[0].texture) return;
+		if (pSpr == undefined) { pFile.m_Status = ASYNC_STATUS_ERROR; return; }
+        if (pSpr === null) { pFile.m_Status = ASYNC_STATUS_ERROR; return; }
+		if (!pSpr.ppTPE) { pFile.m_Status = ASYNC_STATUS_ERROR; return; }
+		if (!pSpr.ppTPE[0]) { pFile.m_Status = ASYNC_STATUS_ERROR; return; }
+        if (!pSpr.ppTPE[0].texture) { pFile.m_Status = ASYNC_STATUS_ERROR; return; }
         
         pTexture = pSpr.ppTPE[0].texture;
-        pTexture.webgl_textureid=undefined;
+        pTexture.webgl_textureid=undefined;		
         
         var w = pTexture.width;
         var h = pTexture.height;
@@ -144,8 +145,32 @@ function ASync_ImageLoad_Callback(_event) {
 	        
 	        x+=sprw;
 	    }
+
+		if (g_webGL)
+		{
+			if (pSpr.prefetchOnLoad != undefined)
+			{
+				if (pSpr.prefetchOnLoad == true)
+				{
+					// We need to create the GL texture here and set it up
+					for(var i = 0; i < pSpr.numb;i++)
+					{
+						WebGL_BindTexture(pSpr.ppTPE[i]);
+
+						// It should only be necessary to do this for the first one
+						// as they all share the same texture, but this is safer in case
+						// things change in the future
+						if (pSpr.ppTPE[i].texture.webgl_textureid)
+						{
+							WebGL_RecreateTexture(pTPE.texture.webgl_textureid);							
+						}	
+					}
+				}
+			}
+		}
         return;
     }    
+	// @endif sprites
     
     if( pFile.m_Type == ASYNC_BACKGROUND )
     {
@@ -325,11 +350,19 @@ yyASyncManager.prototype.Process = function () {
 					ds_map_add(map, "result", pFile.result);
 					ds_map_add(map, "value", pFile.value);
 					ds_map_add(map, "http_status", 0);
-				} else if (pFile.m_Type == ASYNC_AUDIO_PLAYBACK) {
+				}
+				// @if feature("audio")
+				else if (pFile.m_Type == ASYNC_AUDIO_PLAYBACK) {
 				    ds_map_add(map, "queue_id", pFile.queue_id);
 				    ds_map_add(map, "buffer_id", pFile.buffer_id);
 				    ds_map_add(map, "queue_shutdown", pFile.queue_shutdown);
-				} else if (pFile.m_Type == ASYNC_SYSTEM_EVENT) {
+				} else if (pFile.m_Type == ASYNC_AUDIO_PLAYBACK_ENDED) {
+				    ds_map_add(map, "sound_id", pFile.voiceHandle);
+				    ds_map_add(map, "asset_id", pFile.assetIndex);
+				    ds_map_add(map, "was_stopped", pFile.wasStopped);
+				}
+				// @endif audio
+				else if (pFile.m_Type == ASYNC_SYSTEM_EVENT) {
 				    ds_map_add(map, "event_type", pFile.event_type);
 				    ds_map_add(map, "pad_index", pFile.pad_index);
 				}else{
@@ -347,18 +380,26 @@ yyASyncManager.prototype.Process = function () {
 				}
 
 				if (pFile.m_Type == ASYNC_IMAGE) g_pObjectManager.ThrowEvent(EVENT_OTHER_WEB_IMAGE_LOAD, 0, true); // Throw an event for the image
+				// @if feature("sprites")
 				else if (pFile.m_Type == ASYNC_SPRITE) g_pObjectManager.ThrowEvent(EVENT_OTHER_WEB_IMAGE_LOAD, 0, true); // Throw an event for the image
+				// @endif sprites
 				else if (pFile.m_Type == ASYNC_BACKGROUND) g_pObjectManager.ThrowEvent(EVENT_OTHER_WEB_IMAGE_LOAD, 0, true); // Throw an event for the image
 				else if (pFile.m_Type == ASYNC_SOUND) g_pObjectManager.ThrowEvent(EVENT_OTHER_WEB_SOUND_LOAD, 0, true);
 				else if (pFile.m_Type == ASYNC_WEB) g_pObjectManager.ThrowEvent(EVENT_OTHER_WEB_ASYNC, 0, true);
 				else if (pFile.m_Type == ASYNC_USER) g_pObjectManager.ThrowEvent(EVENT_OTHER_WEB_USER_INTERACTION, 0, true);
 				else if (pFile.m_Type == ASYNC_BINARY) g_pObjectManager.ThrowEvent(EVENT_OTHER_ASYNC_SAVE_LOAD, 0, true);
 				else if (pFile.m_Type == ASYNC_NETWORKING) g_pObjectManager.ThrowEvent(EVENT_OTHER_NETWORKING, 0, true);
+				// @if feature("audio")
 				else if (pFile.m_Type == ASYNC_AUDIO_PLAYBACK) g_pObjectManager.ThrowEvent(EVENT_OTHER_AUDIO_PLAYBACK, 0, true);
+				else if (pFile.m_Type == ASYNC_AUDIO_PLAYBACK_ENDED) g_pObjectManager.ThrowEvent(EVENT_OTHER_AUDIO_PLAYBACK_ENDED, 0, true);
+				// @endif audio
 				else if (pFile.m_Type == ASYNC_SYSTEM_EVENT) g_pObjectManager.ThrowEvent(EVENT_OTHER_SYSTEM_EVENT, 0, true);
 
 				// Done load, so delete handle.
-				this.queue[i] = null;
+				//this.queue[i] = null;
+				this.queue.splice(i,1);
+				i--;
+				this.queueLength--;
 
                 // Web specifically needs to kill the ds_map used for response headers
 				if (pFile.m_Type == ASYNC_WEB) {
@@ -372,7 +413,7 @@ yyASyncManager.prototype.Process = function () {
 		}
 	}
 
-	this.queueLength = 0;
+	//this.queueLength = 0;
 
 	ds_map_destroy(map);
 	g_pBuiltIn.async_load = -1;

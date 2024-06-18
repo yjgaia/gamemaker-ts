@@ -122,7 +122,13 @@ function real(_v) {
     }
     else if (typeof (_v) == "string")
 	{
-        var stringAsNumber = parseFloat(_v);
+        
+        var stringAsNumber;
+        if (_v.startsWith('0x')) {
+            stringAsNumber =  parseInt(_v);
+        } else {
+            stringAsNumber =  parseFloat(_v);
+        }
         if (isNaN(stringAsNumber))
         {
 	        yyError("unable to convert string " + _v + " to real");
@@ -132,6 +138,10 @@ function real(_v) {
 	        return stringAsNumber;
 	    }
     }
+    else if (_v instanceof YYRef)
+    {
+        return _v.value;
+    }
     else if (_v instanceof Long)
     {
         return _v.toNumber();
@@ -140,6 +150,10 @@ function real(_v) {
     {
         yyError("real() argument is array");
     }
+    else if (_v instanceof ArrayBuffer)
+    {
+        yyError("real() argument is ptr")
+    }
 
     return parseFloat(_v);
 }
@@ -147,7 +161,7 @@ function real(_v) {
 function bool(_v) {
     if (_v == undefined)
     {
-        return 0;
+        return false;
     }
     else if (_v == null)
     {
@@ -436,7 +450,6 @@ function string_pos_ext(_substr, _str, _startPos)
     var inSubstr = yyGetString(_substr);
     var inStr = yyGetString(_str);
     var startPos = __yy_GMLIndex2JSIndex( inStr, yyGetInt32(_startPos) );
-    ++startPos;
     var resIndex = inStr.indexOf(inSubstr, startPos);
     return __yy_JSIndex2GMLIndex(inStr, resIndex);
 }
@@ -942,7 +955,22 @@ function string_count(_substr,_str)
 // #############################################################################################
 function string_hash_to_newline( _str )
 {
-    return String_Replace_Hash(yyGetString(_str), g_pFontManager.Font_Get(g_pFontManager.fontid), true);
+    let _result = "",
+        _start = 0,
+        i = 0, c, lc;
+    for (; i < _str.length; i++) {
+        c = _str[i];
+        if (c == "#") {
+            if (lc != "\\") {
+                _result += _str.substring(_start, i) + "\r\n";
+            } else {
+                _result += _str.substring(_start, i - 1) + "#";
+            }
+            _start = i + 1;
+        }
+        lc = c;
+    }
+    return _result + _str.substring(_start, i);
 }
 
 // #############################################################################################
@@ -1086,7 +1114,10 @@ function string_lettersdigits(_str)
     return s;  
 }
 
-var g_EscapeRegexRE = new RegExp('[.*+?^${}()|[\]\\]', 'g');
+const g_EscapeRegexRE = new RegExp("[\\/\\-\\\\^$*+?.()|[\\]{}]", "g");
+function __escapeRegex(string) {
+    return string.replace(g_EscapeRegexRE, '\\$&');
+}
 
 function string_trim_start(_str, _substrs) {
 
@@ -1106,7 +1137,7 @@ function string_trim_start(_str, _substrs) {
         if (typeof(val) != "string") {
             yyError("string_trim_start() argument1 should be an array of string");
         }
-        return yyGetString(val).replace(g_EscapeRegexRE, '\\$&')
+        return __escapeRegex(yyGetString(val));
     
     }).filter(elm => elm).join("|");
 
@@ -1133,12 +1164,11 @@ function string_trim_end(_str, _substrs) {
         if (typeof(val) != "string") {
             yyError("string_trim_end() argument1 should be an array of string");
         }
-        return yyGetString(val).replace(g_EscapeRegexRE, '\\$&')
+        return __escapeRegex(yyGetString(val));
     
     }).filter(elm => elm).join("|");
 
-    let _rg = new RegExp("(?:" +_substrs+ ")*$");
-
+    let _rg = new RegExp("(?:" +_substrs+ ")*$",'g');
     return _str.replace(_rg, "");
 }
 
@@ -1160,7 +1190,7 @@ function string_trim(_str, _substrs) {
         if (typeof(val) != "string") {
             yyError("string_trim() argument1 should be an array of string");
         }
-        return yyGetString(val).replace(g_EscapeRegexRE, '\\$&')
+        return __escapeRegex(yyGetString(val));
     
     }).filter(elm => elm).join("|");
 
@@ -1217,11 +1247,14 @@ function string_split(_str, _delim, _removeEmpty, _maxSplits) {
     }
 
     // Get optional arguments
-    _removeEmpty = arguments.length > 2 ? yyGetReal(_removeEmpty) : false;
+    _removeEmpty = _removeEmpty != undefined ? yyGetReal(_removeEmpty) : false;
     _maxSplits = arguments.length > 3 ? yyGetReal(_maxSplits) : _str.length;
 
+    // Escape regex symbols from delimiter.
+    _delim = __escapeRegex(_delim);
+
     // Create a RegExp with the delimiter
-    var _rg = new RegExp(_delim.replace(g_EscapeRegexRE, '\\$&'), 'g');
+    var _rg = new RegExp(_delim, "g");
 
     var _out = __yy_StringSplit(_str, _rg, _maxSplits);
     if (_removeEmpty) {
@@ -1240,11 +1273,11 @@ function string_split_ext(_str, _delims, _removeEmpty, _maxSplits) {
     }
 
     // Get optional arguments
-    _removeEmpty = arguments.length > 2 ? yyGetReal(_removeEmpty) : false;
+    _removeEmpty = _removeEmpty != undefined ? yyGetReal(_removeEmpty) : false;
     _maxSplits = arguments.length > 3 ? yyGetReal(_maxSplits) : _str.length;
 
-    // Convert delimiter to stringm, escape the pipe symbols, remove empty entries,
-    _delims = _delims.map((val) => yyGetString(val).replace(g_EscapeRegexRE, '\\$&')).filter(elm => elm).join("|");
+    // Convert delimiter to string, escape the pipe symbols, remove empty entries.
+    _delims = _delims.map((val) => __escapeRegex(yyGetString(val))).filter(elm => elm).join("|");
 
     // Create a RegExp with the delimiters
     var _rg = new RegExp(_delims, "g");
@@ -1286,7 +1319,7 @@ function string_join_ext(_delim, _values, _offset, _length) {
     }
 
     // Check raw offset and length
-    _offset = arguments.length > 2 ? yyGetReal(_offset) : 0;
+    _offset = _offset != undefined ? yyGetReal(_offset) : 0;
     _length = arguments.length > 3 ? yyGetReal(_length) : _values.length; 
 
     var _itValues = computeIterationValues(_values.length, _offset, _length);
@@ -1325,7 +1358,7 @@ function string_concat_ext(_values, _offset, _length) {
     }
 
     // Check raw offset and length
-    _offset = arguments.length > 1 ? yyGetReal(_offset) : 0;
+    _offset = _offset != undefined ? yyGetReal(_offset) : 0;
     _length = arguments.length > 2 ? yyGetReal(_length) : _values.length; 
 
     var _itValues = computeIterationValues(_values.length, _offset, _length);
@@ -1360,7 +1393,7 @@ function string_foreach(_str, _func, _pos, _length) {
     _obj = "boundObject" in _func ? _func.boundObject : {};
 
     // Check raw offset and length
-    _pos = arguments.length > 3 ? yyGetReal(_pos) : 1;
+    _pos = _pos != undefined ? yyGetReal(_pos) : 1;
     _length = arguments.length > 3 ? yyGetReal(_length) : _str.length;
 
     var _offset = (_pos < 0 ? _pos : (_pos > 0 ? _pos - 1 : 0));

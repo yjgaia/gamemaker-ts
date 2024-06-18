@@ -178,16 +178,19 @@ class Reverb1Processor extends AudioWorkletProcessor
             const inputChannel = input[c];
             const outputChannel = output[c];
 
-            for (let s = 0; s < inputChannel.length; ++s) {
+            for (let iC = 0; iC < inputChannel.length; ++iC) {
+                const s = (size[iC] !== undefined) ? size[iC] : size[0];
+                const d = (damp[iC] !== undefined) ? damp[iC] : damp[0];
+
                 // Update model if needed
-                this.setSize(size[s] ?? size[0]);
-                this.setDamp(damp[s] ?? damp[0]);
+                this.setSize(s);
+                this.setDamp(d);
 
                 // Copy the input to the output
-                outputChannel[s] = inputChannel[s];
+                outputChannel[iC] = inputChannel[iC];
 
                 let out = 0;
-                const val = inputChannel[s] * Reverb1Processor.INPUT_GAIN;
+                const val = inputChannel[iC] * Reverb1Processor.INPUT_GAIN;
                 
                 // Process the combs in parallel
                 for (let i = 0; i < Reverb1Processor.NUM_LPFCFS; ++i)
@@ -198,14 +201,17 @@ class Reverb1Processor extends AudioWorkletProcessor
                     out = this.apf[c][i].process(out);
 
                 // Check bypass state
-                if (bypass[s] ?? bypass[0])
+                const b = (bypass[iC] !== undefined) ? bypass[iC] : bypass[0];
+
+                if (b > 0.0) {
                     continue;
+                }
 
                 // Mix the reverberated and original samples
-                const m = (mix[s] ?? mix[0]);
+                const m = (mix[iC] !== undefined) ? mix[iC] : mix[0];
 
-                outputChannel[s] *= (1 - m);
-                outputChannel[s] += (out * m);
+                outputChannel[iC] *= (1 - m);
+                outputChannel[iC] += (out * m);
             }
         }
 
