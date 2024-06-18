@@ -1,4 +1,3 @@
-/// @if function("gif_*")
 /**
  * This class lets you encode animated GIF files
  * Base class :  http://www.java2s.com/Code/Java/2D-Graphics-GUI/AnimatedGifEncoder.htm
@@ -620,4 +619,3 @@ GIFEncoder = function() {
 	return exports;
 
 };
-/// @endif

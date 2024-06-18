@@ -50,7 +50,7 @@ function    yyInstance( _xx, _yy, _id, _objectind, _AddObjectLink, _create_dummy
 	this.__friction = 0;
 	this.__gravity = 0;
 	this.__gravity_direction = 270;
-	this.__object_index = yyGetRef(_objectind, REFID_OBJECT, undefined, undefined, true );
+	this.object_index = _objectind;
 	this.id = _id;
 	this.active = true;						// true if in the active list, false if not.
 
@@ -69,7 +69,6 @@ function    yyInstance( _xx, _yy, _id, _objectind, _AddObjectLink, _create_dummy
 	this.bbox = new YYRECT(0,0,0,0);
 	this.__sprite_index = 0;
 	this.__image_index = 0;
-	this.frame_overflow = 0; /* Accumulated change to image_index when wrapping the per-tick update. */
 
     this.image_number = 0;    
     this.sprite_width = 0;    
@@ -111,7 +110,7 @@ function    yyInstance( _xx, _yy, _id, _objectind, _AddObjectLink, _create_dummy
 
 	this.marked = false;
 	this.initcode = null;
-	this.colcheck = yySprite_CollisionType.AXIS_ALIGNED_RECT;
+	this.precise = false;
     this.bbox_dirty = true;
     this.mouse_over = false;
 
@@ -119,7 +118,6 @@ function    yyInstance( _xx, _yy, _id, _objectind, _AddObjectLink, _create_dummy
     this.pMasterObject = null;
     this.m_physicsObject = null;
 	this.m_skeletonSprite = null;
-	this.m_pMaskSkeleton = null;
 	
 	this.fOutsideRoom = false;
 	this.fInSequence = false;
@@ -134,7 +132,7 @@ function    yyInstance( _xx, _yy, _id, _objectind, _AddObjectLink, _create_dummy
         this.UpdateSpriteIndex(this.pObject.SpriteIndex);
     }else{
         this.createCounter = 0;   
-        this.__object_index = 0;
+        this.object_index = 0;
         //C++ runner creates a dummy object that has sprite_index -1 should probably mimic its behaviour and create an object but for now we'll just copy its sprite index
         this.sprite_index = -1;
         this.m_pSkeletonAnimation = null;
@@ -305,7 +303,6 @@ yyInstance.prototype = {
 	    }
 	},
 
-	// @if feature("paths")
 	// path position property
 	get path_position() { return this.__path_position; },
 	set path_position(_val) {
@@ -359,9 +356,7 @@ yyInstance.prototype = {
 
 		this.__path_endaction = _val;
 	},
-	// @endif
 
-	// @if feature("timelines")
 	// timeline index property
 	get timeline_index() { return this.__timeline_index; },
 	set timeline_index(_val) {
@@ -388,7 +383,6 @@ yyInstance.prototype = {
 
 		this.__timeline_speed = _val;
 	},
-	// @endif timelines
 
 	// bbox_left property (NOTE: no setter)
 	get bbox_left() { 
@@ -427,16 +421,12 @@ yyInstance.prototype = {
     	this.m_pSkeletonAnimation = null;
 	},
 
-	// object_index property
-	get object_index() { return MAKE_REF(REFID_OBJECT, this.__object_index ); },
-	set object_index(_ind) { this.__object_index = yyGetRef( _ind, REFID_OBJECT, undefined, undefined, true ); },
-
 	// image_index property
 	get image_index() { return this.__image_index; },
 	set image_index(_frame) {
 
 	    _frame = yyGetReal(_frame);
-		// @if feature("sprites")
+
 		var sprite = g_pSpriteManager.Get(this.sprite_index);
 
 	    if (sprite != null)
@@ -473,7 +463,6 @@ yyInstance.prototype = {
 			}
 		}
 		else
-		// @endif sprites
 		{
 			this.__image_index = _frame;	// just use value as-is
 		}
@@ -500,57 +489,46 @@ yyInstance.prototype = {
 
 	// image_number property (no setter)
 	get image_number() { 
-		// @if feature("sprites")
 		var pSprite = g_pSpriteManager.Get(this.sprite_index);
-		if (pSprite) {
-			// @if feature("spine")
-			var skeletonAnim = this.SkeletonAnimation();
-			if (skeletonAnim) return skeletonAnim.FrameCount(pSprite);
-			// @endif spine
-			// @if feature("swf")
-			if (pSprite.SWFTimeline != null) return pSprite.SWFTimeline.numFrames;
-			// @endif
-			return pSprite.ppTPE.length;
+		if (!pSprite) return 0;
+		
+		var skeletonAnim = this.SkeletonAnimation();
+	    if (skeletonAnim) {
+	        return skeletonAnim.FrameCount(pSprite);
+	    }
+	    else if ((pSprite.SWFTimeline !== null) && (pSprite.SWFTimeline !== undefined)) {
+		    return pSprite.SWFTimeline.numFrames;
 		}
-		// @endif sprites
-		return 0;
+		return pSprite.ppTPE.length;
 	},
 
 
 	// sprite_width property
 	get sprite_width()  {
-		// @if feature("sprites")
 		var pSprite = g_pSpriteManager.Get(this.sprite_index);
-		if (pSprite) return pSprite.width * this.image_xscale;
-		// @endif sprites
-		return 0;
+		if (!pSprite) return 0;
+		return pSprite.width * this.image_xscale;
 	},
 
 	// sprite_height property
 	get sprite_height()  {
-		// @if feature("sprites")
 		var pSprite = g_pSpriteManager.Get(this.sprite_index);
-		if (pSprite) return pSprite.height * this.image_yscale;
-		// @endif sprites
-		return 0;
+		if (!pSprite) return 0;
+		return pSprite.height * this.image_yscale;
 	},
 
 	// sprite_xoffset property
 	get sprite_xoffset()  {
-		// @if feature("sprites")
 		var pSprite = g_pSpriteManager.Get(this.sprite_index);
-		if (pSprite) return pSprite.xOrigin * this.image_xscale;
-		// @endif sprites
-		return 0;
+		if (!pSprite) return 0;
+		return pSprite.xOrigin * this.image_xscale;	
 	},
 
 	// sprite_yoffset property
 	get sprite_yoffset() {
-		// @if feature("sprites")
 		var pSprite = g_pSpriteManager.Get(this.sprite_index);
-		if (pSprite) return pSprite.yOrigin * this.image_yscale;
-		// @endif sprites
-		return 0;
+		if (!pSprite) return 0;
+		return pSprite.yOrigin * this.image_yscale;
 	},
 
 	// image_xscale property
@@ -605,10 +583,8 @@ yyInstance.prototype = {
 	set mask_index(_id) {
     	this.__mask_index = yyGetInt32(_id);    
     	this.bbox_dirty = true;
-        this.m_pMaskSkeleton = null;
 	},
 
-	// @if feature("timelines")
 	// timeline_running property
 	get timeline_running() {
 	    if( this.timeline_paused ){
@@ -632,9 +608,7 @@ yyInstance.prototype = {
 	set timeline_loop( _loop ) { 
 		this.timeline_looped = yyGetBool(_loop);
 	},
-	// @endif timeline props
-	
-	// @if feature("physics")
+
 	// phy_rotation property
 	get phy_rotation() { return this.__phy_rotation; },
 	set phy_rotation(_rotation) {
@@ -773,7 +747,6 @@ yyInstance.prototype = {
 	        this.RefreshPhysicalProperties(this.m_physicsObject.m_physicsBody);
 	    }
 	},
-	// @endif physics properties
 
 	// layer property
 	get layer() { return this.m_nLayerID; },
@@ -809,16 +782,6 @@ yyInstance.prototype.SetImageIndex = function(_frame)
 {
 	this.__image_index = _frame;
 };
- 
-/* Writes to image_index from GML will go via this function, allowing us to 
- * clear frame_overflow whenever image_index is directly updated by game code. 
-*/ 
-yyInstance.prototype.SetImageIndexGML = function(_frame) 
-{ 
-	this.image_index = _frame; 
-	this.frame_overflow = 0; 
-}; 
-
 
 yyInstance.prototype.SetDirtyBBox = function (flag) { this.bbox_dirty = flag; };
 yyInstance.prototype.GetDirty = function () { return this.bbox_dirty; };
@@ -894,26 +857,11 @@ yyInstance.prototype.Assign = function (_pInst, _LinkToObjectType) {
 	}
 	
 	// Any skeleton data needs to be not just a reference
-	// @if feature("spine")
 	var skeletonAnim = this.SkeletonAnimation();
 	if (skeletonAnim) {
 	    this.m_pSkeletonAnimation = skeletonAnim.Clone();
-	}
-	// @endif
+	}	
 	this.m_nLayerID = _pInst.layer;
-};
-
-// #############################################################################################
-/// Function:<summary>
-///				Retrieves object_index as a YYRef
-///          </summary>
-///
-/// Out:	 <returns>
-///				
-///			 </returns>
-// #############################################################################################
-yyInstance.prototype.GetObjectIndex = function () {
-	return MAKE_REF(REFID_OBJECT, this.object_index);
 };
 
 // #############################################################################################
@@ -927,7 +875,7 @@ yyInstance.prototype.GetObjectIndex = function () {
 yyInstance.prototype.SetObjectIndex = function (_objindex, _LinkToObjectType, _SetDepthNow) {
 
 	// Set the TYPE index
-	this.__object_index = _objindex;
+	this.object_index = _objindex;
 
 	if (this.pObject != null)
 	{
@@ -953,6 +901,18 @@ yyInstance.prototype.SetObjectIndex = function (_objindex, _LinkToObjectType, _S
 		// and copy the data over...
 		this.mask_index = this.pObject.SpriteMask;
 		
+		if(!g_isZeus)
+		{
+		//Zeus, no object has a depth defined
+		    if (_SetDepthNow)
+		    {
+		    	// RK :: set the underlying variable rather than going through the property
+			    this.__depth = this.pObject.Depth;
+		    } else
+		    {
+			    this.depth = this.pObject.Depth;
+		    }
+		}
 		this.solid = this.pObject.Solid;
 		this.visible = this.pObject.Visible;
 		this.persistent = this.pObject.Persistent;
@@ -969,7 +929,7 @@ yyInstance.prototype.SetObjectIndex = function (_objindex, _LinkToObjectType, _S
 ///          </summary>
 // #############################################################################################
 yyInstance.prototype.UpdateSpriteIndex = function (_index) {
-    // @if feature("sprites")
+        
     var pSprite = g_pSpriteManager.Get(_index);
     if (pSprite) {
         this.bbox.left = pSprite.bbox.left;
@@ -977,7 +937,6 @@ yyInstance.prototype.UpdateSpriteIndex = function (_index) {
         this.bbox.top = pSprite.bbox.top;
         this.bbox.bottom = pSprite.bbox.bottom;
     }
-	// @endif sprites
     this.sprite_index = _index;
     
     this.m_pSkeletonAnimation = null;
@@ -994,7 +953,7 @@ yyInstance.prototype.UpdateSpriteIndex = function (_index) {
 ///          </summary>
 // #############################################################################################
 yyInstance.prototype.RebuildPhysicsBody = function (_room) {
-	// @if feature("physics")
+
     // Null off pre-existing bodies to ensure that the data is entirely 
     // rebuilt either now or later in the logic (e.g. room start event)    
     if (_room && this.m_physicsObject) {
@@ -1009,7 +968,6 @@ yyInstance.prototype.RebuildPhysicsBody = function (_room) {
         this.BuildPhysicsBody();
         this.bbox_dirty = true;
     }
-	// @endif
 };
 
 // #############################################################################################
@@ -1018,7 +976,7 @@ yyInstance.prototype.RebuildPhysicsBody = function (_room) {
 ///          </summary>
 // #############################################################################################
 yyInstance.prototype.BuildPhysicsBody = function () {
-	// @if feature("physics")
+
     if (!this.pObject.PhysicsData.physicsObject) {
 		return;
 	}
@@ -1027,6 +985,7 @@ yyInstance.prototype.BuildPhysicsBody = function () {
 	if (!sprite_exists(this.sprite_index)) {
 		return;		
 	}
+	var spr = g_pSpriteManager.Get(this.sprite_index);
 	
 	// Without a physics world we won't get far
 	if (!g_RunRoom.m_pPhysicsWorld) {
@@ -1109,7 +1068,6 @@ yyInstance.prototype.BuildPhysicsBody = function () {
 
 	// And bind the fixture to get the physical object for this instance
 	physics_fixture_bind(this, fixtureID, this.id, xoffs, yoffs);	
-	// @endif BuildPhysicsBody
 };
 
 // #############################################################################################
@@ -1131,7 +1089,7 @@ yyInstance.prototype.Compute_Speed1 = function () {
 			{
 				this.__direction = 90;
 			}
-			//else { this.__direction = 0; }
+			else { this.__direction = 0; }
 		}
 		else
 		{
@@ -1245,18 +1203,14 @@ yyInstance.prototype.AdaptSpeed = function () {
 ///			 </returns>
 // #############################################################################################
 yyInstance.prototype.GetImageNumber = function () {
-    // @if feature("sprites")
-	// @if feature("spine")
+
+    var pSprite = g_pSpriteManager.Get(this.sprite_index);    
+
     var skeletonAnim = this.SkeletonAnimation();
     if (skeletonAnim) {
-		var pSprite = g_pSpriteManager.Get(this.sprite_index);    
         return skeletonAnim.FrameCount(pSprite);
     }
-	// @endif spine
 	return g_pSpriteManager.GetImageCount(this.sprite_index);
-	// @else
-	return 0;
-	// @endif sprites
 };
 
 // #############################################################################################
@@ -1362,6 +1316,23 @@ yyInstance.prototype.PerformEventInherited = function (_event, _index, _pOther) 
 	}
 };
 
+// #############################################################################################
+/// Function:<summary>
+///             Perform an event on this instance.
+///          </summary>
+///
+/// In:		 <param name="_pInst">the event to perform</param>
+///          <param name="_pInst">the THIS to use in the event</param>
+///			 <param name="_pOther">the OTHER to use in the event</param>
+// #############################################################################################
+/*yyInstance.prototype.PerformEvent = function (_event, _index, _pInst, _pOther) {
+
+    //if( pObject.Name == "oAssessmentBack" & _event==EVENT_DRAW){
+	//    this.testcode = 1;
+	//}
+    return this.PerformEvent_Common(_event, _index, _pInst, _pOther, _pInst.pObject);
+};*/
+
 
 // #############################################################################################
 /// Function:<summary>
@@ -1442,59 +1413,10 @@ yyInstance.prototype.setspeed = function (_val) {
 ///          </summary>
 // #############################################################################################
 yyInstance.prototype.Compute_BoundingBox = function() {
-    var maskCollisionSkel = this.MaskCollisionSkeleton();
-    var collisionSkel = this.GetCollisionSkeleton();
-
-	// @if feature("spine")
-    if(maskCollisionSkel !== null && g_pSpriteManager.Sprites[this.mask_index].bboxmode == 0 /* "Automatic" */) {
-        if (!this.bbox) {
-            this.bbox = new YYRECT(0, 0, 0, 0);
-        }
-
-        if(maskCollisionSkel.ComputeBoundingBox(this.bbox, this.CollisionImageIndex(false), this.x, this.y, this.image_xscale, this.image_yscale, this.image_angle))
-        {
-            this.colcheck = yySprite_CollisionType.SPINE_MESH;
-        }
-        else {
-            this.bbox.left = this.x; // no collisions
-            this.bbox.top = this.y;
-            this.bbox.right = this.x;
-            this.bbox.bottom = this.y;
-
-            this.colcheck = yySprite_CollisionType.AXIS_ALIGNED_RECT;
-        }
-
-        this.bbox_dirty = false;
-        return;
-    }
-    if(collisionSkel !== null && g_pSpriteManager.Sprites[this.sprite_index].bboxmode == 0 /* "Automatic" */) {
-        if (!this.bbox) {
-            this.bbox = new YYRECT(0, 0, 0, 0);
-        }
-
-        if(collisionSkel.ComputeBoundingBox(this.bbox, this.CollisionImageIndex(true), this.x, this.y, this.image_xscale, this.image_yscale, this.image_angle))
-        {
-            this.colcheck = yySprite_CollisionType.SPINE_MESH;
-        }
-        else {
-            this.bbox.left = this.x; // no collisions
-            this.bbox.top = this.y;
-            this.bbox.right = this.x;
-            this.bbox.bottom = this.y;
-
-            this.colcheck = yySprite_CollisionType.AXIS_ALIGNED_RECT;
-        }
-
-        this.bbox_dirty = false;
-        return;
-    }
-	// @endif
 
     var spr, t;
     var ix = (this.mask_index >= 0) ? this.mask_index : this.sprite_index;
-	// @if feature("sprites")
     if (ix < 0 || ix > g_pSpriteManager.Sprites.length) {
-	// @endif sprites
             
         if (!this.bbox) {
             this.bbox = new YYRECT(0, 0, 0, 0);
@@ -1504,15 +1426,14 @@ yyInstance.prototype.Compute_BoundingBox = function() {
         this.bbox.right = this.x;
         this.bbox.bottom = this.y;
 
-        this.colcheck = yySprite_CollisionType.AXIS_ALIGNED_RECT;
-	// @if feature("sprites")
+        this.precise = false;
     }
     else 
     {
         var bbox = this.bbox;
         spr = g_pSpriteManager.Sprites[ix];
         if (this.image_angle == 0) {
-			// @if feature("nineslice")
+        
 			if ((spr.nineslicedata != null) && (spr.nineslicedata.GetEnabled()))
 			{
 				bbox = spr.GetScaledBoundingBox(this.image_xscale, this.image_yscale);
@@ -1522,8 +1443,8 @@ yyInstance.prototype.Compute_BoundingBox = function() {
 
 				bbox.top += this.y;
 				bbox.bottom += this.y;
-			} else // ->
-			// @endif
+			}
+			else
 			{
 				var pRect = spr.bbox;            
 				var width = (pRect.right+1) - pRect.left;
@@ -1570,13 +1491,13 @@ yyInstance.prototype.Compute_BoundingBox = function() {
 				}
 			}
             
-			this.colcheck = spr.colcheck;
+            this.precise = spr.GetCollisionChecking();
+			this.rotatedBounds = spr.rotatedBounds;
         }
         else {
 			var xmin, xmax;
 			var ymin, ymax;
-			
-			// @if feature("nineslice")
+
 			if ((spr.nineslicedata != null) && (spr.nineslicedata.GetEnabled()))
 			{
 				bbox = spr.GetScaledBoundingBox(this.image_xscale, this.image_yscale);
@@ -1592,8 +1513,8 @@ yyInstance.prototype.Compute_BoundingBox = function() {
 				    xmax += 1;
 				}
 
-			} else
-			// @endif
+			}
+			else
 			{
 				var pRect = spr.bbox;            
 
@@ -1627,7 +1548,7 @@ yyInstance.prototype.Compute_BoundingBox = function() {
             }
             
             if (g_Collision_Compatibility_Mode) {
-                bbox.left = Math.floor((this.x + cc_xmin + ss_ymin) + 0.5);
+                this.bbox.left = Math.floor((this.x + cc_xmin + ss_ymin) + 0.5);
                 bbox.right = Math.floor((this.x + cc_xmax + ss_ymax) - 0.5);
             }
             else {
@@ -1660,47 +1581,12 @@ yyInstance.prototype.Compute_BoundingBox = function() {
                 bbox.bottom = ((this.y + cc_ymax - ss_xmin));
             }
 
-			this.colcheck = spr.colcheck;
+            this.precise = spr.GetCollisionChecking();
+			this.rotatedBounds = spr.rotatedBounds;
         }
         this.bbox = bbox;
-    }
-	// @endif sprites
+    }    
     this.bbox_dirty = false;
-};
-
-// #############################################################################################
-/// Function:<summary>
-/// Compute the on-screen bounding box, if it needs updating.
-/// </summary>
-// #############################################################################################
-yyInstance.prototype.Maybe_Compute_BoundingBox = function() {
-	/* Checks if the mask_index (or its collision options) have changed and sets the dirty flag if
-	 * we need to recompute our bounding box.
-	*/
-	this.MaskCollisionSkeleton();
-
-	if (this.bbox_dirty)
-	{
-		this.Compute_BoundingBox();
-		return;
-	}
-	// @if feature("spine")
-	var collisionSkel = this.GetCollisionSkeleton();
-	if (collisionSkel !== null)
-	{
-		var sprite = _spr = g_pSpriteManager.Get(this.sprite_index);
-
-		if(collisionSkel.SetAnimationTransform(this.CollisionImageIndex(collisionSkel === this.m_pSkeletonAnimation), this.x, this.y, this.image_xscale, this.image_yscale, this.image_angle, undefined, sprite))
-		{
-			 /* Bounding box isn't flagged as dirty, but the Skeleton sprite/animation
-			  * state has changed, so force an update anyway.
-			*/
-
-			this.Compute_BoundingBox();
-			return;
-		}
-	}
-	// @endif spine
 };
 
 
@@ -1719,8 +1605,21 @@ yyInstance.prototype.Maybe_Compute_BoundingBox = function() {
 yyInstance.prototype.Collision_Point = function (_x, _y, _prec) {
 
 	if (this.marked) return false;
-
-	this.Maybe_Compute_BoundingBox();
+	
+	var skeletonAnim = this.SkeletonAnimation();
+	if (skeletonAnim) {
+	    
+	    var oldinst = g_skeletonDrawInstance;
+	    g_skeletonDrawInstance = this;
+		if (skeletonAnim.ComputeBoundingBox(this.bbox, this.image_index, this.x, this.y, this.image_xscale, this.image_yscale, this.image_angle)) {
+		    this.precise = true;
+		    this.bbox_dirty = false;
+		}
+		g_skeletonDrawInstance = oldinst;
+	}
+	
+	// First, if box is dirty, recompute bounding box.
+	if (this.bbox_dirty) this.Compute_BoundingBox();	
 
 	var col_delta = -0.00001; //To avoid floating point inaccuracies
 	if (g_Collision_Compatibility_Mode)
@@ -1735,15 +1634,13 @@ yyInstance.prototype.Collision_Point = function (_x, _y, _prec) {
 	if (_y >= bbox.bottom + col_delta) return false;
 	if (_y < bbox.top) return false;
 
-	if (this.colcheck === yySprite_CollisionType.ROTATED_RECT)
+	if (this.rotatedBounds)
 	{
 		if (!SeparatingAxisCollisionPoint(this, _x, _y))
 		{
 			return false;
 		}
 	}
-    var Result = false;
-	// @if feature("sprites")
 
 	var pSpr;
 	if (this.mask_index < 0) {
@@ -1756,17 +1653,15 @@ yyInstance.prototype.Collision_Point = function (_x, _y, _prec) {
 	if ((pSpr === null) || (pSpr.numb === 0)) return false;
 
 	// If the point collided with the box, and we're not doing "precise" collisions, then exit true.
-	if ((!_prec) || this.colcheck === yySprite_CollisionType.AXIS_ALIGNED_RECT) return true;
+	if ((!_prec) || (!this.precise)) return true;
 
 
 	// handle precise collision tests
-	// @if feature("spine")
-	var collisionSkel = this.GetCollisionSkeleton();
-    if (collisionSkel !== null) {
-        Result = collisionSkel.PointCollision(this.CollisionImageIndex(true), this.x, this.y, this.image_xscale, this.image_yscale, this.image_angle, _x, _y);
-    } else // ->
-	// @endif
-	{    
+    var Result = false;
+    if (skeletonAnim) {
+        Result = skeletonAnim.PointCollision(this.image_index, this.x, this.y, this.image_xscale, this.image_yscale, this.image_angle, _x, _y);
+    }
+    else {    
 	    Result = pSpr.PreciseCollisionPoint(Math.floor(this.image_index), bbox,
                                             Round(this.x), Round(this.y),
                                             this.image_xscale, this.image_yscale,
@@ -1774,7 +1669,6 @@ yyInstance.prototype.Collision_Point = function (_x, _y, _prec) {
                                             Round(_x), Round(_y)
                                         );
     }
-	// @endif sprites
 	return Result;
 };
 
@@ -1796,10 +1690,20 @@ yyInstance.prototype.Collision_Point = function (_x, _y, _prec) {
 yyInstance.prototype.Collision_Rectangle = function (_x1, _y1, _x2, _y2, _prec) {
 	if (this.marked) return false;
 
-	this.Maybe_Compute_BoundingBox();
+	var skeletonAnim = this.SkeletonAnimation();
+	if (skeletonAnim) {
+	    var oldinst = g_skeletonDrawInstance;
+	    g_skeletonDrawInstance = this;
+		if (skeletonAnim.ComputeBoundingBox(this.bbox, this.image_index, this.x, this.y, this.image_xscale, this.image_yscale, this.image_angle)) {
+		    this.precise = true;
+		    this.bbox_dirty = false;
+		}
+		g_skeletonDrawInstance = oldinst;
+	}
+	
+	if (this.bbox_dirty) this.Compute_BoundingBox();	
 
 	// easy cases first
-	var Result = false;
 	var bbox = this.bbox;
 
 	var col_delta = 0; //To avoid floating point inaccuracies
@@ -1836,7 +1740,6 @@ yyInstance.prototype.Collision_Rectangle = function (_x1, _y1, _x2, _y2, _prec) 
 	    return Result;
 	}
 
-	// @if feature("sprites")
 	var pSpr;
 	if (this.mask_index < 0) {
 	    pSpr = g_pSpriteManager.Get(this.sprite_index);
@@ -1847,12 +1750,12 @@ yyInstance.prototype.Collision_Rectangle = function (_x1, _y1, _x2, _y2, _prec) 
     // If this is an invalid sprite, or it has NO images, then false.
 	if ((pSpr === null) || (pSpr.numb == 0)) return false;
 
-	if (this.colcheck === yySprite_CollisionType.ROTATED_RECT) {
+	if (this.rotatedBounds) {
 	    if (!SeparatingAxisCollisionBox(this, _x1, _y1, _x2, _y2))
 	        return false;
 	}
 
-	if ((!_prec) || this.colcheck === yySprite_CollisionType.AXIS_ALIGNED_RECT) {
+	if ((!_prec) || (!this.precise)) {
 
 	    if (!g_Collision_Compatibility_Mode)
 	    {
@@ -1871,15 +1774,13 @@ yyInstance.prototype.Collision_Rectangle = function (_x1, _y1, _x2, _y2, _prec) 
 	}
 
 	// handle precise collision tests
-    // @if feature("spine")
-	var collisionSkel = this.GetCollisionSkeleton();
-    if (collisionSkel !== null) {
-        Result = collisionSkel.RectangleCollision(this.CollisionImageIndex(true), this.x, this.y, 
+    var Result = false;
+    if (skeletonAnim) {
+        Result = skeletonAnim.RectangleCollision(this.image_index, this.x, this.y, 
                                                  this.image_xscale, this.image_yscale, this.image_angle, 
 			                                     _x1, _y1, _x2, _y2);
-    } else // ->
-	// @endif
-	{
+    }
+    else {
 	    //function Rect(ALeft, ATop, ARight, ABottom: Integer): TRect;
 	    g_rr.left = Round(yymin(_x1, _x2));
 	    g_rr.top = Round(yymin(_y1, _y2));
@@ -1889,7 +1790,6 @@ yyInstance.prototype.Collision_Rectangle = function (_x1, _y1, _x2, _y2, _prec) 
 	    Result = pSpr.PreciseCollisionRectangle(Math.floor(this.image_index), bbox, Round(this.x), Round(this.y),
 	    											this.image_xscale, this.image_yscale, this.image_angle, g_rr);
     }
-	// @endif sprites
 	return Result;
 };
 
@@ -1909,7 +1809,7 @@ function PtInEllipse(_x1, _y1, _x2, _y2, _px, _py)
     var a = (_px - mx) / ww;
     var b = (_py - my) / hh;
     return ((a * a) + (b * b) <= 1) ? true : false;
-};   
+}
 
 
 // #############################################################################################
@@ -1930,7 +1830,17 @@ yyInstance.prototype.Collision_Ellipse = function (_x1, _y1, _x2, _y2, _prec) {
 
 	if (this.marked) return false;
 
-	this.Maybe_Compute_BoundingBox();
+	var skeletonAnim = this.SkeletonAnimation();
+	if (skeletonAnim) {
+	    var oldinst = g_skeletonDrawInstance;
+	    g_skeletonDrawInstance = this;
+	    
+		if (skeletonAnim.ComputeBoundingBox(this.bbox, this.image_index, this.x, this.y, this.image_xscale, this.image_yscale, this.image_angle)) {
+		    this.precise = true;
+		    this.bbox_dirty = false;
+		}
+	    g_skeletonDrawInstance = oldinst;
+	}
 
     if (this.bbox_dirty) this.Compute_BoundingBox();
     
@@ -1988,7 +1898,6 @@ yyInstance.prototype.Collision_Ellipse = function (_x1, _y1, _x2, _y2, _prec) {
 	        return false;
 	}
 
-	// @if feature("sprites")
 	var pSpr;
 	if (this.mask_index < 0) {
 	    pSpr = g_pSpriteManager.Get(this.sprite_index);
@@ -1998,12 +1907,12 @@ yyInstance.prototype.Collision_Ellipse = function (_x1, _y1, _x2, _y2, _prec) {
 	}
 	if ((pSpr === null) || (pSpr.numb == 0)) return false;
 
-	if (this.colcheck === yySprite_CollisionType.ROTATED_RECT) {
+	if (this.rotatedBounds) {
 	    if (!SeparatingAxisCollisionEllipse(this, _x1, _y1, _x2, _y2))
 	        return false;
 	}
 
-	if ((!_prec) || this.colcheck === yySprite_CollisionType.AXIS_ALIGNED_RECT) return true;
+	if ((!_prec) || (!this.precise)) return true;
 	
 	g_rr.left = min_x1x2;
 	g_rr.top = min_y1y2;
@@ -2011,17 +1920,12 @@ yyInstance.prototype.Collision_Ellipse = function (_x1, _y1, _x2, _y2, _prec) {
 	g_rr.bottom = max_y1y2;
 
 	// handle precise collision tests
-	// @if feature("spine")
-	var collisionSkel = this.GetCollisionSkeleton();
-    if (collisionSkel !== null) {
-        return collisionSkel.EllipseCollision(this.CollisionImageIndex(true), this.x, this.y, this.image_xscale, this.image_yscale, this.image_angle, g_rr);
-    } else // ->
-	// @endif
-	{	    
+    if (skeletonAnim) {
+        return skeletonAnim.EllipseCollision(this.image_index, this.x, this.y, this.image_xscale, this.image_yscale, this.image_angle, g_rr);
+    }
+    else {	    
 	    return pSpr.PreciseCollisionEllipse(Math.floor(this.image_index), bbox, Round(this.x), Round(this.y), this.image_xscale, this.image_yscale, this.image_angle, g_rr);
     }
-	// @endif sprites
-	return false;
 };
 
 
@@ -2043,7 +1947,20 @@ yyInstance.prototype.Collision_Line = function (_x1, _y1, _x2, _y2, _prec) {
 
 	if (this.marked) return false;
 
-	this.Maybe_Compute_BoundingBox();
+	var skeletonAnim = this.SkeletonAnimation();
+	if (skeletonAnim) {
+	
+	    var oldinst = g_skeletonDrawInstance;
+	    g_skeletonDrawInstance = this;
+	    
+		if (skeletonAnim.ComputeBoundingBox(this.bbox, this.image_index, this.x, this.y, this.image_xscale, this.image_yscale, this.image_angle)) {
+		    this.precise = true;
+		    this.bbox_dirty = false;
+		}
+	    g_skeletonDrawInstance = oldinst;
+	
+	}
+	if (this.bbox_dirty) this.Compute_BoundingBox();	
 
 	// easy cases first    
 	var i_bbox = this.bbox;
@@ -2083,7 +2000,6 @@ yyInstance.prototype.Collision_Line = function (_x1, _y1, _x2, _y2, _prec) {
 	if ((_y1 < i_bbox.top) && (_y2 < i_bbox.top)) { return false; }
 	if ((_y1 >= i_bbox.bottom + 1) && (_y2 >= i_bbox.bottom + 1)) { return false; }
 
-	// @if feature("sprites")
 		var pSpr;
 	    if (this.mask_index < 0) {
 	    	pSpr = g_pSpriteManager.Get(this.sprite_index);
@@ -2093,7 +2009,7 @@ yyInstance.prototype.Collision_Line = function (_x1, _y1, _x2, _y2, _prec) {
 	    }
 	    if ((pSpr == null) || (pSpr == undefined) || (pSpr.GetCount() == 0)) return false;
 
-		if (this.colcheck === yySprite_CollisionType.ROTATED_RECT)
+		if (this.rotatedBounds)
 		{
 			if (!SeparatingAxisCollisionLine(this, _x1, _y1, _x2, _y2))
 			{
@@ -2101,18 +2017,15 @@ yyInstance.prototype.Collision_Line = function (_x1, _y1, _x2, _y2, _prec) {
 			}
 		}
 
-	if (!_prec || this.colcheck === yySprite_CollisionType.AXIS_ALIGNED_RECT) { return true; }
+	if (!_prec || !this.precise) { return true; }
 
 	// handle precise collision tests
-	// @if feature("spine")
-	var collisionSkel = this.GetCollisionSkeleton();
-	if (collisionSkel !== null) {
-	    return collisionSkel.LineCollision(this.CollisionImageIndex(true), this.x, this.y, this.image_xscale, this.image_yscale, this.image_angle, _x1, _y1, _x2, _y2);
+	if (skeletonAnim) {
+	    return skeletonAnim.LineCollision(this.image_index, this.x, this.y, this.image_xscale, this.image_yscale, this.image_angle, _x1, _y1, _x2, _y2);
 	}
-	// @endif
-	return pSpr.PreciseCollisionLine(this.image_index | 0, i_bbox, Round(this.x), Round(this.y), this.image_xscale, this.image_yscale, this.image_angle, Round(_x1), Round(_y1), Round(_x2), Round(_y2));
-	// @endif sprites
-	return false;
+	else {
+	    return pSpr.PreciseCollisionLine(this.image_index | 0, i_bbox, Round(this.x), Round(this.y), this.image_xscale, this.image_yscale, this.image_angle, Round(_x1), Round(_y1), Round(_x2), Round(_y2));
+    }
 };
 
 
@@ -2123,11 +2036,29 @@ yyInstance.prototype.Collision_Line = function (_x1, _y1, _x2, _y2, _prec) {
 ///          </summary>
 // #############################################################################################
 yyInstance.prototype.Collision_Skeleton = function (inst, prec)
-{
-	// @if feature("spine")
-	// Go ahead and get the bounding box for our animation
-	this.Maybe_Compute_BoundingBox();
-	inst.Maybe_Compute_BoundingBox();
+{	
+	var skel1 = this.SkeletonAnimation();
+	var skel2 = inst.SkeletonAnimation();
+	
+	var spr1 = g_pSpriteManager.Get(this.sprite_index);	
+
+    var oldinst = g_skeletonDrawInstance;
+    g_skeletonDrawInstance = this;
+	// Go ahead and get the bounding box for our animation	
+	if (skel1.ComputeBoundingBox(this.bbox, this.image_index, this.x, this.y, this.image_xscale, this.image_yscale, this.image_angle)) {
+	    this.bbox_dirty = false;
+	}
+	g_skeletonDrawInstance = inst;
+	if (skel2) {
+		// Skeleton vs skeleton collision
+		if (skel2.ComputeBoundingBox(inst.bbox, inst.image_index, inst.x, inst.y, inst.image_xscale, inst.image_yscale, inst.image_angle)) {
+		    inst.bbox_dirty = false;
+		}
+	}
+	g_skeletonDrawInstance = oldinst;
+	// Skeleton vs sprite collision
+	if (this.bbox_dirty) this.Compute_BoundingBox();
+	if (inst.bbox_dirty) inst.Compute_BoundingBox();
 
 	// Do the bounds overlap test
 	if ( inst.bbox.left     >= this.bbox.right+1  ) return false;
@@ -2137,7 +2068,7 @@ yyInstance.prototype.Collision_Skeleton = function (inst, prec)
 
 
 	// If the other instance doesn't actually have a sprite then we can't do precise collision testing with it
-	// @if feature("sprites")
+	var spr1 = g_pSpriteManager.Get(this.sprite_index);
 	var spr2 = (inst.mask_index < 0) 
 	    ? g_pSpriteManager.Get(inst.sprite_index)
 	    : g_pSpriteManager.Get(inst.mask_index);
@@ -2145,32 +2076,24 @@ yyInstance.prototype.Collision_Skeleton = function (inst, prec)
 	if (spr2 === null) return false;	
 
 	// Don't proceed further if precise collision checking hasn't been selected
-	if (!prec) return true;
-
-	var skel1 = this.GetCollisionSkeleton();
-	var skel2 = inst.GetCollisionSkeleton();
+	// or either of the sprites have not been set to use precise collisions
+	
+	if (!prec || (!this.precise && !inst.precise)) return true;
 
 	// At this stage, decide how to test for a collision between the two "sprites"
-	if (skel2 !== null) {
-		/* inst/spr2 is using spine collisions */
-		return skel1.SkeletonCollision(this.CollisionImageIndex(true), this.x, this.y, this.image_xscale, this.image_yscale, this.image_angle,
-			skel2, inst.CollisionImageIndex(true), inst.x, inst.y, inst.image_xscale, inst.image_yscale, inst.image_angle);
+	if (skel2) {
+		return skel1.SkeletonCollision(this.image_index, this.x, this.y, this.image_xscale, this.image_yscale, this.image_angle,
+			skel2, inst.image_index, inst.x, inst.y, inst.image_xscale, inst.image_yscale, inst.image_angle);				
 	}
-	else if (spr2.colcheck == yySprite_CollisionType.PRECISE) {
-		/* inst/spr2 is using precise collisions */
-		return skel1.SpriteCollision(this.CollisionImageIndex(true), this.x, this.y, this.image_xscale, this.image_yscale, this.image_angle,
-			spr2, inst.bbox, inst.CollisionImageIndex(false), inst.x, inst.y, inst.image_xscale, inst.image_yscale, inst.image_angle);	
-	}
-	// @endif spine
-	/* inst/spr2 is using bounding box collisions - no more to do. */
-	return true;
-	// @endif sprites
-	return false;
+	else {		
+		return skel1.SpriteCollision(this.image_index, this.x, this.y, this.image_xscale, this.image_yscale, this.image_angle,
+			spr2, inst.bbox, inst.image_index, inst.x, inst.y, inst.image_xscale, inst.image_yscale, inst.image_angle);	
+	}	
 };
 
 
 yyInstance.prototype.Animate = function() {
-	// @if feature("sprites")
+
     if(g_isZeus)
     {
         var pImage = g_pSpriteManager.Get( this.sprite_index );
@@ -2192,7 +2115,6 @@ yyInstance.prototype.Animate = function() {
             return;
         }
     }
-	// @endif sprites
 
 	// BUGFIX: 30634 If we have no valid image set, increment image_index anyway just like in the Win32 runner
     this.image_index += this.image_speed;
@@ -2216,7 +2138,7 @@ function sa_getAxes(points)
 	}
 
 	return rv;
-};
+}
 
 function sa_checkCollision(p1, p2)
 {
@@ -2246,7 +2168,7 @@ function sa_checkCollision(p1, p2)
 	}
 
 	return true;
-};
+}
 
 function sa_getProjection(points, axis)
 {
@@ -2264,7 +2186,7 @@ function sa_getProjection(points, axis)
 	}
 
 	return result;
-};
+}
 
 function getPoints(i1)
 {
@@ -2272,8 +2194,7 @@ function getPoints(i1)
     var spr = g_pSpriteManager.Sprites[ix];	
 	var xmin, xmax;
 	var ymin, ymax;
-	
-	// @if feature("nineslice")
+
 	if ((spr.nineslicedata != null) && (spr.nineslicedata.GetEnabled()))
 	{
 		var bbox = spr.GetScaledBoundingBox(i1.image_xscale, i1.image_yscale);
@@ -2283,8 +2204,8 @@ function getPoints(i1)
 
 		ymin = bbox.top;
 		ymax = bbox.bottom + 1;
-	} else // ->
-	// @endif
+	}
+	else
 	{
 		var pRect = spr.bbox;
 
@@ -2320,7 +2241,7 @@ function getPoints(i1)
 	rv[3] = { "x": (ix + cc_xmin - ss_ymax), "y": (iy + cc_ymax + ss_xmin) };
 
 	return rv;
-};
+}
 
 function SeparatingAxisCollision(i1, i2)
 {
@@ -2328,7 +2249,7 @@ function SeparatingAxisCollision(i1, i2)
 	var p2 = getPoints(i2);
 
 	return sa_checkCollision(p1, p2);
-};
+}
 
 function sa_getAxesLine(points)
 {
@@ -2343,7 +2264,7 @@ function sa_getAxesLine(points)
 	rv = {"x" : -y, "y" : x};
 
 	return rv;
-};
+}
 
 function sa_checkCollisionPoint(p1, p2)
 {
@@ -2361,7 +2282,7 @@ function sa_checkCollisionPoint(p1, p2)
     }
 
     return true;
-};
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -2456,7 +2377,7 @@ function getPointsLine(_x1, _y1, _x2, _y2)
 	rv[1] = {"x" : _x2, "y" : _y2};
 
 	return rv;
-};
+}
 
 function SeparatingAxisCollisionLine(i1, _x1, _y1, _x2, _y2)
 {
@@ -2464,14 +2385,14 @@ function SeparatingAxisCollisionLine(i1, _x1, _y1, _x2, _y2)
 	var p2 = getPointsLine(_x1, _y1, _x2, _y2);
 
 	return sa_checkCollisionLine(p1, p2);
-};
+}
 
 function SeparatingAxisCollisionPoint(i1, _x1, _y1)
 {
     var p1 = getPoints(i1);
     var p2 = { "x": _x1, "y": _y1 };
     return sa_checkCollisionPoint(p1, p2);
-};
+}
 
 function SeparatingAxisCollisionEllipse(i1, _x1, _y1, _x2, _y2)
 {
@@ -2480,7 +2401,7 @@ function SeparatingAxisCollisionEllipse(i1, _x1, _y1, _x2, _y2)
     var rx = Math.abs(_x1 - _x2) * 0.5;
     var ry = Math.abs(_y1 - _y2) * 0.5;
     return sa_checkCollisionEllipse(p1, pcentre, rx, ry);
-};
+}
 
 function SeparatingAxisCollisionBox(i1, _x1, _y1, _x2, _y2)
 {
@@ -2492,7 +2413,7 @@ function SeparatingAxisCollisionBox(i1, _x1, _y1, _x2, _y2)
     p2[3] = { "x": _x2, "y": _y2 };
 
     return sa_checkCollision(p1, p2);
-};
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -2511,14 +2432,12 @@ yyInstance.prototype.Collision_Instance = function (_pInst, _prec) {
 	if (this != _pInst && !this.marked && !_pInst.marked)
 	{
 	    // Change code path if either instance is using a Spine animation
-		// @if feature("spine")
-	    if (this.UseSkeletonCollision()) {
+	    if ( (this.SkeletonAnimation()) && (this.mask_index < 0)) {
 	    	return this.Collision_Skeleton(_pInst, _prec);
 	    }
-	    if (_pInst.UseSkeletonCollision()) {
+	    if ( (_pInst.SkeletonAnimation()) && (_pInst.mask_index < 0) ) {
 	    	return _pInst.Collision_Skeleton(this, _prec);
 	    }
-		// @endif
 	
 	
 	
@@ -2540,7 +2459,7 @@ yyInstance.prototype.Collision_Instance = function (_pInst, _prec) {
 		if (bbox1.top           >= (bbox2.bottom + col_delta))  return false;
 		if ((bbox1.bottom + col_delta)  <= bbox2.top)           return false;
 
-		if (this.colcheck === yySprite_CollisionType.ROTATED_RECT || _pInst.colcheck === yySprite_CollisionType.ROTATED_RECT)
+		if (this.rotatedBounds || _pInst.rotatedBounds)
 		{
 			if (!SeparatingAxisCollision(this, _pInst))
 			{
@@ -2549,7 +2468,6 @@ yyInstance.prototype.Collision_Instance = function (_pInst, _prec) {
 		}
 
 	    // dealing with precise collision checking
-		// @if feature("sprites")
 		var pSpr1 = null;
 		var pSpr2 = null;
 		if (this.mask_index < 0) {
@@ -2569,7 +2487,7 @@ yyInstance.prototype.Collision_Instance = function (_pInst, _prec) {
 		}
 		if ((pSpr2 == null) || (pSpr2.numb == 0)) return false;
 
-		if (!_prec || (this.colcheck === yySprite_CollisionType.AXIS_ALIGNED_RECT && _pInst.colcheck === yySprite_CollisionType.AXIS_ALIGNED_RECT))
+		if (!_prec || (!this.precise && !_pInst.precise)) 
 		{
 		    if (!g_Collision_Compatibility_Mode)
 		    {
@@ -2595,7 +2513,6 @@ yyInstance.prototype.Collision_Instance = function (_pInst, _prec) {
 
 		if (g_Collision_Compatibility_Mode)
 		{
-			// @if feature("collision_compatibility")
 		    return pSpr1.OrigPreciseCollision(this.image_index | 0, this.bbox, Round(this.x), Round(this.y), 
                                           this.image_xscale, this.image_yscale,
                                           this.image_angle,
@@ -2603,11 +2520,9 @@ yyInstance.prototype.Collision_Instance = function (_pInst, _prec) {
                                           _pInst.image_index | 0, _pInst.bbox, Round(_pInst.x), Round(_pInst.y),
                                           _pInst.image_xscale, _pInst.image_yscale,
                                           _pInst.image_angle);
-            // @endif
 		}
 		else
 		{
-		    // @if !feature("collision_compatibility")
 		    return pSpr1.PreciseCollision(this.image_index | 0, this.bbox, Round(this.x), Round(this.y), 
                                           this.image_xscale, this.image_yscale,
                                           this.image_angle,
@@ -2615,16 +2530,14 @@ yyInstance.prototype.Collision_Instance = function (_pInst, _prec) {
                                           _pInst.image_index | 0, _pInst.bbox, Round(_pInst.x), Round(_pInst.y),
                                           _pInst.image_xscale, _pInst.image_yscale,
                                           _pInst.image_angle);
-            // @endif
 		}
-		// @endif sprites
 	}
 	return false;
 };
 
 
 
-// @if feature("paths")
+
 
 // #############################################################################################
 /// Function:<summary>
@@ -2684,7 +2597,7 @@ yyInstance.prototype.Assign_Path = function (_ind, _speed, _scale, _orient, _abs
 	this.path_xstart = this.x;
 	this.path_ystart = this.y;
 };
-// @endif
+
 
 // #############################################################################################
 /// Function:<summary>
@@ -2696,7 +2609,6 @@ yyInstance.prototype.Assign_Path = function (_ind, _speed, _scale, _orient, _abs
 ///			 </returns>
 // #############################################################################################
 yyInstance.prototype.Adapt_Path = function () {
-	// @if feature("paths")
     var sp, xx, yy;
 
 
@@ -2820,8 +2732,9 @@ yyInstance.prototype.Adapt_Path = function () {
     this.SetPosition(newx, newy);
 
     return atPathEnd;
-	// @endif
 };
+
+
 
 // #############################################################################################
 /// Function:<summary>
@@ -2873,17 +2786,19 @@ yyInstance.prototype.get_bbox = function () {
 // #############################################################################################
 yyInstance.prototype.wrap = function(_hor, _vert)
 {
-    var w = 0, h = 0;
+    var w, h;
     
     // find the sprite size
-	// @if feature("sprites")
-    if (sprite_exists(this.sprite_index))
+    if (!sprite_exists(this.sprite_index))
+    {
+        w = h =0;
+	}
+    else
     {
         var pSpr = g_pSpriteManager.Get(this.sprite_index);
         w = pSpr.width * this.image_xscale;
         h = pSpr.height * this.image_yscale;
     }
-	// @endif sprites
     
     // do horizontal wrap
     if (_hor)
@@ -2936,10 +2851,11 @@ yyInstance.prototype.ApplyVisualOffset = function (_angle, _visualOffs) {
 ///             Transfer across physics data to properties the user can access
 ///          </summary>
 // #############################################################################################
-// @if feature("physics")
 yyInstance.prototype.RefreshPhysicalProperties = function (_physicsBody) {
     
-    var TargetSpeed = g_GameTimer.GetFPS();
+    var TargetSpeed =g_RunRoom.GetSpeed();
+    if(g_isZeus)
+        TargetSpeed = g_GameTimer.GetFPS();
         
     var metreToPixelScale = 1.0 / g_RunRoom.m_pPhysicsWorld.m_pixelToMetreScale;
     
@@ -2951,8 +2867,8 @@ yyInstance.prototype.RefreshPhysicalProperties = function (_physicsBody) {
 	this.bbox_dirty = true;
 	
 	this.__phy_rotation = (_physicsBody.GetAngle() * 180.0) / Math.PI;
-	this.__phy_position_x = this.x - finalOffset.x;
-	this.__phy_position_y = this.y - finalOffset.y;
+	this.__phy_position_x = this.x;
+	this.__phy_position_y = this.y;        	
     this.__phy_angular_velocity = (_physicsBody.GetAngularVelocity() * 180.0) / Math.PI;
     this.__phy_linear_velocity_x = _physicsBody.GetLinearVelocity().x * metreToPixelScale;     // pixels per sec
     this.__phy_linear_velocity_y = _physicsBody.GetLinearVelocity().y * metreToPixelScale;     // pixels per sec
@@ -3042,7 +2958,9 @@ yyInstance.prototype.set_physics_linear_velocity_y = function(_vel) {
 // #############################################################################################
 yyInstance.prototype.set_physics_speed_x = function(_speed) {
     
-    var TargetSpeed = g_GameTimer.GetFPS();
+    var TargetSpeed = g_RunRoom.GetSpeed();
+    if(g_isZeus)
+        TargetSpeed = g_GameTimer.GetFPS();
 
     this.m_physicsObject.SetLinearVelocityX(yyGetReal(_speed) * g_RunRoom.m_pPhysicsWorld.m_pixelToMetreScale * TargetSpeed);
     this.RefreshPhysicalProperties(this.m_physicsObject.m_physicsBody);
@@ -3056,7 +2974,9 @@ yyInstance.prototype.set_physics_speed_x = function(_speed) {
 yyInstance.prototype.set_physics_speed_y = function(_speed) {
 
    
-    var TargetSpeed = g_GameTimer.GetFPS();
+    var TargetSpeed = g_RunRoom.GetSpeed();
+    if(g_isZeus)
+        TargetSpeed = g_GameTimer.GetFPS();
     this.m_physicsObject.SetLinearVelocityY(yyGetReal(_speed) * g_RunRoom.m_pPhysicsWorld.m_pixelToMetreScale * TargetSpeed);
     this.RefreshPhysicalProperties(this.m_physicsObject.m_physicsBody);
 };
@@ -3115,7 +3035,7 @@ yyInstance.prototype.set_physics_active = function(_isActive) {
     this.m_physicsObject.SetActive(yyGetBool(_isActive));
     this.RefreshPhysicalProperties(this.m_physicsObject.m_physicsBody);
 };
-// @endif physics helpers
+
 
 
 // #############################################################################################
@@ -3125,7 +3045,7 @@ yyInstance.prototype.set_physics_active = function(_isActive) {
 ///          </summary>
 // #############################################################################################
 yyInstance.prototype.SkeletonAnimation = function () {
-	// @if feature("spine")
+
     if (sprite_exists(this.sprite_index)) {
     	
 		var spr = g_pSpriteManager.Get(this.sprite_index);
@@ -3137,102 +3057,9 @@ yyInstance.prototype.SkeletonAnimation = function () {
 			}
 		}
 	}
-	// @endif
 	return this.m_pSkeletonAnimation;
 };
 
-yyInstance.prototype.MaskCollisionSkeleton = function()
-{
-	// @if feature("spine")
-	var mask_sprite = null;
-	var use_mask_skeleton = false;
-
-	if (this.mask_index >= 0)
-	{
-		mask_sprite = g_pSpriteManager.Sprites[this.mask_index];
-		use_mask_skeleton = mask_sprite.colcheck == yySprite_CollisionType.SPINE_MESH;
-	}
-
-	if (this.m_pMaskSkeleton !== null && (!use_mask_skeleton || this.m_pMaskSkeleton.m_skeletonData != mask_sprite.m_skeletonData))
-	{
-		/* We shouldn't be using a collision mesh from our mask_index, or we should be, but from a
-		 * DIFFERENT sprite.
-		*/
-
-		this.m_pMaskSkeleton = null;
-        this.bbox_dirty = true;
-	}
-
-	if (use_mask_skeleton && this.m_pMaskSkeleton === null)
-	{
-		this.m_pMaskSkeleton = new yySkeletonInstance(mask_sprite.m_skeletonSprite);
-		this.bbox_dirty = true;
-	}
-	// @endif
-
-	return this.m_pMaskSkeleton;
-};
-
-yyInstance.prototype.GetCollisionSkeleton = function()
-{
-	var skel = null;
-	// @if feature("spine")
-	if (this.mask_index >= 0)
-	{
-		skel = this.MaskCollisionSkeleton();
-	}
-	else{
-		skel = this.SkeletonAnimation();
-
-		if(skel !== null)
-		{
-			var sprite = g_pSpriteManager.Sprites[this.sprite_index];
-
-			if(sprite.colcheck !== yySprite_CollisionType.SPINE_MESH)
-			{
-				/* Our sprite_index is a Spine sprite, but not using a collision mesh. */
-				skel = null;
-			}
-		}
-	}
-	// @endif
-	return skel;
-};
-
-yyInstance.prototype.CollisionImageIndex = function(_consumeFrameOverflow)
-{
-	// @if feature("spine")
-	if (this.mask_index >= 0 && g_pSpriteManager.Sprites[this.mask_index].colcheck === yySprite_CollisionType.SPINE_MESH)
-	{
-		return 0.0;
-	}
-	// @endif
-
-	var index = this.image_index;
-	if(_consumeFrameOverflow)
-	{
-		index += this.frame_overflow;
-		this.frame_overflow = 0;
-	}
-
-	return index;
-};
-
-yyInstance.prototype.UseSkeletonCollision = function()
-{
-	// @if feature("spine")
-	if (this.mask_index < 0)
-	{
-		return this.SkeletonAnimation()
-			&& g_pSpriteManager.Sprites[this.sprite_index].colcheck === yySprite_CollisionType.SPINE_MESH;
-	}
-	else{
-		return g_pSpriteManager.Sprites[this.mask_index].colcheck === yySprite_CollisionType.SPINE_MESH
-	}
-	// @else
-	return false;
-	// @endif
-};
 
 yyInstance.prototype.GetLayerID=function()	{ return this.m_nLayerID; };
 yyInstance.prototype.SetLayerID=function(_layerID)	{ this.m_nLayerID = _layerID; };
@@ -3554,83 +3381,89 @@ yyInstanceManager.prototype.UpdateImages = function () {
 		if (pInst.marked) continue;
         if (!pInst.active) continue;
 
-		// @if feature("sprites")
 		var sprite = g_pSpriteManager.Get(pInst.sprite_index);
-	    if (sprite?.sequence != null)
+		
+		var usesSpriteSequences = false;
+
+	    if (sprite != null)
 	    {
-			/*
-			var sequence_image_index = pInst.sequence_pos;
-			if ((sprite.sequence.m_tracks != null) && (sprite.sequence.m_tracks[0].m_type == eSTT_SpriteFrames))
-			{
-				var pTrack = sprite.sequence.m_tracks[0];
-				var pKey = pTrack.m_keyframeStore.GetKeyframeAtFrame(pInst.sequence_pos, sprite.sequence.m_length);
-				if (pKey == null)
-				{
-					pInst.SetImageIndex(-1);		// no key at this time
+	        if(sprite.sequence != null)
+	        {
+				/*
+	            var sequence_image_index = pInst.sequence_pos;
+	            if ((sprite.sequence.m_tracks != null) && (sprite.sequence.m_tracks[0].m_type == eSTT_SpriteFrames))
+                {
+	                var pTrack = sprite.sequence.m_tracks[0];
+                    var pKey = pTrack.m_keyframeStore.GetKeyframeAtFrame(pInst.sequence_pos, sprite.sequence.m_length);
+                    if (pKey == null)
+                    {
+                        pInst.SetImageIndex(-1);		// no key at this time
+                    }
+                    else if(pTrack.m_numTracks > 0)
+                    {
+                        sequence_image_index = pTrack.m_tracks[0].getValue(0, pInst.sequence_pos, sprite.sequence.m_length);
+                       
+                        if (Math.abs(pInst.image_index - sequence_image_index) > g_GMLMathEpsilon)
+                        {
+                            var newseqpos = ConvertImageIndexToSequencePos(pInst, sprite, pInst.image_index);
+                            SetNewSequencePosition(pInst, sprite, newseqpos, true);
+                        }
+                    }
+                }
+				*/
+				var sequence_image_index = pInst.sequence_pos;
+				if ((sprite.sequence.m_tracks != null) && (sprite.sequence.m_tracks[0].m_type == eSTT_SpriteFrames))
+			   	{
+				   var pTrack = sprite.sequence.m_tracks[0];
+				   if (pTrack != null)
+				   {
+					   sequence_image_index = pTrack.getValue(pInst.sequence_pos);
+	   
+					   if (Math.abs(pInst.image_index - sequence_image_index)>g_GMLMathEpsilon)
+					   {
+						   var numkeyframes = pTrack.m_keyframeStore.numKeyframes;
+						   if (numkeyframes > 0) { 
+							   var keyindex = ~~(pInst.image_index);
+							   var fracval = pInst.image_index - keyindex;
+
+							   var newseqpos = pInst.image_index;
+							   if (keyindex >= numkeyframes)
+							   {
+								   newseqpos = pTrack.m_keyframeStore.keyframes[numkeyframes - 1].m_key + (pInst.image_index - (numkeyframes - 1));
+							   }
+							   else if (keyindex < 0)
+							   {
+								   newseqpos = pInst.image_index;
+							   }
+							   else
+								   newseqpos = (pTrack.m_keyframeStore.keyframes[keyindex].m_key + (fracval * pTrack.m_keyframeStore.keyframes[keyindex].m_length));
+
+							   newseqpos = ConvertImageIndexToSequencePos(pInst, sprite, pInst.image_index);
+							   SetNewSequencePosition(pInst, sprite, newseqpos, true);
+						   } // end if
+					   }
+
+				   }
 				}
-				else if(pTrack.m_numTracks > 0)
-				{
-					sequence_image_index = pTrack.m_tracks[0].getValue(0, pInst.sequence_pos, sprite.sequence.m_length);
-					
-					if (Math.abs(pInst.image_index - sequence_image_index) > g_GMLMathEpsilon)
-					{
-						var newseqpos = ConvertImageIndexToSequencePos(pInst, sprite, pInst.image_index);
-						SetNewSequencePosition(pInst, sprite, newseqpos, true);
-					}
-				}
-			}
-			*/
-			var sequence_image_index = pInst.sequence_pos;
-			if ((sprite.sequence.m_tracks != null) && (sprite.sequence.m_tracks[0].m_type == eSTT_SpriteFrames))
-			{
-				var pTrack = sprite.sequence.m_tracks[0];
-				if (pTrack != null)
-				{
-					sequence_image_index = pTrack.getValue(pInst.sequence_pos);
-	
-					if (Math.abs(pInst.image_index - sequence_image_index)>g_GMLMathEpsilon)
-					{
-						var numkeyframes = pTrack.m_keyframeStore.numKeyframes;
-						if (numkeyframes > 0) { 
-							var keyindex = ~~(pInst.image_index);
-							var fracval = pInst.image_index - keyindex;
 
-							var newseqpos = pInst.image_index;
-							if (keyindex >= numkeyframes)
-							{
-								newseqpos = pTrack.m_keyframeStore.keyframes[numkeyframes - 1].m_key + (pInst.image_index - (numkeyframes - 1));
-							}
-							else if (keyindex < 0)
-							{
-								newseqpos = pInst.image_index;
-							}
-							else
-								newseqpos = (pTrack.m_keyframeStore.keyframes[keyindex].m_key + (fracval * pTrack.m_keyframeStore.keyframes[keyindex].m_length));
+				usesSpriteSequences = true;
 
-							newseqpos = ConvertImageIndexToSequencePos(pInst, sprite, pInst.image_index);
-							SetNewSequencePosition(pInst, sprite, newseqpos, true);
-						} // end if
-					}
+	            var fps = g_GameTimer.GetFPS();
 
-				}
-			}
+	            // Get sequence length
+	            var length = sprite.sequence.m_length;
+				
+	            var seqSpeed = sprite.sequence.m_playbackSpeed;
+	            if (sprite.sequence.m_playbackSpeedType == ePlaybackSpeedType_FramesPerSecond) seqSpeed /= fps;
 
-			var fps = g_GameTimer.GetFPS();
-
-			// Get sequence length
-			var length = sprite.sequence.m_length;
-			
-			var seqSpeed = sprite.sequence.m_playbackSpeed;
-			if (sprite.sequence.m_playbackSpeedType == ePlaybackSpeedType_FramesPerSecond) seqSpeed /= fps;
-
-			SetNewSequencePosition(pInst, sprite, (pInst.sequence_pos + (pInst.sequence_dir * pInst.image_speed * seqSpeed)), false);
+	            SetNewSequencePosition(pInst, sprite, (pInst.sequence_pos + (pInst.sequence_dir * pInst.image_speed * seqSpeed)), false);
+	        }
 		}
-		else
-		// @endif sprites
+		
+		if(!usesSpriteSequences)
 	    {
 	        var num = pInst.GetImageNumber();
 	        if (pInst.image_index >= num) {
-	            pInst.frame_overflow += num;
 	            pInst.image_index -= num;
 
 	            // if this instance acts on this event, then process it....
@@ -3640,7 +3473,6 @@ yyInstanceManager.prototype.UpdateImages = function () {
 	            }
 	        }
 	        else if (pInst.image_index < 0) {
-	            pInst.frame_overflow -= num;
 	            pInst.image_index += num;
 
 	            // if this instance acts on this event, then process it....
@@ -3705,11 +3537,7 @@ yyInstanceManager.prototype.PerformEvent = function (_event, _index) {
 // #############################################################################################
 var yyInst = yyInst_DEBUG;
 function yyInst_RELEASE(_inst, _other, _id) {
-	if (_id instanceof YYRef) {
-		_id = yyGetInt32(_id);
-	} else {
-		if (typeof _id === "object" || typeof _id === "function" ) return _id;
-	}
+	if (typeof _id === "object" || typeof _id === "function" ) return _id;
     if (_id == -1) return _inst;
     if (_id == -2) return _other;
     if (_id == -3) return _inst;
@@ -3722,11 +3550,7 @@ function yyInst_RELEASE(_inst, _other, _id) {
 }
 
 function yyInst_DEBUG(_inst, _other, _id) {
-	if (_id instanceof YYRef) {
-		_id = yyGetInt32(_id);
-	} else {
-		if (typeof _id === "object" || typeof _id === "function" ) return _id;
-	}
+	if (typeof _id === "object" || typeof _id === "function" ) return _id;
     if (_id == -1) return _inst;
     if (_id == -2) return _other;
     if (_id == -3) return _inst;

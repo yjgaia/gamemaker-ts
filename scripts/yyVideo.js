@@ -10,7 +10,6 @@
 //
 // **********************************************************************************************************************
 
-// @if function("video_")
 var g_VideoUserEnded = false; //For some reason I can't figure this from the video player...
 
 function video_get_format() {
@@ -545,4 +544,3 @@ function video_get_volume()
     }
     return 0;
 }
-// @endif

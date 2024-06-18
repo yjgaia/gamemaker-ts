@@ -1,4 +1,3 @@
-// @if feature("physics")
 (function()
 {
 'use strict';
@@ -21116,4 +21115,3 @@ else
 	window["b2"] = b2;
 }
 })();
-// @endif

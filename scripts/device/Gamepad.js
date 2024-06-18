@@ -7,7 +7,6 @@
 // Project:		    HTML5
 // Description:   	GameMaker HTML5 gamepad interface.
 // **********************************************************************************************************************
-/// @if feature("gamepad")
 var g_pGamepadManager = null;
 var g_GamePadDeadZones = [];
 
@@ -686,4 +685,3 @@ function yyGamepadManager() {
         return 0;
     };    
 };
-/// @endif

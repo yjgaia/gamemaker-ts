@@ -15,7 +15,7 @@
 //
 // **********************************************************************************************************************
 
-// @if function("ini_*")
+
 var g_LastFileSize = 0,
 	g_LastErrorStatus = 0;
 
@@ -636,7 +636,7 @@ yyIniFile.prototype.WriteIniFile = function() {
 
     return pFile;
 };
-// @endif
+
 
 
 // ##########################################################################################################################################################################################
@@ -923,8 +923,7 @@ function FileExists_Block(_FileName, _fLocal) {
 	    else if (g_SupportsLocalStorage) {
 			try {
 			    var name = GetLocalStorageName(_FileName);
-				// We should consider empty files (empty strings) has "existing".
-				if (window.localStorage[name] !== undefined) {
+				if (window.localStorage[name] && (window.localStorage[name] !== undefined)) {
 				    return true;
 				}				
 				return false;

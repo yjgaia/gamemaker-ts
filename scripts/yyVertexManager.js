@@ -10,40 +10,17 @@
 //
 // **********************************************************************************************************************
 
-// @if function("vertex_*")
-
-var vertex_format_begin,
-    vertex_format_end,
-    vertex_format_delete,
-    vertex_format_add_position,
-    vertex_format_add_position_3d,
-    vertex_format_add_colour,
-    vertex_format_add_color,
-    vertex_format_add_normal,
-    vertex_format_add_texcoord,
-    vertex_format_add_textcoord,
-    vertex_format_add_custom,
-    vertex_format_get_info;
-
-// @if feature("2d")
-(() => {
-    let _stub = (_name, _val) => () => ErrorFunction(_name, _val);
-    vertex_format_begin = _stub("vertex_format_begin");
-    vertex_format_end = _stub("vertex_format_end", -1);
-    vertex_format_delete = _stub("vertex_format_delete");
-    vertex_format_add_position = _stub("vertex_format_add_position");
-    vertex_format_add_position_3d = _stub("vertex_format_add_position_3d");
-    vertex_format_add_colour = _stub("vertex_format_add_colour");
-    vertex_format_add_color = _stub("vertex_format_add_color");
-    vertex_format_add_normal = _stub("vertex_format_add_normal");
-    vertex_format_add_texcoord = _stub("vertex_format_add_texcoord");
-    vertex_format_add_textcoord = _stub("vertex_format_add_textcoord");
-    vertex_format_add_custom = _stub("vertex_format_add_custom");
-    vertex_format_get_info = _stub("vertex_format_get_info");
-})();
-// @endif 2d
-
-// @if feature("gl")
+function vertex_format_begin()                              { ErrorFunction("vertex_format_begin"); }
+function vertex_format_end()                                { ErrorFunction("vertex_format_end"); }
+function vertex_format_delete(format_id)                    { ErrorFunction("vertex_format_delete"); }
+function vertex_format_add_position()                       { ErrorFunction("vertex_format_add_position"); }
+function vertex_format_add_position_3d()                    { ErrorFunction("vertex_format_add_position_3d"); }
+function vertex_format_add_colour()                         { ErrorFunction("vertex_format_add_colour"); }
+function vertex_format_add_color()                          { ErrorFunction("vertex_format_add_color"); }
+function vertex_format_add_normal()                         { ErrorFunction("vertex_format_add_normal"); }
+function vertex_format_add_texcoord()                       { ErrorFunction("vertex_format_add_texcoord"); }
+function vertex_format_add_textcoord()                      { ErrorFunction("vertex_format_add_textcoord"); }
+function vertex_format_add_custom(type, usage)              { ErrorFunction("vertex_format_add_custom"); }
 
 // ---------------------------------------------------------------------------------------------
 // Tracks the format currently under construction
@@ -68,7 +45,6 @@ function InitFVFFunctions() {
     vertex_format_add_texcoord = WebGL_vertex_format_add_texcoord_RELEASE;
     vertex_format_add_textcoord = WebGL_vertex_format_add_texcoord_RELEASE; //This was in wrongly, add both spellings...
     vertex_format_add_custom = WebGL_vertex_format_add_custom_RELEASE;
-    vertex_format_get_info = WebGL_vertex_format_get_info_RELEASE;
 }
 
 // #############################################################################################
@@ -198,36 +174,3 @@ function WebGL_vertex_format_delete_RELEASE(_format_id)
     // BM: Stubbed as the underlying system shares vertex formats but DOESN'T reference count.
     debug("WARNING vertex_format_delete not implemented on HTML5 (System shares vertex formats but doesn't reference count)");
 }
-
-function WebGL_vertex_format_get_info_RELEASE(_format_id)
-{
-    var format = g_webGL.GetVertexFormat(yyGetInt32(_format_id));
-
-    if (!format)
-        return undefined;
-
-    pVFI = new GMLObject();
-
-    variable_struct_set(pVFI, "stride", format.ByteSize);
-    variable_struct_set(pVFI, "num_elements", format.Format.length);
-
-    var elementsArray = [];
-    for (var i = 0; i < format.Format.length; ++i)
-    {
-        var element = format.Format[i];
-        var pElementI = new GMLObject();
-
-        variable_struct_set(pElementI, "usage", element.usage);
-        variable_struct_set(pElementI, "type", element.type);
-        variable_struct_set(pElementI, "size", format.GetTypeSize(element.type));
-        variable_struct_set(pElementI, "offset", element.offset);
-
-        elementsArray.push(pElementI);
-    }
-    variable_struct_set(pVFI, "elements", elementsArray);
-
-    return pVFI;
-}
-// @endif gl
-
-// @endif vertex_

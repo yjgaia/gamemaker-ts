@@ -51,6 +51,8 @@ function SecondsToMicros(_s)
 
 class CTimeSource
 {
+    static idCtr = 0; // ID counter - keeps track of given IDs
+
     /* Creates a time source with the given ID */
     constructor(_id)
     {
@@ -284,8 +286,6 @@ class CTimeSource
     }
 }
 
-CTimeSource.idCtr = 0;
-
 /********** CStatefulTimeSource *********/
 
 class CStatefulTimeSource extends CTimeSource
@@ -492,7 +492,8 @@ class CConfigurableTimeSource extends CStatefulTimeSource
         this.period = this.ConvertPeriod(_period, _units);
         this.units = _units;
         this.callback = (typeof _callback === "number") ? script_get(_callback) : _callback;
-        this.args = [global, global, ..._args]; // self, other, [destructured args]
+        // __yy_method both replaces the first arg with the context and expects argument0 to be index 2...
+        this.args = [null, null, ..._args];
         this.repsRequested = _reps;
         this.expiryType = _expiryType;
 
@@ -853,11 +854,6 @@ class CSelfDestructingTimeSource extends CConfigurableTimeSource
 };
 
 /* Built-in time sources */
-const g_GlobalTimeSource = new CTimeSource(eTimeSource_Global);
-const g_GameTimeSource = new CStatefulTimeSource(eTimeSource_Game);
-const g_SDTimeSourceParent = new CTimeSource(eTimeSource_SDParent);
-const g_TimeSourceMap = new Map([
-	[eTimeSource_Global, g_GlobalTimeSource],
-	[eTimeSource_Game, g_GameTimeSource]
-	// g_SDTimeSourceParent is invisible
-]);
+var g_GlobalTimeSource = new CTimeSource(eTimeSource_Global);
+var g_GameTimeSource = new CStatefulTimeSource(eTimeSource_Game);
+var g_SDTimeSourceParent = new CTimeSource(eTimeSource_SDParent);

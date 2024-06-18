@@ -179,7 +179,7 @@ function file_text_close(_fileid)
 
 	// If the file has changed (only happens with WRITE files), then save to local storage
 	if (pFile.m_FileName != null) {
-		if (pFile.m_changed) {
+	    if (pFile.m_changed) {
 	        SaveTextFile_Block(pFile.m_FileName, pFile.m_pFile);
 	    }
 	}
@@ -205,9 +205,6 @@ function file_text_open_write(_fname)
 	pFile.m_pFile = "";
 	pFile.m_index = 0;
 	pFile.m_write = true;
-
-	// A file that was open to write should always overwrite (changed by default)
-	pFile.m_changed = true;
 
 	return g_TextFiles.Add(pFile);
 }
@@ -237,9 +234,7 @@ function file_text_open_append(_fname)
 	}
 	var pFile = g_TextFiles.Get(f);
 	pFile.m_write = true;
-
-	pFile.m_index = pFile.m_pFile.length; // end of file is starting point.
-	pFile.m_changed = false; // We moved the write index to not overwrite so we should turn changed to false.
+	pFile.m_index = pFile.m_pFile.length; 	// end of file is starting point
 	return f;
 }
 
@@ -1023,30 +1018,6 @@ const _regexp_int64_parse = new RegExp("@i64@([0-9a-f]+?)\\$i64\\$", "i");
 
 // ########### JSON_ENCODE & JSON_DECODE ###########
 
-function parseRef( _s )
-{
-    var ret = undefined;
-    if ((typeof _s == "string" ) && _s.startsWith("@ref ")) {
-
-        // get the type of the handle
-        var indexOfLBrack = _s.indexOf( "(", 5 );
-        var handleTypeString = _s.substring( 5, indexOfLBrack );
-
-        // get the index of the handle
-        var indexOfRBrack = _s.indexOf( ")", indexOfLBrack );
-        var numberString = _s.substring(indexOfLBrack+1, indexOfRBrack);
-        var handleIndex = Number(numberString);
-
-        // convert the handleTypeString to the Reference type
-        var type = Name2Ref( handleTypeString );
-
-        // get the reference type
-        ret = MAKE_REF( type, handleIndex );
-    } // end if
-    return ret;
-} // end parseRef
-
-// @if feature("extension_api") || function("json_decode")
 function _json_decode_value(value) {
   
     switch (typeof (value)) {
@@ -1077,11 +1048,6 @@ function _json_decode_value(value) {
 			if (match) {
 				return parseInt(match[1], 16);
 			}
-
-			if (value.startsWith("@ref ")) {
-				return parseRef(value);
-			}
-
 			return value;
         default:
             return value.toString();
@@ -1164,9 +1130,7 @@ function json_decode(_string) {
     } 
     return _json_decode_object(pObj);
 } // end json_decode
-// @endif json_decode
 
-// @if feature("extension_api") || function("json_encode")
 var g_ENCODE_VISITED_LIST = new Map(); 
 
 function _json_encode_value(value) {
@@ -1182,10 +1146,6 @@ function _json_encode_value(value) {
 			// It's an long value return it's number format
 			if (value instanceof Long) {
 				return "@i64@" + value.toString(16) + "$i64$";
-			}
-
-			if (value instanceof YYRef) {
-				return "@ref " + RefName(value.type) + "(" + value.value + ")";
 			}
 
 			// The value is a pointer_null
@@ -1284,28 +1244,16 @@ function json_encode(_map, _prettify) {
 	// Check if we want to prettify the output string
 	_prettify = _prettify == undefined ? false : yyGetReal(_prettify);
 
-	// Scrub existing list otherwise we can't encode the same map multiple times
-	// (as far as I can see json_encode should only be called from an external function so this shouldn't result in infinite recursion)
-	g_ENCODE_VISITED_LIST = new Map(); 
     var obj = _json_encode_map(yyGetInt32(_map));
 
     return JSON.stringify(obj, null, _prettify ? 2 : 0);
 } // end json_encode
-// @endif json_encode
 
 // ########### JSON_STRINGIFY & JSON_PARSE ###########
 
 // This is an any to JSON helper function (to be used before JSON.stringify)
-var g_JSON_gml_infunc = undefined;
-function _json_replacer(key, value) 
+function _json_replacer(value) 
 {
-	// call the user method
-	if ((g_JSON_gml_infunc != undefined) && is_callable(g_JSON_gml_infunc)) {
-	    var _func = getFunction(g_JSON_gml_infunc, 1);
-	    _obj = "boundObject" in _func ? _func.boundObject : {};
-		value = _func(_obj, _obj, key, value);
-	} // end if
-
 	if (value == undefined) return null;
 
 	switch (typeof value) {
@@ -1315,8 +1263,6 @@ function _json_replacer(key, value)
 			if (isNaN(value)) return "@@nan$$";
 			if (!isFinite(value)) return value > 0 ? "@@infinity$$" : "@@-infinity$$";
 			return value;
-		case "boolean":
-			return value;
 		case "object":
 			// It's null just return null
 			if (value == null) return null;
@@ -1324,10 +1270,6 @@ function _json_replacer(key, value)
 			// It's an long value return it's number format
 			if (value instanceof Long) {
 				return "@i64@" + value.toString(16) + "$i64$";
-			}
-
-			if (value instanceof YYRef) {
-				return "@ref " + RefName(value.type) + "(" + value.value + ")";
 			}
 
 			// The value is a pointer_null
@@ -1341,13 +1283,13 @@ function _json_replacer(key, value)
 				g_ENCODE_VISITED_LIST.set(value, 1);
 
 				var ret = [];
-				value.forEach( (item, index) => {
-					ret.push(_json_replacer(index.toString(), item));
+				value.forEach(item => {
+					ret.push(_json_replacer(item));
 				});
 
 				// Remove the flag
 				g_ENCODE_VISITED_LIST.delete(value);
-				return ret;
+				return value;
 			}
 
 			// It's an object prepare to set internal values
@@ -1379,7 +1321,7 @@ function _json_replacer(key, value)
 
 						if ((entry == undefined) || (entry[0] | entry[1])) {
 							Object.defineProperty( ret, name, { 
-								value : _json_replacer(name, value[oName]),
+								value : _json_replacer(value[oName]),
 								configurable : true,
 								writable : true,
 								enumerable : true
@@ -1400,7 +1342,7 @@ function _json_replacer(key, value)
 	}
 } // end _json_replacer
 
-function json_stringify( _v, _prettify, filter )
+function json_stringify( _v, _prettify )
 {
 	try {
 		// Check if we want to prettify the output string
@@ -1411,10 +1353,7 @@ function json_stringify( _v, _prettify, filter )
 		// if the duplicated reference is actually recursive (the builtin
 		// 'replacer' callback of the stringify method doesn't meet our needs).
 
-		var prevFunc = g_JSON_gml_infunc;
-		g_JSON_gml_infunc = filter;
-		var _struct = _json_replacer( "", _v);		
-		g_JSON_gml_infunc = prevFunc;
+		var _struct = _json_replacer(_v);		
 		return JSON.stringify(_struct, null, _prettify ? 2 : 0);
 	}
 	catch( e ) {
@@ -1425,154 +1364,77 @@ function json_stringify( _v, _prettify, filter )
 } // end json_stringify
 
 // This is a JSON to any helper function (to be used with JSON.parse)
-var g_JSON_gml_func = undefined;
-var g_counterPointerNull = 0;
 function _json_reviver(_, value) 
 {
-	var ret = undefined;
 	switch (typeof value) {
 		case "string":
-			if (value == "@@nan$$") ret = NaN;
-			else
-			if (value == "@@infinity$$") ret = Infinity;
-			else
-			if (value == "@@-infinity$$") ret = -Infinity;
-			else {
-				ret = value;
+			if (value == "@@nan$$") return NaN;
+			if (value == "@@infinity$$") return Infinity;
+			if (value == "@@-infinity$$") return -Infinity;
 
-				// Check if we can parse an int64 value
-				var match = value.match(_regexp_int64_parse);
-				if (match) {
-					ret = parseInt(match[1], 16);
-				}
-				else
-				// check to see if this is an @ref
-				if (value.startsWith("@ref ")) {
-					ret = parseRef(value);
-				}
-			} // end else
-			break;
+			// Check if we can parse an int64 value
+			var match = value.match(_regexp_int64_parse);
+			if (match) {
+				return parseInt(match[1], 16);
+			}
+			
+			return value;
 		case "number":
-			ret =value;
-			break;
-		case "boolean":
-			ret =value;
-			break;
+			return value;
 		case "object":
 
 			// The value is null (make it pointer_null)
-			if (value == null) {
-				ret = g_pBuiltIn.pointer_null;
-				++g_counterPointerNull;
-			} // end if
-			else
+			if (value == null) return g_pBuiltIn.pointer_null;
+
 			// It's an array just return it
 			if (value instanceof Array) {
-				ret =value;
-			} // end if
-			else {
-				// It's an object prepare to set internal values
-				var obj = {};
-				obj.__type = "___struct___";
-				obj.__yyIsGMLObject = true;
-				// Go through all the property names in parsed value
-				for (var oName in value) {
-					// Continue if it is not a property
-					if (!value.hasOwnProperty(oName)) continue;
+				return value;
+			}
+			// It's an object prepare to set internal values
+			var obj = {};
+			obj.__type = "Object";
+			obj.__yyIsGMLObject = true;
+			// Go through all the property names in parsed value
+			for (var oName in value) {
+				// Continue if it is not a property
+				if (!value.hasOwnProperty(oName)) continue;
 
-					// Change the name to match the gml standards
-					var nName;
-					if (g_instance_names[oName] != undefined) {
-						nName = oName;
-					}
-					else if (typeof g_var2obf !== "undefined" && g_var2obf[oName] != undefined) {
-						nName = g_var2obf[oName];
-					}
-					else {
-						nName = "gml" + oName;
-					}
+				// Change the name to match the gml standards
+				var nName;
+				if (g_instance_names[oName] != undefined) {
+					nName = oName;
+				}
+				else if (typeof g_var2obf !== "undefined" && g_var2obf[oName] != undefined) {
+					nName = g_var2obf[oName];
+				}
+				else {
+					nName = "gml" + oName;
+				}
 
-					// Define a property in the new object (proper name and attributes)
-					Object.defineProperty( obj, nName, { 
-						value : value[oName],
-						configurable : true,
-						writable : true,
-						enumerable : true
-					});
-				} // end for
-				ret = obj;
-			} // end else
-			break;
+				// Define a property in the new object (proper name and attributes)
+				Object.defineProperty( obj, nName, { 
+					value : value[oName],
+					configurable : true,
+					writable : true,
+					enumerable : true
+				});
+			}
+			return obj;
 		default:
-			ret = value;
-			break;
+			return value;
 	}
-
-	// call the user method
-	if ((g_JSON_gml_func != undefined) && is_callable(g_JSON_gml_func)) {
-	    var _func = getFunction(g_JSON_gml_func, 1);
-	    _obj = "boundObject" in _func ? _func.boundObject : {};
-	    if (ret == g_pBuiltIn.pointer_null) {
-	    	ret = undefined;
-			--g_counterPointerNull;
-		} // end if
-		ret = _func(_obj, _obj, _, ret);
-		if (ret === undefined) {
-			ret = g_pBuiltIn.pointer_null;
-			++g_counterPointerNull;
-		}
-	} // end if
-	return ret;
 } // end _json_reviver
 
-function json_convert_pointer_null( _v )
-{
-	var ret = _v;
-	switch( typeof _v) {
-	case "array":
-		for( var i in _v) {
-			_v[i] = json_convert_pointer_null(_v[i]);
-			if (_v[i] == g_pBuiltIn.pointer_null) {
-				_v[i] = undefined;
-			} // end if			
-		} // end for
-		break;
-	case "object":
-		if (_v == g_pBuiltIn.pointer_null) ret = undefined;
-		else
-		for( var key in _v) {
-			if (_v.hasOwnProperty(key)) {
-				_v[key] = json_convert_pointer_null(_v[key]);
-				if (_v[key] == g_pBuiltIn.pointer_null) {
-					_v[key] = undefined;
-				} // end if
-			} // endif
-		} // end for
-		break;
-	}
-	return ret;
-}
-
-function json_parse( _v, _func )
+function json_parse( _v )
 {
 	var ret = undefined;
-	var oldFunc = g_JSON_gml_func;
-	var oldCounter = g_counterPointerNull;
-	g_JSON_gml_func = _func;
-	g_counterPointerNull = 0;
 	try {
-		var ret = JSON.parse(_v, _json_reviver);	
-		if (g_counterPointerNull > 0) {
-			ret = json_convert_pointer_null(ret);
-		} // end if
-		return ret;
+		return JSON.parse(_v, _json_reviver);	
 	} 
 	catch( e ) {
 		// do nothing
 		yyError( "JSON parse error" );
 	}
-	g_counterPointerNull = oldCounter;
-	g_JSON_gml_func = oldFunc;
 	return ret;
 } // end json_parse
 

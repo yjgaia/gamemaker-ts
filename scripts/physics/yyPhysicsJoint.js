@@ -13,7 +13,6 @@
 // 15/02/2012		1.0         CPH     1st version
 // 
 // **********************************************************************************************************************
-// @if feature("physics")
 var JOINT_ANCHOR_1_X = 0,
     JOINT_ANCHOR_1_Y = 1,
     JOINT_ANCHOR_2_X = 2,
@@ -379,4 +378,3 @@ yyPhysicsJoint.prototype.SetValue = function(_field, _value) {
 		break;
 	}
 };
-// @endif

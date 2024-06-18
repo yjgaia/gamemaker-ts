@@ -1,4 +1,4 @@
-// **********************************************************************************************************************
+﻿// **********************************************************************************************************************
 // 
 // Copyright (c)2019, YoYo Games Ltd. All Rights reserved.
 // 
@@ -34,7 +34,6 @@ function CHashMapCalculateHash(snap)
 ///             dirtiness and signals when instances need to be updated due to changes.
 ///          </summary>
 // #############################################################################################
-// @if feature("sequences_min")
 /** @constructor */
 function CSequenceBaseClass()
 {
@@ -66,6 +65,8 @@ function CSequenceBaseClass()
 		this.changeIndex = GetNextSeqObjChangeIndex();
 	};
 }
+
+
 
 eTT_Link = 0;
 eTT_Invisible = 1;
@@ -103,13 +104,9 @@ eSTT_Message = 15;
 eSTT_Moment = 16;
 eSTT_Text = 17;
 eSTT_Particle = 18;
-eSTT_AudioEffect = 19;
-eSTT_Max = 20;
+eSTT_Max = 19;
 
-// @if feature("sequences")
-
-function TrackIsParameter(type) { return (type == eSTT_Real || type == eSTT_Color || type == eSTT_Bool
-    || type == eSTT_String || type == eSTT_AudioEffect); }
+function TrackIsParameter(type) { return (type == eSTT_Real || type == eSTT_Color || type == eSTT_Bool || type == eSTT_String); }
 
 eT_UserDefined = 0;
 __X__ = 1;
@@ -136,34 +133,10 @@ eT_CharacterSpacing = 21;
 eT_LineSpacing = 22;
 eT_ParagraphSpacing = 23;
 
-eT_TextEffect_Thickness = 24;
-eT_TextEffect_CoreColour = 25;
-eT_TextEffect_GlowStart = 26;
-eT_TextEffect_GlowEnd = 27;
-eT_TextEffect_GlowColour = 28;
-eT_TextEffect_OutlineDistance = 29;
-eT_TextEffect_OutlineColour = 30;
-eT_TextEffect_ShadowSoftness = 31;
-eT_TextEffect_ShadowOffset = 32;
-eT_TextEffect_ShadowColour = 33;
-
-eT_AudioEffect_Bus = 34;
-eT_AudioEffect_Bitcrusher = 35;
-eT_AudioEffect_Compressor = 36;
-eT_AudioEffect_Delay = 37;
-eT_AudioEffect_Gain = 38;
-eT_AudioEffect_Hishelf = 39;
-eT_AudioEffect_Hpf2 = 40;
-eT_AudioEffect_Loshelf = 41;
-eT_AudioEffect_Lpf2 = 42;
-eT_AudioEffect_Peakeq = 43;
-eT_AudioEffect_Reverb1 = 44;
-eT_AudioEffect_Tremolo = 45;
-
 // Extras only in the runner
-eT_OriginX = 46;
-eT_OriginY = 47;
-eT_HeadPosChanged = 48;
+eT_OriginX = 24;
+eT_OriginY = 25;
+eT_HeadPosChanged = 26;
 
 eACCT_Linear = 0;
 eACCT_CatmullRom_Centripetal = 1;
@@ -194,14 +167,15 @@ SEQ_KEY_LENGTH_EPSILON = -0.0001;
 
 g_CurrSequenceID = 0;
 g_CurrAnimCurveID = 0;
-// @endif sequences
+g_CurrTrackID = 0;
 
 // used to track which sequences have been changed and need to be recomputed
+g_CurrSeqObjChangeIndex = 1;
+
 g_CurrSequenceObjectID = 0;
 
 g_SeqStack = [];
 
-g_CurrTrackID = 0;
 // #############################################################################################
 /// Function:<summary>
 ///             Returns a new Track ID
@@ -211,8 +185,6 @@ function GetTrackID()
 {
     return g_CurrTrackID++;
 }
-
-g_CurrSeqObjChangeIndex = 1;
 
 // #############################################################################################
 /// Function:<summary>
@@ -233,8 +205,6 @@ function GetNextSeqObjChangeIndex()
 {
 	return g_CurrSeqObjChangeIndex++;
 }
-
-// @if feature("sequences")
 
 // #############################################################################################
 /// Function:<summary>
@@ -292,8 +262,6 @@ function GetTrackKeyRanges(_headPos, _lastHeadPos, _headDir, _speedscale, _pTrac
     return _pTrack.m_keyframeStore.GetKeyframeIndexRanges(_pSeq.m_playback, playbackspeed, _pSeq.m_length, _lastHeadPos, _headPos, headDir, _startKeys, _endKeys, false);
 }
 
-// @endif
-
 // #############################################################################################
 /// Function:<summary>
 ///             Parses the give storage data and return a new Track object
@@ -306,13 +274,12 @@ function SequenceBaseTrack_Load(_pStorage) {
 
         var newTrack;
         switch (modelName) {
-            case "GMSpriteFramesTrack": newTrack = new yySequenceSpriteFramesTrack(_pStorage); break;
-            // @if feature("sequences")
             case "GMRealTrack": newTrack = new yySequenceRealTrack(_pStorage); break;
             case "GMGraphicTrack": newTrack = new yySequenceGraphicTrack(_pStorage); break;
             case "GMInstanceTrack": newTrack = new yySequenceInstanceTrack(_pStorage); break;
             case "GMParticleTrack": newTrack = new yySequenceParticleTrack(_pStorage); break;
             case "GMColourTrack": newTrack = new yySequenceColourTrack(_pStorage); break;
+            case "GMSpriteFramesTrack": newTrack = new yySequenceSpriteFramesTrack(_pStorage); break;
             case "GMSequenceTrack": newTrack = new yySequenceSequenceTrack(_pStorage); break;
             case "GMAudioTrack": newTrack = new yySequenceAudioTrack(_pStorage); break;
             case "GMTextTrack": newTrack = new yySequenceTextTrack(_pStorage); break;
@@ -322,8 +289,6 @@ function SequenceBaseTrack_Load(_pStorage) {
             case "GMClipMask_Subject": newTrack = new yySequenceClipMask_SubjectTrack(_pStorage); break;
             case "GMStringTrack": newTrack = new yySequenceStringTrack(_pStorage); break;
             case "GMBoolTrack": newTrack = new yySequenceBoolTrack(_pStorage); break;
-            case "GMAudioEffectTrack": newTrack = new yySequenceAudioEffectTrack(_pStorage); break;
-            // @endif
         }
 
         newTrack.m_keyframeStore = new yyKeyframeStore(newTrack.m_type, _pStorage.keyframeStore);
@@ -331,8 +296,6 @@ function SequenceBaseTrack_Load(_pStorage) {
         return newTrack;
     }
 }
-
-// @if feature("sequences")
 
 // #############################################################################################
 /// Function:<summary>
@@ -514,7 +477,7 @@ function yySequenceRealTrack(_pStorage) {
     };
     
     //calculate accumulated frames travelled (area under image speed keys) from _startKey to _key
-    //returns true if _res is set
+//returns true if _res is set
     this.calculateAnimDistance = function(_channel, _startKey, _key, _seqlength, _res)
     {
 	    var pRes = null;
@@ -595,447 +558,6 @@ function yySequenceRealTrack(_pStorage) {
 
 	    pRes = yymax(dtotal,0);
 	    return pRes;
-    };
-}
-
-// #############################################################################################
-/// Function:<summary>
-///             Create a new Real Track object
-///          </summary>
-// #############################################################################################
-/** @constructor */
-function yySequenceAudioEffectTrack(_pStorage) {
-
-    yySequenceParameterTrack.call(this, _pStorage); //base constructor
-    this.m_type = eSTT_AudioEffect;
-    this.m_effectStruct = null;
-
-    if ((_pStorage != null) && (_pStorage != undefined)) {
-        this.m_interpolation = _pStorage.interpolation;
-    }
-
-    Object.defineProperties(this, {
-        gmlinterpolation: {
-            enumerable: true,
-            get: function () { return this.m_interpolation; },
-            set: function (_val)
-            {
-                var val = yyGetInt32(_val);
-                if ((val >= 0) && (val < sRM_Max))
-                {
-                    this.m_interpolation = val;
-                }
-                else
-                {
-                    debug("Trying to set interpolation property of track to out-of-bounds value " + yyGetReal(_val));
-                }                
-            }
-        }
-    });
-
-    this.getCachedChannelVal = function (_channel, _key, _seqlength, _descriptor)
-    {
-        var pRes = null;
-
-        var dirty = false;
-        var force = false;
-        if (_channel >= this.numCachedPoints.length || this.numCachedPoints[_channel] == 0)
-        {
-            force = true;
-        }
-        else if (this.globalChangeIndex < GetCurrSeqObjChangeIndex())
-        {
-            if (this.m_keyframeStore.IsDirty(this.changeIndex))
-            {
-                dirty = true;
-            }
-
-            this.globalChangeIndex = GetCurrSeqObjChangeIndex();
-        }
-
-        if (dirty || force)
-        {
-            // We need to update the cached points for *all* used channels here otherwise when we update changeIndex we lose the ability to detect changes on other channels
-            var maxchan = yymax(this.numCachedPoints.length, _channel + 1);
-            for (var i = 0; i < maxchan; i++)
-            {
-                if ((i >= this.numCachedPoints.length) || (this.numCachedPoints[i] != -1))
-                {
-                    this.UpdateCachedPoints(i, _seqlength);
-                }
-            }
-            this.changeIndex = yymax(this.changeIndex, this.m_keyframeStore.changeIndex);
-        }
-
-        var numpoints = this.numCachedPoints[_channel];
-        if (numpoints == 0)
-        {
-            // _res must contain the default value, or be handled otherwise
-            return null; // no points to be found
-        }
-
-        var pPoints = this.cachedPoints[_channel];
-
-        // TODO: might be worth switching back to linear search in conjunction with keeping track of the index of the start of the pair
-        // of evaluated points we interpolated between - this should make normal playback very cheap (unless we're dealing with
-        // a lot of tightly packed control points).
-
-        // Special-case for end point
-        if (pPoints[numpoints - 1].m_x < _key)
-        {
-            pRes = pPoints[numpoints - 1].m_value;
-            return pRes;
-        }
-
-        // binary search
-        var start, end, mid;
-        start = 0;
-        end = numpoints;
-
-        mid = (start + end) >> 1;
-        while (mid != start)
-        {
-            if (pPoints[mid].m_x > _key)
-            {
-                end = mid;
-            }
-            else
-            {
-                start = mid;
-            }
-
-            mid = (start + end) >> 1;
-        }
-
-        if ((this.m_interpolation == sRM_DirectAssign) || (mid == (numpoints - 1)))
-        {
-            if (pPoints[0].m_x > _key)
-            {
-                pRes = _descriptor.defaultValue;
-            }
-            else
-            {
-                pRes = pPoints[mid].m_value;
-            }
-        }
-        else
-        {
-            let pFirstPoint = pPoints[mid];
-            let pSecondPoint = pPoints[mid + 1];
-    
-            if (pPoints[0].m_x > _key)
-            {
-                pSecondPoint = pFirstPoint;
-
-                pFirstPoint = new yyAnimCurvePoint();
-                pFirstPoint.m_x = 0;
-                pFirstPoint.m_value = _descriptor.defaultValue;
-            }
-    
-            if (_channel == 0)
-            {
-                pRes = pFirstPoint.m_value;
-            }
-            else if ((pSecondPoint.m_x - pFirstPoint.m_x) > 0.0)
-            {
-                const prop = (_key - pFirstPoint.m_x) / (pSecondPoint.m_x - pFirstPoint.m_x);
-    
-                pRes = (pSecondPoint.m_value * prop) + (pFirstPoint.m_value * (1.0 - prop));
-    
-                if (_descriptor.integer)
-                {
-                    pRes = Math.floor(pRes);
-                }
-            }
-            else
-            {
-                pRes = pFirstPoint.m_value;
-            }
-        }
-
-        return pRes;
-    };
-
-    // #############################################################################################
-    /// Function:<summary>
-    ///             Returns the value for a given channel at the given key
-    ///          </summary>
-    // #############################################################################################
-    this.getValue = function (_channel, _key, _seqlength) {
-        const paramDescriptor = this.GetParamDescriptor(_channel);
-
-        if (!this.enabled) return paramDescriptor.defaultValue;
-        if (this.m_keyframeStore == null) return paramDescriptor.defaultValue;
-        if (this.m_keyframeStore.numKeyframes == 0) return paramDescriptor.defaultValue;
-
-        return this.getCachedChannelVal(_channel, _key, _seqlength, paramDescriptor);
-    };
-
-    // #############################################################################################
-    /// Function:<summary>
-    ///             Update the cached points for the given channel
-    ///          </summary>
-    // #############################################################################################
-    this.UpdateCachedPoints = function(_channel, _seqlength) {
-	    // Mirror new IDE length paradigm
-        _seqlength += 1;
-
-        if(_channel > this.numCachedPoints.length)
-        {
-            var oldMaxCachedChannels = this.numCachedPoints.length;
-            this.numCachedPoints.length = _channel + 1;
-
-            // initialise newly added num cached points entries to -1
-            // Setting this to -1 allows us to detect channels which are never actually used
-            for(var i = oldMaxCachedChannels; i < this.numCachedPoints.length; i++)
-            {
-                this.numCachedPoints[i] = -1;
-            }
-        }
-
-        // Reset number of cached points
-        this.numCachedPoints[_channel] = 0;
-
-        // Now step through the keyframe list and add the points to the appropriate cached point list
-        // I'm currently assuming that they'll be in order and no keyframes will overlap
-        for (var i = 0; i < this.m_keyframeStore.numKeyframes; i++)
-        {
-            var key = this.m_keyframeStore.keyframes[i];
-            var value = key.m_channels[_channel];
-            if (value == null) {
-                // Hack (also in IDE);
-                // take the first key then; but we require that this key is an animation curve and that curve contains this channel then
-                value = key.m_channels[0];
-                if ((value == null) || ((value.m_curveIndex == -1) && (value.m_pEmbeddedCurve == null)))
-                    continue;
-            }
-
-            if ((value.m_curveIndex == -1) && (value.m_pEmbeddedCurve == null))
-            {
-                var pPoint = this.AllocNewCachedPoint(_channel);
-                pPoint.m_x = key.m_key;
-                pPoint.m_value = value.m_realValue;
-
-                if (!key.m_stretch && key.m_length > 1)
-                {
-                    var pPoint = this.AllocNewCachedPoint(_channel);
-                    pPoint.m_x = (key.m_key + (key.m_length));
-                    pPoint.m_value = value.m_realValue;
-                }
-                else if (key.m_stretch == true)
-                {
-                    if (i == (this.m_keyframeStore.numKeyframes - 1))
-                    {
-                        // This is the last keyframe, so stretch until the end of the sequence
-                        if ((_seqlength - key.m_key) > 1)
-                        {
-                            var pPoint = this.AllocNewCachedPoint(_channel);
-                            pPoint.m_x = key.m_key + (_seqlength - key.m_key);
-                            pPoint.m_value = value.m_realValue;
-                        }
-                    }
-                    else
-                    {
-                        // Get the next key position and add a new point just before it
-                        var nextkey = this.m_keyframeStore.keyframes[i + 1];
-                        if (nextkey.m_key > (key.m_key + 1))
-                        {
-                            var pPoint = this.AllocNewCachedPoint(_channel);
-                            pPoint.m_x = nextkey.m_key;
-                            pPoint.m_value = value.m_realValue;
-                        }
-                    }
-                }
-            }
-            else
-            {
-                var keylength = key.m_length;
-                if (key.m_stretch == true)
-                {
-                    if (i == (this.m_keyframeStore.numKeyframes - 1))
-                    {
-                        // This is the last keyframe, so stretch until the end of the sequence
-                        if (_seqlength <= 0) continue;	// err...
-                        else
-                        {
-                            //keylength = _seqlength - (key->key + 1);
-                            keylength = _seqlength - key.m_key;
-                        }
-                    }
-                    else
-                    {
-                        var nextkey = this.m_keyframeStore.keyframes[i + 1];
-                        if (nextkey.m_key > key.m_key)
-                        {
-                            keylength = nextkey.m_key - key.m_key;
-                        }
-                    }
-                }
-
-                var pCurve = null;
-
-                if (value.m_hasEmbeddedCurve)
-			    {
-			        pCurve = value.m_pEmbeddedCurve;
-			    }
-			    else
-                {
-                    // Try and find curve in the global resource list
-                    pCurve = g_pAnimCurveManager.Get(value.m_curveIndex);
-                }
-
-                if (pCurve == null)
-                {
-                    //dbg_csol.Output("Could not find anim curve.\n");
-                    continue;
-                }
-
-                var curvechannel = _channel;
-                if (curvechannel >= pCurve.m_numChannels)
-                {
-                    curvechannel = pCurve.m_numChannels - 1;
-                }
-
-                // Now add the curve key points
-                pCurve.Evaluate(this, curvechannel, _channel, key.m_key, keylength);
-            }
-        }
-    };
-    
-    //calculate accumulated frames travelled (area under image speed keys) from _startKey to _key
-    //returns true if _res is set
-    this.calculateAnimDistance = function(_channel, _startKey, _key, _seqlength, _res)
-    {
-	    var pRes = null;
-
-	    if (!this.enabled) return null;
-        if (this.m_keyframeStore == null) return null;
-        if (this.m_keyframeStore.numKeyframes == 0) return null;
-
-	    var numpoints = this.numCachedPoints[_channel];
-	    if (numpoints == 0) {
-		    return null; // no points to be found
-	    }
-
-	    //if requested key position is less than start, zero accumulated distance
-	    var relKey = _key - _startKey;
-	    if (relKey <= 0) {
-		    pRes = 0;
-		    return pRes;
-	    }
-
-	    var pPoints = this.cachedPoints[_channel];
-	    var dtotal = 0;
-	    //if there is just a single key, speed is constant across entire track
-	    if (numpoints == 1) {
-		    dtotal = pPoints[0].m_value * relKey;
-		    pRes = dtotal;
-		    return pRes;
-	    }
-
-	    var interpolated = this.m_interpolation == sRM_Lerp;
-	    //velocity is continuous up to the first key-
-	    var p0 = pPoints[0];
-	    var t = yymin(p0.m_x, _key) - _startKey;
-	    if( t > 0 )
-		    dtotal = p0.m_value * t;
-
-	    for (var i = 1; i < numpoints; ++i)
-	    {
-		    if (p0.m_x >= _key)
-			    break;
-
-		    var p1 = pPoints[i];
-		    if (p1.m_x > _startKey)   //ignore this segment if its entirely before the start key
-		    {
-			    t = yymin(p1.m_x, _key) - p0.m_x;
-			    if (t > 0)
-			    {
-				    var d;
-				    var offset = (_startKey - p0.m_x); // distance from p0 to startKey - >0 if start position intersects this segment
-				    if (!interpolated)
-				    {
-					    if (offset > 0) //if start position intersects this segment
-						    t -= offset;
-					    d = p0.m_value * t;
-				    }
-				    else
-				    {
-					    var a = (p1.m_value - p0.m_value) / (p1.m_x - p0.m_x);
-					    var v0 = p0.m_value;
-					    if (offset >0) {//if start position intersects this segment
-						    t -= offset;
-						    v0 += a * offset;
-					    }
-					    d = v0 * t + (0.5 * a * t * t); //v0t +1/2at^2
-				    }
-				    dtotal += d;
-			    }
-		    }
-		    p0 = p1;
-	    }
-	    //add any remainder from last key to requested head - constant v to end of track
-	    var rem = _key - p0.m_x;
-	    if (rem > 0)
-	    {
-		    var d = p0.m_value * (rem);
-		    dtotal += d;
-	    }
-
-	    pRes = yymax(dtotal,0);
-	    return pRes;
-    };
-
-    this.InstantiateEffect = function()
-    {
-        if (this.m_effectStruct === null)
-        {
-            const effectType = this.AudioEffectTypeFromTrackName();
-            this.m_effectStruct = audio_effect_create(effectType);
-            this.m_parent.PushEffectStruct(this.m_effectStruct);
-        }
-
-        return this.m_effectStruct;
-    };
-
-    this.AudioEffectTypeFromTrackName = function()
-    {
-        switch (this.builtinName)
-        {
-            case eT_AudioEffect_Bitcrusher: return AudioEffect.Type.Bitcrusher;
-            case eT_AudioEffect_Compressor: return AudioEffect.Type.Compressor;
-            case eT_AudioEffect_Delay:		return AudioEffect.Type.Delay;
-            case eT_AudioEffect_Gain:		return AudioEffect.Type.Gain;
-            case eT_AudioEffect_Hishelf:	return AudioEffect.Type.HiShelf;
-            case eT_AudioEffect_Hpf2:		return AudioEffect.Type.HPF2;
-            case eT_AudioEffect_Loshelf:	return AudioEffect.Type.LoShelf;
-            case eT_AudioEffect_Lpf2:		return AudioEffect.Type.LPF2;
-            case eT_AudioEffect_Peakeq:		return AudioEffect.Type.PeakEQ;
-            case eT_AudioEffect_Reverb1:	return AudioEffect.Type.Reverb1;
-            case eT_AudioEffect_Tremolo:	return AudioEffect.Type.Tremolo;
-            default:
-                yyError("Unsupported audio effect track type");
-                return undefined;
-        }
-    };
-
-    this.IsBusTrack = function()
-    {
-        return (this.builtinName == eT_AudioEffect_Bus);
-    };
-
-    this.GetAFXStruct = function() {
-        if (this.IsBusTrack()) {
-            return this.m_parent.m_busStruct;
-        }
-
-        return this.m_effectStruct;
-    };
-
-    this.GetParamDescriptor = function(_channel)
-    {
-        const struct = this.GetAFXStruct();
-        return struct.getParamDescriptor(_channel);
     };
 }
 
@@ -1122,9 +644,9 @@ function yySequenceParameterTrack(_pStorage) {
             // We need to update the cached points for *all* used channels here otherwise when we update changeIndex we lose the ability to detect changes on other channels
             var maxchan = yymax(this.numCachedPoints.length, _channel + 1);
             for (var i = 0; i < maxchan; i++)
-            {
+{
                 if ((i >= this.numCachedPoints.length) || (this.numCachedPoints[i] != -1))
-                {
+{
                     this.UpdateCachedPoints(i, _seqlength);
                 }
             }
@@ -1133,7 +655,7 @@ function yySequenceParameterTrack(_pStorage) {
 
         var numpoints = this.numCachedPoints[_channel];
         if (numpoints == 0)
-        {
+{
             // _res must contain the default value, or be handled otherwise
             return null; // no points to be found
         }
@@ -1484,8 +1006,6 @@ function yySequenceColourTrack(_pStorage) {
     };
 }
 
-// @endif
-
 // #############################################################################################
 /// Function:<summary>
 ///             Create a new Sprite Frames Track object
@@ -1552,8 +1072,6 @@ function yySequenceSpriteFramesTrack(_pStorage) {
     };
 }
 
-// @if feature("sequences")
-
 // #############################################################################################
 /// Function:<summary>
 ///             Create a new Sequence Track object
@@ -1576,62 +1094,6 @@ function yySequenceAudioTrack(_pStorage) {
 
     yySequenceBaseTrack.call(this, _pStorage); //base constructor
     this.m_type = eSTT_Audio;
-    this.m_busStruct = null;
-
-    this.InstantiateBus = function()
-    {
-        if (this.m_busStruct === null)
-        {
-            this.m_busStruct = audio_bus_create();
-        }
-
-        return this.m_busStruct;
-    };
-
-    this.PushEffectStruct = function(_effectStruct)
-    {
-        const busStruct = this.InstantiateBus();
-
-        for (let i = AudioBus.NUM_EFFECT_SLOTS - 1; i >= 0; --i)
-        {
-            if (busStruct.proxy[i] == undefined)
-            {
-                busStruct.proxy[i] = _effectStruct;
-                return;
-            }
-        }
-    
-        yyError("Failed to push effect to bus. Audio tracks cannot hold more than "
-            + AudioBus.NUM_EFFECT_SLOTS + " audio effect tracks");
-    };
-
-    this.UpdateBusLayout = function()
-    {
-        const fxStructs = this.m_tracks.filter(_track => _track.m_effectStruct instanceof AudioEffectStruct)
-                                       .map(_track => _track.m_effectStruct);
-
-        if (fxStructs.length == 0 && this.m_busStruct === null)
-        {
-            return;
-        }
-        
-        this.InstantiateBus();
-        
-        for (let i = 0; i < AudioBus.NUM_EFFECT_SLOTS; ++i)
-        {
-            // Potentially getting undefined elements here is intentional
-            if (fxStructs[i] !== this.m_busStruct.effects[AudioBus.NUM_EFFECT_SLOTS - 1 - i])
-            {
-                this.m_busStruct.proxy[AudioBus.NUM_EFFECT_SLOTS - 1 - i] = fxStructs[i];
-            }
-        }
-
-        if (fxStructs.length > AudioBus.NUM_EFFECT_SLOTS)
-        {
-            yyError("Failed to assign effect to bus. Audio tracks cannot hold more than "
-                + AudioBus.NUM_EFFECT_SLOTS + " audio effect tracks");
-        }
-    }
 }
 
 // #############################################################################################
@@ -1669,80 +1131,51 @@ function yySequenceClipMaskTrack(_pStorage) {
     yySequenceBaseTrack.call(this, _pStorage); //base constructor
     this.m_type = eSTT_ClipMask;
 
-    Object.defineProperties(this, {
-        gmlmask: {
-            enumerable: true,
-            get: function () { return this.GetMaskTrack(); },
-            set: function (_val) { this.SetMaskTrack(_val); }
-        }, 
-        gmlsubject: {
-            enumerable: true,
-            get: function () { return this.GetSubjectTrack(); },
-            set: function (_val) { this.SetSubjectTrack(_val); }
-        } 
-    });
-}
-
-yySequenceClipMaskTrack.prototype.ReplaceTrack = function(_pTrack, _trackType)
-{
-    for(var i = 0; i < this.m_tracks.length; i++)
-	{
-		var subtrack = this.m_tracks[i];
-		if(subtrack.m_type == _trackType)
-		{
-            if (_pTrack == null)
-                this.m_tracks.splice(i, 1);     // remove existing track
-            else
-                this.m_tracks[i] = _pTrack;     // replace track
-
-            return;
-		}		
-	}
-
-    if (_pTrack != NULL)
-    {
-        // If we got here then we didn't find any instances of the specified track type
-        // so add the track to the end of the list
-        this.m_tracks[this.m_tracks.length] = _pTrack;
-    }
-};
-
-yySequenceClipMaskTrack.prototype.SetMaskTrack = function(_pTrack)
-{
-    this.ReplaceTrack(_pTrack, eSTT_ClipMask_Mask);    
-};
-
-yySequenceClipMaskTrack.prototype.SetSubjectTrack = function(_pTrack)
-{
-    this.ReplaceTrack(_pTrack, eSTT_ClipMask_Subject);    
-};
-
-yySequenceClipMaskTrack.prototype.GetMaskTrack = function()
-{
+    this.pMaskTrack = null;
+    this.pSubjectTrack = null;
     for(var i = 0; i < this.m_tracks.length; i++)
 	{
 		var subtrack = this.m_tracks[i];
 		if(subtrack.m_type == eSTT_ClipMask_Mask)
 		{
-            return subtrack;			
-		}		
+			this.pMaskTrack = subtrack;
+			if(this.pSubjectTrack != null)
+			{
+				break;
+			}
+		}
+		else if(subtrack.m_type == eSTT_ClipMask_Subject)
+		{
+			this.pSubjectTrack = subtrack;
+			if(this.pMaskTrack != null)
+			{
+				break;
+			}
+		}
 	}
 
-    return null;
+    Object.defineProperties(this, {
+        gmlmask: {
+            enumerable: true,
+            get: function () { return this.pMaskTrack; },
+            set: function (_val) { this.pMaskTrack = _val; }
+        }, 
+        gmlsubject: {
+            enumerable: true,
+            get: function () { return this.pSubjectTrack; },
+            set: function (_val) { this.pSubjectTrack = _val; }
+        } 
+    });
+}
+
+yySequenceClipMaskTrack.prototype.GetMaskTrack = function()
+{
+    return this.pMaskTrack;
 };
 
 yySequenceClipMaskTrack.prototype.GetSubjectTrack = function()
 {
-    for(var i = 0; i < this.m_tracks.length; i++)
-	{
-		var subtrack = this.m_tracks[i];
-		if(subtrack.m_type == eSTT_ClipMask_Subject)
-		{
-            return subtrack;			
-		}		
-	}
-
-    return null;    
+    return this.pSubjectTrack;
 };
 
 // #############################################################################################
@@ -1793,8 +1226,6 @@ function yySequenceBoolTrack(_pStorage) {
     this.m_type = eSTT_Bool;
 }
 
-// @endif
-
 // #############################################################################################
 /// Function:<summary>
 ///             Create a new Track object
@@ -1819,7 +1250,6 @@ function yySequenceBaseTrack(_pStorage) {
     this.m_numResources = 0;
     this.m_ownedResources = [];
     this.m_keyframeStore = new yyKeyframeStore();
-    this.m_parent = null;
 
     if ((_pStorage != null) && (_pStorage != undefined)) {
 
@@ -1832,8 +1262,8 @@ function yySequenceBaseTrack(_pStorage) {
         if(_pStorage.tags !== undefined && _pStorage.tags.length > 0)
         {            
             for(var tagI = 0; tagI < _pStorage.tags.length; tagI++)
-            {                
-                this.m_tags[_pStorage.tags[tagI].UniqueTagTypeId] = _pStorage.tags[tagI];
+            {
+                this.m_tags[_pStorage.tags[tagI]["UniqueTagTypeId"]] = _pStorage.tags[tagI];
             }
         }
 
@@ -1841,7 +1271,6 @@ function yySequenceBaseTrack(_pStorage) {
         this.m_tracks = [];
         for (var trackIndex = 0; trackIndex < this.m_numTracks; ++trackIndex) {
             this.m_tracks[trackIndex] = SequenceBaseTrack_Load(_pStorage.tracks[this.m_numTracks - 1 - trackIndex]);
-            this.m_tracks[trackIndex].m_parent = this;
         }
 
         this.m_numResources = _pStorage.ownedResourceModels.length;
@@ -1858,7 +1287,6 @@ function yySequenceBaseTrack(_pStorage) {
         }
     }
 
-    // @if feature("sequences")
     Object.defineProperties(this, {
         gmlname: {
             enumerable: true,
@@ -1886,7 +1314,6 @@ function yySequenceBaseTrack(_pStorage) {
             {
                 if(_val instanceof Array)
                 {
-                    _val.forEach(_track => { _track.m_parent = this; });
                     this.m_tracks = _val;
                 }
                 else
@@ -1920,11 +1347,9 @@ function yySequenceBaseTrack(_pStorage) {
         },
         gmllinkedTrack: {
             enumerable: true,
-            get: function () { return this.m_tags == null ? -1 : (this.m_tags[eTT_Link] != null ? this.m_tags[eTT_Link].track : -1); },
+            get: function () { return this.m_tags == null ? null : (this.m_tags[eTT_Link] != null ? this.m_tags[eTT_Link].track : null); },
             set: function (_val)
             {
-                if (_val == -1) _val = null;
-
                 if(this.m_tags[eTT_Disable] == null) this.m_tags[eTT_Link] = {};
                 this.m_tags[eTT_Link].track = _val;
             }
@@ -1946,7 +1371,6 @@ function yySequenceBaseTrack(_pStorage) {
             }
         }
     });
-    // @endif
 
     // #############################################################################################
     /// Function:<summary>
@@ -1963,10 +1387,8 @@ function yySequenceBaseTrack(_pStorage) {
             if(tagLink.track == null)
             {
                 // Find the track if it exists
-                // @if feature("sequences")
                 var track = g_pSequenceManager.GetSequenceFromID(tagLink.trackIndex);
                 if(track != null) tagLink.track = track;
-                // @endif
             }
             return tagLink.track;
         }
@@ -1981,7 +1403,6 @@ function yySequenceBaseTrack(_pStorage) {
     ///             being pointed to along the track.
     ///          </summary>
     // #############################################################################################
-    // @if feature("sequences")
     this.EvaluateTrack = function (_head, _length, _result, _creationmask)
     {
 
@@ -1989,9 +1410,9 @@ function yySequenceBaseTrack(_pStorage) {
         // and needs to be reset to a baseline every frame
         _result.xOrigin = 0.0;
         _result.yOrigin = 0.0;
-        _creationmask.ClearBit(eT_Origin);
+        _creationmask &= ~(1 << eT_Origin);
 
-        _result.paramset.ClearAllBits();
+        _result.paramset = 0;
         _result.ApplyCreationMask(_creationmask);
         //_result.ResetVariables();
         _result.ResetOverrides();
@@ -2007,50 +1428,50 @@ function yySequenceBaseTrack(_pStorage) {
 
                 if (isCreationTrack)
                 {
-                    if (tempcreationvalue.GetBit(track.builtinName))
+                    if (tempcreationvalue & (1 << track.builtinName))
                     {
                         // We don't need to recalcalculate this track's value as this is a creation track and the value hasn't changed
                         continue;
                     }
 
-                    if ((_result.paramset.GetBit(track.builtinName)) == 0)
+                    if ((_result.paramset & (1 << track.builtinName)) == 0)
                     {
                         // Only set as creation value if we haven't already evaluated the same sort of field 
-                        tempcreationvalue.SetBit(track.builtinName);
+                        tempcreationvalue |= (1 << track.builtinName);
                     }
                 }
                 else
                 {
                     // This isn't a creation track so clear the appropriate bit if we've set it 
-                    tempcreationvalue.ClearBit(track.builtinName); 
+                    tempcreationvalue &= ~(1 << track.builtinName); 
                 }
 
                 switch (track.builtinName) {
                     case eT_Rotation:                    
-                        if (!isCreationTrack || !(_result.paramset.GetBit(eT_Rotation)))
+                        if (!isCreationTrack || !(_result.paramset & (1 << eT_Rotation)))
                         {
                             _result.rotation = track.evaluate(eSeqCurveChannel_X, _head, _length);
-                            _result.paramset.SetBit(eT_Rotation);
+                            _result.paramset |= (1 << eT_Rotation);
                         }
                         break;
                     case eT_Position:
-                        if (!isCreationTrack || !(_result.paramset.GetBit(eT_Position)))
+                        if (!isCreationTrack || !(_result.paramset & (1 << eT_Position)))
                         {
                             _result.x = track.evaluate(eSeqCurveChannel_X, _head, _length);
                             _result.y = track.evaluate(eSeqCurveChannel_Y, _head, _length);
-                            _result.paramset.SetBit(eT_Position);
+                            _result.paramset |= (1 << eT_Position);
                         }
                         break;
                     case eT_Scale:
-                        if (!isCreationTrack || !(_result.paramset.GetBit(eT_Scale)))
+                        if (!isCreationTrack || !(_result.paramset & (1 << eT_Scale)))
                         {
                             _result.scaleX = track.evaluate(eSeqCurveChannel_X, _head, _length);
                             _result.scaleY = track.evaluate(eSeqCurveChannel_Y, _head, _length);
-                            _result.paramset.SetBit(eT_Scale);
+                            _result.paramset |= (1 << eT_Scale);
                         }
                         break;
                     case eT_BlendMultiply:                    
-                        if (!isCreationTrack || !(_result.paramset.GetBit(eT_BlendMultiply)))
+                        if (!isCreationTrack || !(_result.paramset & (1 << eT_BlendMultiply)))
                         {
                             var color = 0xffffffff;
                             var evalColor = track.evaluate(0, _head, _length);
@@ -2059,11 +1480,11 @@ function yySequenceBaseTrack(_pStorage) {
                             _result.colorMultiply[1] = ((color >> 8) & 0xff) / 255.0;
                             _result.colorMultiply[2] = ((color >> 16) & 0xff) / 255.0;
                             _result.colorMultiply[3] = ((color >> 24) & 0xff) / 255.0;
-                            _result.paramset.SetBit(eT_BlendMultiply);
+                            _result.paramset |= (1 << eT_BlendMultiply);
                         }
                         break;
                     case eT_BlendAdd:
-                        if (!isCreationTrack || !(_result.paramset.GetBit(eT_BlendAdd)))
+                        if (!isCreationTrack || !(_result.paramset & (1 << eT_BlendAdd)))
                         {
                             var color = 0xffffffff;
                             var evalColor = track.evaluate(0, _head, _length);
@@ -2072,50 +1493,48 @@ function yySequenceBaseTrack(_pStorage) {
                             _result.colorAdd[1] = ((color >> 8) & 0xff) / 255.0;
                             _result.colorAdd[2] = ((color >> 16) & 0xff) / 255.0;
                             _result.colorAdd[3] = ((color >> 24) & 0xff) / 255.0;
-                            _result.paramset.SetBit(eT_BlendAdd);
+                            _result.paramset |= (1 << eT_BlendAdd);
                         }
                         break;
                     case eT_Origin:
-                        if (!isCreationTrack || !(_result.paramset.GetBit(eT_Origin)))
+                        if (!isCreationTrack || !(_result.paramset & (1 << eT_Origin)))
                         {
                             _result.xOrigin = track.evaluate(eSeqCurveChannel_X, _head, _length);
                             _result.yOrigin = track.evaluate(eSeqCurveChannel_Y, _head, _length);
                             //if(_result.xOrigin != 0) _result.Override(eT_OriginX, true);
                             //if(_result.yOrigin != 0) _result.Override(eT_OriginY, true);
-                            _result.paramset.SetBit(eT_Origin);
+                            _result.paramset |= (1 << eT_Origin);
                         }
                         break;
                     case eT_Gain:
-                        if (!isCreationTrack || !(_result.paramset.GetBit(eT_Gain)))
+                        if (!isCreationTrack || !(_result.paramset & (1 << eT_Gain)))
                         {
                             _result.gain = track.evaluate(0, _head, _length);
-                            _result.paramset.SetBit(eT_Gain);
+                            _result.paramset |= (1 << eT_Gain);
                         }
                         break;
                     case eT_Pitch:
-                        if (!isCreationTrack || !(_result.paramset.GetBit(eT_Pitch)))
+                        if (!isCreationTrack || !(_result.paramset & (1 << eT_Pitch)))
                         {
                             _result.pitch = track.evaluate(0, _head, _length);
-                            _result.paramset.SetBit(eT_Pitch);
+                            _result.paramset |= (1 << eT_Pitch);
                         }
                         break;
                     case eT_Falloff:
-                        if (!isCreationTrack || !(_result.paramset.GetBit(eT_Falloff)))
+                        if (!isCreationTrack || !(_result.paramset & (1 << eT_Falloff)))
                         {
-                            _result.falloffRef = track.evaluate(0, _head, _length);
-                            _result.falloffMax = track.evaluate(1, _head, _length);
-                            _result.falloffFactor = track.evaluate(2, _head, _length);
-                            _result.paramset.SetBit(eT_Falloff);
+                            _result.falloff = track.evaluate(0, _head, _length);
+                            _result.paramset |= (1 << eT_Falloff);
                         }
                         break;
                     case eT_ImageSpeed:
-                        if (!isCreationTrack || !(_result.paramset.GetBit(eT_ImageSpeed)))
+                        if (!isCreationTrack || !(_result.paramset & (1 << eT_ImageSpeed)))
                         {
                             var res = track.evaluate(0, _head, _length);
                             if( res != null )
                                 _result.imageSpeed = res;
                             _result.Override(eT_ImageSpeed, true);
-                            _result.paramset.SetBit(eT_ImageSpeed);
+                            _result.paramset |= (1 << eT_ImageSpeed);
 
                             if( track.m_type == eSTT_Real )
                             {
@@ -2143,218 +1562,53 @@ function yySequenceBaseTrack(_pStorage) {
                         }
                         break;
                     case eT_ImageIndex:
-                        if (!isCreationTrack || !(_result.paramset.GetBit(eT_ImageIndex)))
+                        if (!isCreationTrack || !(_result.paramset & (1 << eT_ImageIndex)))
                         {
                             var res = track.evaluate(0, _head, _length);
                             if( res != null )
                                 _result.imageIndex = res;
                             _result.Override(eT_ImageIndex, true);
-                            _result.paramset.SetBit(eT_ImageIndex);
+                            _result.paramset |= (1 << eT_ImageIndex);
                         }
                         break;
                     case eT_FrameSize:
-                        if (!isCreationTrack || !(_result.paramset.GetBit(eT_FrameSize)))
+                        if (!isCreationTrack || !(_result.paramset & (1 << eT_FrameSize)))
                         {
                             _result.FrameSizeX = track.evaluate(eSeqCurveChannel_X, _head, _length);
                             _result.FrameSizeY = track.evaluate(eSeqCurveChannel_Y, _head, _length);
-                            _result.paramset.SetBit(eT_FrameSize);
+                            _result.paramset |= (1 << eT_FrameSize);
                         }
                         break;
                     case eT_CharacterSpacing:
-                        if (!isCreationTrack || !(_result.paramset.GetBit(eT_CharacterSpacing)))
+                        if (!isCreationTrack || !(_result.paramset & (1 << eT_CharacterSpacing)))
                         {
                             _result.CharacterSpacing = track.evaluate(0, _head, _length);
-                            _result.paramset.SetBit(eT_CharacterSpacing);
+                            _result.paramset |= (1 << eT_CharacterSpacing);
                         }
                         break;
                     case eT_LineSpacing:
-                        if (!isCreationTrack || !(_result.paramset.GetBit(eT_LineSpacing)))
+                        if (!isCreationTrack || !(_result.paramset & (1 << eT_LineSpacing)))
                         {
                             _result.LineSpacing = track.evaluate(0, _head, _length);
-                            _result.paramset.SetBit(eT_LineSpacing);
+                            _result.paramset |= (1 << eT_LineSpacing);
                         }
                         break;
                     case eT_ParagraphSpacing:
-                        if (!isCreationTrack || !(_result.paramset.GetBit(eT_ParagraphSpacing)))
+                        if (!isCreationTrack || !(_result.paramset & (1 << eT_ParagraphSpacing)))
                         {
                             _result.ParagraphSpacing = track.evaluate(0, _head, _length);
-                            _result.paramset.SetBit(eT_ParagraphSpacing);
+                            _result.paramset |= (1 << eT_ParagraphSpacing);
                         }
                         break;
-                    case eT_TextEffect_Thickness:
-                        if( track.m_type == eSTT_Real )                            
-                        {
-                            if (!isCreationTrack || !(_result.paramset.GetBit(eT_TextEffect_Thickness)))
-                            {
-                                _result.pFontEffectParams.thicknessMod = track.evaluate(0, _head, _length);
-                                _result.paramset.SetBit(eT_TextEffect_Thickness);
-                            }
-                        }
-                        break;
-                    case eT_TextEffect_CoreColour:
-                        if( track.m_type == eSTT_Color )                            
-                        {
-                            if (!isCreationTrack || !(_result.paramset.GetBit(eT_TextEffect_CoreColour)))
-                            {
-                                var color = 0xffffffff;
-                                var evalColor = track.evaluate(0, _head, _length);
-                                if (evalColor != null) color = evalColor;
-
-                                _result.pFontEffectParams.coreCol = evalColor;
-                                _result.pFontEffectParams.coreAlpha = ((evalColor >> 24) & 0xff) / 255.0;
-                                
-                                _result.paramset.SetBit(eT_TextEffect_CoreColour);
-                            }
-                        }
-                        break;
-                    case eT_TextEffect_GlowStart:
-                        if( track.m_type == eSTT_Real )                            
-                        {
-                            if (!isCreationTrack || !(_result.paramset.GetBit(eT_TextEffect_GlowStart)))
-                            {
-                                _result.pFontEffectParams.glowStart = track.evaluate(0, _head, _length);
-                                _result.paramset.SetBit(eT_TextEffect_GlowStart);
-                            }
-                        }
-                        break;
-                    case eT_TextEffect_GlowEnd:
-                        if( track.m_type == eSTT_Real )                            
-                        {
-                            if (!isCreationTrack || !(_result.paramset.GetBit(eT_TextEffect_GlowEnd)))
-                            {
-                                _result.pFontEffectParams.glowEnd = track.evaluate(0, _head, _length);
-                                _result.paramset.SetBit(eT_TextEffect_GlowEnd);
-                            }
-                        }
-                        break;
-                    case eT_TextEffect_GlowColour:
-                        if( track.m_type == eSTT_Color )                            
-                        {
-                            if (!isCreationTrack || !(_result.paramset.GetBit(eT_TextEffect_GlowColour)))
-                            {
-                                var color = 0xffffffff;
-                                var evalColor = track.evaluate(0, _head, _length);
-                                if (evalColor != null) color = evalColor;
-
-                                _result.pFontEffectParams.glowCol = evalColor;
-                                _result.pFontEffectParams.glowAlpha = ((evalColor >> 24) & 0xff) / 255.0;
-                                
-                                _result.paramset.SetBit(eT_TextEffect_GlowColour);
-                            }
-                        }
-                        break;
-                    case eT_TextEffect_OutlineDistance:
-                        if( track.m_type == eSTT_Real )                            
-                        {
-                            if (!isCreationTrack || !(_result.paramset.GetBit(eT_TextEffect_OutlineDistance)))
-                            {
-                                _result.pFontEffectParams.outlineDist = track.evaluate(0, _head, _length);
-                                _result.paramset.SetBit(eT_TextEffect_OutlineDistance);
-                            }
-                        }
-                        break;
-                    case eT_TextEffect_OutlineColour:
-                        if( track.m_type == eSTT_Color )                            
-                        {
-                            if (!isCreationTrack || !(_result.paramset.GetBit(eT_TextEffect_OutlineColour)))
-                            {
-                                var color = 0xffffffff;
-                                var evalColor = track.evaluate(0, _head, _length);
-                                if (evalColor != null) color = evalColor;
-
-                                _result.pFontEffectParams.outlineCol = evalColor;
-                                _result.pFontEffectParams.outlineAlpha = ((evalColor >> 24) & 0xff) / 255.0;
-                                
-                                _result.paramset.SetBit(eT_TextEffect_OutlineColour);
-                            }
-                        }
-                        break;
-                    case eT_TextEffect_ShadowSoftness:
-                        if( track.m_type == eSTT_Real )                            
-                        {
-                            if (!isCreationTrack || !(_result.paramset.GetBit(eT_TextEffect_ShadowSoftness)))
-                            {
-                                _result.pFontEffectParams.shadowWidth = track.evaluate(0, _head, _length);
-                                _result.paramset.SetBit(eT_TextEffect_ShadowSoftness);
-                            }
-                        }
-                        break;
-                    case eT_TextEffect_ShadowOffset:
-                        if( track.m_type == eSTT_Real )                            
-                        {
-                            if (!isCreationTrack || !(_result.paramset.GetBit(eT_TextEffect_ShadowOffset)))
-                            {
-                                _result.pFontEffectParams.shadowOffsetX = track.evaluate(eSeqCurveChannel_X, _head, _length);
-                                _result.pFontEffectParams.shadowOffsetY = track.evaluate(eSeqCurveChannel_Y, _head, _length);
-                                _result.paramset.SetBit(eT_TextEffect_ShadowOffset);
-                            }
-                        }
-                        break;
-                    case eT_TextEffect_ShadowColour:
-                        if( track.m_type == eSTT_Color )                            
-                        {
-                            if (!isCreationTrack || !(_result.paramset.GetBit(eT_TextEffect_ShadowColour)))
-                            {
-                                var color = 0xffffffff;
-                                var evalColor = track.evaluate(0, _head, _length);
-                                if (evalColor != null) color = evalColor;
-
-                                _result.pFontEffectParams.shadowCol = evalColor;
-                                _result.pFontEffectParams.shadowAlpha = ((evalColor >> 24) & 0xff) / 255.0;
-                                
-                                _result.paramset.SetBit(eT_TextEffect_ShadowColour);
-                            }
-                        }
-                        break;
-                    case eT_AudioEffect_Bus:
-                        if (track.m_type == eSTT_AudioEffect)
-                        {
-                            if (!isCreationTrack || !(_result.paramset.GetBit(eT_AudioEffect_Bus)))
-                            {
-                                const parentTrack = track.m_parent;
-                                const busStruct = parentTrack.InstantiateBus();
-
-                                busStruct.getParamDescriptors().forEach((_desc, _idx) => {
-                                    busStruct["gml" + _desc.name] = track.evaluate(_idx, _head, _length);
-                                });
-                                
-                                _result.paramset.SetBit(eT_AudioEffect_Bus);
-                            }
-                        }
-                        break;
-                    case eT_AudioEffect_Bitcrusher:
-                    case eT_AudioEffect_Compressor:
-                    case eT_AudioEffect_Delay:
-                    case eT_AudioEffect_Gain:
-                    case eT_AudioEffect_Hishelf:
-                    case eT_AudioEffect_Loshelf:
-                    case eT_AudioEffect_Peakeq:
-                    case eT_AudioEffect_Hpf2:
-                    case eT_AudioEffect_Lpf2:
-                    case eT_AudioEffect_Reverb1:
-                    case eT_AudioEffect_Tremolo:
-                        if (track.m_type == eSTT_AudioEffect)
-                        {
-                            if (!isCreationTrack || !(_result.paramset.GetBit(track.builtinName)))
-                            {
-                                const effectStruct = track.InstantiateEffect();
-
-                                effectStruct.getParamDescriptors().forEach((_desc, _idx) => {
-                                    effectStruct["gml" + _desc.name] = track.evaluate(_idx, _head, _length);
-                                });
-                                
-                                _result.paramset.SetBit(track.builtinName);
-                            }
-                        }
-                        break;
+                    
                 }
             }
         }
 
-        tempcreationvalue.AndEquals(_creationmask);
+        tempcreationvalue &= _creationmask;
         _result.hascreationvalue = tempcreationvalue;
     };
-    
+
     this.AssignBuiltinTrackName = function() {
         if (this.pName == null) {
             this.builtinName = eT_UserDefined;
@@ -2384,34 +1638,9 @@ function yySequenceBaseTrack(_pStorage) {
         else if (this.pName == "character_spacing") this.builtinName = eT_CharacterSpacing;     // alias for characterSpacing
         else if (this.pName == "line_spacing") this.builtinName = eT_LineSpacing;               // alias for lineSpacing
         else if (this.pName == "paragraph_spacing") this.builtinName = eT_ParagraphSpacing;     // alias for paragraphSpacing
-        else if (this.pName == "texteffect_thickness") this.builtinName = eT_TextEffect_Thickness;
-        else if (this.pName == "texteffect_coreColour") this.builtinName = eT_TextEffect_CoreColour;
-        else if (this.pName == "texteffect_glowStart") this.builtinName = eT_TextEffect_GlowStart;
-        else if (this.pName == "texteffect_glowEnd") this.builtinName = eT_TextEffect_GlowEnd;
-        else if (this.pName == "texteffect_glowColour") this.builtinName = eT_TextEffect_GlowColour;
-        else if (this.pName == "texteffect_outlineDist") this.builtinName = eT_TextEffect_OutlineDistance;
-        else if (this.pName == "texteffect_outlineColour") this.builtinName = eT_TextEffect_OutlineColour;
-        else if (this.pName == "textEffect_shadowSoftness") this.builtinName = eT_TextEffect_ShadowSoftness;
-        else if (this.pName == "textEffect_shadowOffset") this.builtinName = eT_TextEffect_ShadowOffset;
-        else if (this.pName == "textEffect_shadowColour") this.builtinName = eT_TextEffect_ShadowColour;
-        else if (this.pName == "audioEffect_bus") this.builtinName = eT_AudioEffect_Bus;
-        else if (this.pName == "audioEffect_bitcrusher") this.builtinName = eT_AudioEffect_Bitcrusher;
-        else if (this.pName == "audioEffect_compressor") this.builtinName = eT_AudioEffect_Compressor;
-        else if (this.pName == "audioEffect_delay") this.builtinName = eT_AudioEffect_Delay;
-        else if (this.pName == "audioEffect_gain") this.builtinName = eT_AudioEffect_Gain;
-        else if (this.pName == "audioEffect_hishelf") this.builtinName = eT_AudioEffect_Hishelf;
-        else if (this.pName == "audioEffect_hpf2") this.builtinName = eT_AudioEffect_Hpf2;
-        else if (this.pName == "audioEffect_loshelf") this.builtinName = eT_AudioEffect_Loshelf;
-        else if (this.pName == "audioEffect_lpf2") this.builtinName = eT_AudioEffect_Lpf2;
-        else if (this.pName == "audioEffect_peakeq") this.builtinName = eT_AudioEffect_Peakeq;
-        else if (this.pName == "audioEffect_reverb1") this.builtinName = eT_AudioEffect_Reverb1;
-        else if (this.pName == "audioEffect_tremolo") this.builtinName = eT_AudioEffect_Tremolo;
         else this.builtinName = eT_UserDefined;
     };
-    // @endif
 }
-
-
 
 // #############################################################################################
 /// Function:<summary>
@@ -2472,8 +1701,6 @@ function yyMessageEventTrackKey(_pStorage)
         },        
     });
 }
-
-// @if feature("sequences")
 
 // #############################################################################################
 /// Function:<summary>
@@ -2993,124 +2220,6 @@ function yyStringTrackKey(_pStorage)
 
 // #############################################################################################
 /// Function:<summary>
-///             Create a new Audio Effect Track Key object
-///          </summary>
-// #############################################################################################
-/** @constructor */
-function yyAudioEffectTrackKey(_pStorage)
-{
-    yyTrackKeyBase.call(this); //base constructor
-
-    this.__type = "[AudioEffectTrackKey]";
-
-    this.m_realValue = 0;
-    this.m_hasEmbeddedCurve = false;
-    this.m_curveIndex = -1;
-    this.m_pEmbeddedCurve = null;
-
-    if ((_pStorage != null) && (_pStorage != undefined)) {
-        this.m_realValue = _pStorage.realValue;
-        this.m_hasEmbeddedCurve = _pStorage.hasEmbeddedCurve;
-        this.m_curveIndex = _pStorage.curveIndex;
-
-        if (_pStorage.pEmbeddedCurve != undefined)
-        {
-            this.m_pEmbeddedCurve = new yyAnimCurve(_pStorage.pEmbeddedCurve);
-        }        
-    }
-
-    this.UpdateDirtiness = function()
-    {
-        var currChangeIndex = this.changeIndex;
-        for(var channel in this.m_channels)
-        {
-            var pCurve = g_pAnimCurveManager.GetCurveFromID(channel.m_curveIndex);
-    
-            if ((pCurve != null) && (pCurve.IsDirty(currChangeIndex)))
-            {
-                this.changeIndex = yymax(this.changeIndex, pCurve.changeIndex);			
-            }
-        }
-    };
-
-    Object.defineProperties(this, {
-        gmlvalue: {
-            enumerable: true,
-            get: function () { return this.m_realValue; },
-            set: function (_val)
-            {
-                this.m_realValue = yyGetReal(_val);
-
-                // Clear curve data
-                this.m_curveIndex = -1;
-                this.m_hasEmbeddedCurve = false;
-                this.m_pEmbeddedCurve = null;
-            }
-        }, 
-        gmlhasEmbeddedCurve: {
-            enumerable: true,
-            get: function () { return this.m_hasEmbeddedCurve; },
-            set: function (_val) { this.m_hasEmbeddedCurve = yyGetBool(_val); }
-        },
-        gmlcurve: {
-            enumerable: true,
-            get: function ()
-            {
-                var tempcurve = undefined;
-                if ((this.m_hasEmbeddedCurve == true) && (this.m_pEmbeddedCurve != null))
-                {
-                    tempcurve = this.m_pEmbeddedCurve;
-                }
-                else
-                {
-                    tempcurve = g_pAnimCurveManager.Get(this.m_curveIndex);                    
-                }
-
-                if ((tempcurve == undefined) || (tempcurve == null))
-                    return -1;
-                else
-                    return tempcurve;
-            },
-            set: function (_val)
-            {
-                if(typeof(_val) == "object")
-                {
-                    var idx = g_pAnimCurveManager.AnimCurves.indexOf(_val);
-                    if (idx == -1)
-                    {
-                        // Embedded curve
-                        this.m_pEmbeddedCurve = _val;
-                        this.m_hasEmbeddedCurve = true;
-                        this.m_curveIndex = -1;
-                    }
-                    else
-                    {
-                        this.m_curveIndex = idx;
-                        this.m_hasEmbeddedCurve = false;
-                        this.m_pEmbeddedCurve = null;
-                    }
-                }
-                else
-                {
-                    // Check for valid index
-                    if(g_pAnimCurveManager.Get(this.m_curveIndex) != null)
-                    {
-                        this.m_curveIndex = _val;
-                        this.m_hasEmbeddedCurve = false;
-                        this.m_pEmbeddedCurve = null;
-                    }
-                    else
-                    {
-                        throw new Error("Invalid curve passed to curve property of keyframe channel");
-                    }
-                }
-            }
-        },     
-    });
-}
-
-// #############################################################################################
-/// Function:<summary>
 ///             Create a new Text Track Key object
 ///          </summary>
 // #############################################################################################
@@ -3189,8 +2298,6 @@ function yySequenceTrackKey(_pStorage)
     this.__type = "[SequenceTrackKey]";
 }
 
-// @endif sequence - tracks
-
 // #############################################################################################
 /// Function:<summary>
 ///             Create a new SpriteFrames Track Key object
@@ -3250,10 +2357,6 @@ function yyKeyframe(_type, _pStorage) {
 
             switch(_type)
             {
-                case eSTT_SpriteFrames:
-                    newKeyframe = new yySpriteFramesTrackKey(data);
-                    break;
-                // @if feature("sequences")
                 case eSTT_Graphic:
                     newKeyframe = new yyGraphicTrackKey(data);
                     break;
@@ -3278,16 +2381,15 @@ function yyKeyframe(_type, _pStorage) {
                 case eSTT_String:
                     newKeyframe = new yyStringTrackKey(data);
                     break;
-                case eSTT_AudioEffect:
-                    newKeyframe = new yyAudioEffectTrackKey(data);
-                    break;
                 case eSTT_Sequence:
                     newKeyframe = new yySequenceTrackKey(data);
+                    break;
+                case eSTT_SpriteFrames:
+                    newKeyframe = new yySpriteFramesTrackKey(data);
                     break;
                 case eSTT_Particle:
                     newKeyframe = new yyParticleTrackKey(data);
                     break;
-                // @endif
             }
 
             if(newKeyframe != null)
@@ -3304,7 +2406,7 @@ function yyKeyframe(_type, _pStorage) {
     }
 
     this.SignalChange();
-    // @if feature("sequences")
+
     Object.defineProperties(this, {
         gmlframe: {
             enumerable: true,
@@ -3358,8 +2460,8 @@ function yyKeyframe(_type, _pStorage) {
             }
         }
     });
-    // @endif
 }
+
 
 // #############################################################################################
 /// Function:<summary>
@@ -3964,7 +3066,6 @@ function yySequence(_pStorage) {
         this.m_tracks = [];
         for (var trackIndex = 0; trackIndex < this.m_numTracks; ++trackIndex) {
             this.m_tracks[trackIndex] = SequenceBaseTrack_Load(_pStorage.tracks[this.m_numTracks - 1 - trackIndex]);
-            this.m_tracks[trackIndex].m_parent = this;
         }
 
         this.m_numEvents = _pStorage.sequenceEvents.length;
@@ -4009,7 +3110,7 @@ function yySequence(_pStorage) {
         this.fromWAD = true;
     }
 
-    // @if feature("sequences")
+
     Object.defineProperties(this, {
         gmlname: {
             enumerable: true,
@@ -4043,7 +3144,7 @@ function yySequence(_pStorage) {
             set: function (_val)
             {
                 var val = yyGetInt32(_val);
-                if (isFinite(_val) && (val >= 0) && (val < ePlaybackSpeedType_Max))
+                if ((val >= 0) && (val < ePlaybackSpeedType_Max))
                 {
                     this.m_playbackSpeedType = val;
                 }
@@ -4090,7 +3191,6 @@ function yySequence(_pStorage) {
             {
                 if(_val instanceof Array)
                 {
-                    _val.forEach(_track => { _track.m_parent = this; });
                     this.m_tracks = _val;
                 }
                 else
@@ -4172,7 +3272,6 @@ function yySequence(_pStorage) {
             set: function (_val) { this["event_broadcast_message"] = _val; }
         },
     });
-    // @endif
 }
 
 // #############################################################################################
@@ -4194,7 +3293,7 @@ yySequence.prototype.GetObjectIDs = function() {
 ///
 // #############################################################################################
 yySequence.prototype.GetObjectIDsFromTrack = function(_tracks, _ids) {
-    // @if feature("sequences")
+
     for (var trackIndex = 0; trackIndex < _tracks.length; ++trackIndex)
     {
         var track = _tracks[trackIndex];
@@ -4264,10 +3363,9 @@ yySequence.prototype.GetObjectIDsFromTrack = function(_tracks, _ids) {
 		// Check subtracks
 		this.GetObjectIDsFromTrack(track.m_tracks, _ids);
 	}
-    // @endif
 };
 
-// @if feature("sequences")
+
 // #############################################################################################
 /// Function:<summary>
 ///             Create a new Sequences management object
@@ -4277,18 +3375,6 @@ yySequence.prototype.GetObjectIDsFromTrack = function(_tracks, _ids) {
 function yySequenceManager() {
     this.Sequences = [];
     this.Instances = [];
-
-    this.TEXTEFFECT_TRACK_MASK = new yyBitField64();
-    this.TEXTEFFECT_TRACK_MASK.SetBit(eT_TextEffect_Thickness);
-    this.TEXTEFFECT_TRACK_MASK.SetBit(eT_TextEffect_CoreColour);
-    this.TEXTEFFECT_TRACK_MASK.SetBit(eT_TextEffect_GlowStart);
-    this.TEXTEFFECT_TRACK_MASK.SetBit(eT_TextEffect_GlowEnd);
-    this.TEXTEFFECT_TRACK_MASK.SetBit(eT_TextEffect_GlowColour);
-    this.TEXTEFFECT_TRACK_MASK.SetBit(eT_TextEffect_OutlineDistance);
-    this.TEXTEFFECT_TRACK_MASK.SetBit(eT_TextEffect_OutlineColour);
-    this.TEXTEFFECT_TRACK_MASK.SetBit(eT_TextEffect_ShadowSoftness);
-    this.TEXTEFFECT_TRACK_MASK.SetBit(eT_TextEffect_ShadowOffset);
-    this.TEXTEFFECT_TRACK_MASK.SetBit(eT_TextEffect_ShadowColour);
 }
 
 // #############################################################################################
@@ -4460,27 +3546,6 @@ yySequenceManager.prototype.FindSequence = function (_name) {
 
 // #############################################################################################
 /// Function:<summary>
-///             Retrieves an array of all sequence asset IDs.
-///          </summary>
-///
-/// Out:	 <returns>
-///				An array of all sequence asset IDs.
-///			 </returns>
-// #############################################################################################
-yySequenceManager.prototype.List = function () {
-	var ids = [];
-	for (var i = 0; i < this.Sequences.length; ++i)
-	{
-		if (this.Sequences[i])
-		{
-			ids.push(i);
-		}
-	}
-	return ids;
-};
-
-// #############################################################################################
-/// Function:<summary>
 ///             Create and return a new CSequenceInstance
 ///          </summary>
 ///
@@ -4502,6 +3567,7 @@ yySequenceManager.prototype.GetNewInstance = function ()
 
 var g_pMessageEvents = [];
 var g_pMomentEvents = [];
+var g_pSpriteMessageEvents = [];
 
 function AddMessageEvent(_pKey, _seqElementID)
 {    
@@ -4519,8 +3585,6 @@ function AddMomentEvent(_pKey, _pSeqInst)
     g_pMomentEvents[g_pMomentEvents.length] = newEvt;
 }
 
-// @endif
-
 function AddSpriteMessageEvent(_pKey, _elementID)
 {    
     var newEvt = new Object();
@@ -4536,13 +3600,10 @@ function AddSpriteMessageEvent(_pKey, _elementID)
 ///
 // #############################################################################################
 
-var g_pSpriteMessageEvents = [];
 function ResetSpriteMessageEvents()
 {
     g_pSpriteMessageEvents = [];
 }
-
-// @if feature("sequences")
 
 yySequenceManager.prototype.EvaluateLayerSequenceElement = function(_pSeqEl, _preDrawUpdate)
 {
@@ -4553,7 +3614,7 @@ yySequenceManager.prototype.EvaluateLayerSequenceElement = function(_pSeqEl, _pr
 
     if (instance != null)
     {
-        if ((_pSeqEl.m_dirtyflags.AnyBitSet() == 0) && (_preDrawUpdate || (instance.m_paused && instance.m_hasPlayed) || instance.m_finished))
+        if ((_pSeqEl.m_dirtyflags == 0) && (_preDrawUpdate || (instance.m_paused && instance.m_hasPlayed) || instance.m_finished))
             return;
 
         var fps = g_GameTimer.GetFPS();
@@ -4648,7 +3709,7 @@ yySequenceManager.prototype.EvaluateLayerSequenceElement = function(_pSeqEl, _pr
             }
 
             instance.m_finished = tmp.finished;
-            _pSeqEl.m_dirtyflags.ClearAllBits();
+            _pSeqEl.m_dirtyflags = 0;
         
             g_SeqStack.pop();
         }
@@ -4906,7 +3967,6 @@ yySequenceManager.prototype.HandleMomentEvents = function (_pSeqInst, _pSeq, _se
         } while (true);
     }
 };
-// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -4970,7 +4030,6 @@ function HandleSpriteMessageEvents(_pSeq, _elementID, _fps, _speedScale, _headDi
     }
 };
 
-// @if feature("sequences")
 // #############################################################################################
 /// Function:<summary>
 ///             Handles the throwing of events which are triggered
@@ -5027,7 +4086,6 @@ yySequenceManager.prototype.ProcessMomentEvents = function ()
         }
     }
 };
-// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -5052,9 +4110,8 @@ function ProcessSpriteMessageEvents()
             ds_map_add(map, "event_type", "sprite event");
             ds_map_add(map, "element_id", g_pSpriteMessageEvents[i].elementID);
             ds_map_add(map, "message", eventlist.m_events[j]);
-            // @if feature("sequences")
+
             g_pSequenceManager.PerformInstanceEvents(g_RunRoom, EVENT_OTHER_BROADCAST_MESSAGE);
-            // @endif
 
             //g_pObjectManager.ThrowEvent(EVENT_OTHER_SYSTEM_EVENT, 0);            
             g_pObjectManager.ThrowEvent(EVENT_OTHER_BROADCAST_MESSAGE, 0);
@@ -5143,7 +4200,6 @@ function HandleSequenceWrapping(_sequence, _retVals)
     return hasWrapped;
 }
 
-// @if feature("sequences")
 // #############################################################################################
 /// Function:<summary>
 ///             Updates the tracks within the given sequence
@@ -5178,11 +4234,10 @@ yySequenceManager.prototype.HandleUpdateTracks = function (_el, _sequence, _inst
             if(dirty)
             {
                 // Evaluate the track
-                var creationmask = new yyBitField64();
-                creationmask.SetAllBits();
+                var creationmask = 0xffffffff;
                 if (node.m_parent != null)
                 {
-                    creationmask = (node.m_parent.value.paramset.And(node.m_parent.value.hascreationvalue.Not())).Not();
+                    creationmask = ~(node.m_parent.value.paramset & (~(node.m_parent.value.hascreationvalue)));
                 }
                 currentTrack.EvaluateTrack(_headPosition, _sequence.m_length, node.value, creationmask);
                 node.value.matrixHeadPosition = _headPosition;
@@ -5224,12 +4279,12 @@ yySequenceManager.prototype.HandleUpdateTracks = function (_el, _sequence, _inst
                     }
 
                     // Inherit built-in variables that are not in the matrix
-                    var paramset_parentonly = node.m_parent.value.paramset.And(node.value.paramset.Not());
-                    node.value.paramset.OrEquals(node.m_parent.value.paramset);
+                    var paramset_parentonly = node.m_parent.value.paramset & ~(node.value.paramset);
+                    node.value.paramset |= node.m_parent.value.paramset;
 
-                    if (node.value.paramset.GetBit(eT_BlendMultiply)) 
+                    if (node.value.paramset & (1 << eT_BlendMultiply)) 
                     {
-                        if (paramset_parentonly.GetBit(eT_BlendMultiply))
+                        if (paramset_parentonly & (1 << eT_BlendMultiply))
                         {       
                             node.value.colorMultiply[0] = node.m_parent.value.colorMultiply[0];
                             node.value.colorMultiply[1] = node.m_parent.value.colorMultiply[1];
@@ -5244,9 +4299,9 @@ yySequenceManager.prototype.HandleUpdateTracks = function (_el, _sequence, _inst
                             node.value.colorMultiply[3] *= node.m_parent.value.colorMultiply[3];
                         }
                     }
-                    if (node.value.paramset.GetBit(eT_BlendAdd)) 
+                    if (node.value.paramset & (1 << eT_BlendAdd)) 
                     {
-                        if (paramset_parentonly.GetBit(eT_BlendAdd))
+                        if (paramset_parentonly & (1 << eT_BlendAdd))
                         {
                             node.value.colorAdd[0] = node.m_parent.value.colorAdd[0];
                             node.value.colorAdd[1] = node.m_parent.value.colorAdd[1];
@@ -5261,9 +4316,9 @@ yySequenceManager.prototype.HandleUpdateTracks = function (_el, _sequence, _inst
                             node.value.colorAdd[3] += node.m_parent.value.colorAdd[3];
                         }
                     }
-                    if (node.value.paramset.GetBit(eT_Gain)) 
+                    if (node.value.paramset & (1 << eT_Gain)) 
                     {
-                        if (paramset_parentonly.GetBit(eT_Gain))
+                        if (paramset_parentonly & (1 << eT_Gain))
                         {
                             node.value.gain = node.m_parent.value.gain;
                         }
@@ -5272,9 +4327,9 @@ yySequenceManager.prototype.HandleUpdateTracks = function (_el, _sequence, _inst
                             node.value.gain *= node.m_parent.value.gain;
                         }
                     }
-                    if (node.value.paramset.GetBit(eT_Pitch)) 
+                    if (node.value.paramset & (1 << eT_Pitch)) 
                     {
-                        if (paramset_parentonly.GetBit(eT_Pitch))
+                        if (paramset_parentonly & (1 << eT_Pitch))
                         {
                             node.value.pitch = node.m_parent.value.pitch;
                         }
@@ -5283,24 +4338,20 @@ yySequenceManager.prototype.HandleUpdateTracks = function (_el, _sequence, _inst
                             node.value.pitch *= node.m_parent.value.pitch;
                         }
                     }
-                    if (node.value.paramset.GetBit(eT_Falloff)) 
+                    if (node.value.paramset & (1 << eT_Falloff)) 
                     {
-                        if (paramset_parentonly.GetBit(eT_Falloff))
+                        if (paramset_parentonly & (1 << eT_Falloff))
                         {
-                            node.value.falloffRef = node.m_parent.value.falloffRef;
-                            node.value.falloffMax = node.m_parent.value.falloffMax;
-                            node.value.falloffFactor = node.m_parent.value.falloffFactor;
+                            node.value.falloff = node.m_parent.value.falloff;
                         }
                         else
                         {
-                            node.value.falloffRef *= node.m_parent.value.falloffRef;
-                            node.value.falloffMax *= node.m_parent.value.falloffMax;
-                            node.value.falloffFactor *= node.m_parent.value.falloffFactor;
+                            node.value.falloff *= node.m_parent.value.falloff;
                         }
                     }
-                    if (node.value.paramset.GetBit(eT_ImageSpeed)) 
+                    if (node.value.paramset & (1 << eT_ImageSpeed)) 
                     {
-                        if (paramset_parentonly.GetBit(eT_ImageSpeed))
+                        if (paramset_parentonly & (1 << eT_ImageSpeed))
                         {
                             node.value.imageSpeed = node.m_parent.value.imageSpeed;
                         }
@@ -5309,9 +4360,9 @@ yySequenceManager.prototype.HandleUpdateTracks = function (_el, _sequence, _inst
                             node.value.imageSpeed *= node.m_parent.value.imageSpeed;
                         }
                     }
-                    if (node.value.paramset.GetBit(eT_ImageIndex)) 
+                    if (node.value.paramset & (1 << eT_ImageIndex)) 
                     {
-                        if (paramset_parentonly.GetBit(eT_ImageIndex))
+                        if (paramset_parentonly & (1 << eT_ImageIndex))
                         {
                             node.value.imageIndex = node.m_parent.value.imageIndex;
                         }
@@ -5351,10 +4402,6 @@ yySequenceManager.prototype.HandleUpdateTracks = function (_el, _sequence, _inst
                 case eSTT_Particle:
                     this.HandleParticleTrackUpdate(_el, _sequence, _instance, node.value, _matrix, currentTrack, _headPosition, _lastHeadPosition);
                     break;
-
-                case eSTT_Text:
-                    this.HandleTextTrackUpdate(node.value, currentTrack, _headPosition, _sequence.m_length);
-                    break;
             }
 
             if (currentTrack.m_tracks.length > 0)
@@ -5378,7 +4425,7 @@ yySequenceManager.prototype.HandleUpdateTracks = function (_el, _sequence, _inst
 ///
 // #############################################################################################
 yySequenceManager.prototype.HandleSpriteTrackUpdate = function(_node, _srcVars, _instance, _track, _fps, _headDir, _lastHeadPos, _headPosition, _seqlength) {
-    // @if feature("sprites")
+
     _srcVars.spriteIndex = -1;
 
     var keyframeStore = _track.m_keyframeStore;
@@ -5397,9 +4444,7 @@ yySequenceManager.prototype.HandleSpriteTrackUpdate = function(_node, _srcVars, 
     if (!_srcVars.Overrides(eT_OriginY)) _srcVars.yOrigin += sprite.yOrigin;
 
     HandleSpriteSequenceMessageEvents(_node, _track, _instance, _fps, _headPosition, _lastHeadPos, _headDir, sprite.sequence, sprite, graphicKeyframe, keyframeStore);
-    // @endif sprites
 };
-// @endif
 
 function HandleSpriteSequenceMessageEvents(_node, _track, _inst, _fps, _headPosition, _lastHeadPosition, _headDirection, _sequence, _sprite, _spriteKey, _keyframes) 
 {
@@ -5481,7 +4526,6 @@ function HandleSpriteSequenceMessageEvents(_node, _track, _inst, _fps, _headPosi
 }
 
 
-// @if feature("sequences")
 // #############################################################################################
 /// Function:<summary>
 ///             Updates the given sequence track
@@ -5639,9 +4683,7 @@ yySequenceManager.prototype.HandleAudioTrackUpdate = function (_pEl, _pSeq, _pIn
     // Evaluate gain and pitch with inheritance
     var gain = _srcVars.gain * _pInst.m_volume * _pSeq.m_volume;
     var pitch = _srcVars.pitch;
-    var falloffRef = _srcVars.falloffRef;
-    var falloffMax = _srcVars.falloffMax;
-    var falloffFac = _srcVars.falloffFactor;
+    var falloff = _srcVars.falloff;
 
     // Scan through all the keyframes so we can handle unexpected seeks etc. without having to track changes
 
@@ -5662,7 +4704,7 @@ yySequenceManager.prototype.HandleAudioTrackUpdate = function (_pEl, _pSeq, _pIn
             g_SeqStack.push(pAudioKey);
 
             for (var channelKey in pAudioKey.m_channels)
-            {
+{
                 var ppChanKey = pAudioKey.m_channels[channelKey];
 
                 g_SeqStack.push(ppChanKey);
@@ -5678,11 +4720,6 @@ yySequenceManager.prototype.HandleAudioTrackUpdate = function (_pEl, _pSeq, _pIn
                         {
                             audio_stop_sound(pAudioInfo.soundindex);
                             pAudioInfo.soundindex = -1;
-
-                            if (_pTrack.m_busStruct !== null)
-                            {
-                                audio_bus_clear_emitters(_pTrack.m_busStruct);
-                            }
                         }
                     }
                     else
@@ -5690,27 +4727,18 @@ yySequenceManager.prototype.HandleAudioTrackUpdate = function (_pEl, _pSeq, _pIn
                         if (pAudioInfo.soundindex != -1)
                         {
                             // See if we need to stop and restart this sound
-                            if (((pAudioInfo.playdir * _headDir) < 0) || (((_headPos - _lastHeadPos) * pAudioInfo.playdir) < 0))
+                            if (((pAudioInfo.playdir * _headDir) <= 0) || (((_headPos - _lastHeadPos) * pAudioInfo.playdir) <= 0))
                             {
                                 audio_stop_sound(pAudioInfo.soundindex);
                                 pAudioInfo.soundindex = -1;
-
-                                if (_pTrack.m_busStruct !== null)
-								{
-									audio_bus_clear_emitters(_pTrack.m_busStruct);
-								}
                             }
                         }
 
                         if (pAudioInfo.soundindex == -1)
                         {
-                            if (_pTrack.m_busStruct !== null)
-							{
-								audio_emitter_bus(pAudioInfo.emitterindex, _pTrack.m_busStruct);
-							}
-
                             pAudioInfo.playdir = _headDir;
-                            
+                            pAudioInfo.soundindex = audio_play_sound_on(pAudioInfo.emitterindex, ppChanKey.m_soundIndex, (ppChanKey.m_mode == eSM_Loop) ? true : false, 1.0);
+
                             // Seek to the correct spot in the sample (this matches the IDE logic)
                             var timefromstart;
                             if (pAudioInfo.playdir > 0)
@@ -5724,37 +4752,20 @@ yySequenceManager.prototype.HandleAudioTrackUpdate = function (_pEl, _pSeq, _pIn
                                     timefromstart = 0.0;
                             }
 
-                            if ((_pSeq.m_playbackSpeed * _pInst.m_speedScale) > 0.0)
+                            if ((_pSeq.m_playbackSpeed * _pInst.speedScale) > 0.0)
                             {
-                                timefromstart /= (_pSeq.m_playbackSpeed * _pInst.m_speedScale);
+                                timefromstart /= (_pSeq.m_playbackSpeed * _pInst.speedScale);;
                             }
-
-                            const props = {
-                                "sound": ppChanKey.m_soundIndex,
-                                "loop": (ppChanKey.m_mode == eSM_Loop),
-                                "priority": 1,
-                                "emitter": pAudioInfo.emitterindex,
-                                "offset": timefromstart
-                            };
-                            audio_emitter_position(pAudioInfo.emitterindex, emitterPosX, emitterPosY, 0.0);
-                            pAudioInfo.soundindex = audio_play_sound_ext(props);
+                            audio_sound_set_track_position(pAudioInfo.soundindex, timefromstart);
                         }
 
                         if (pAudioInfo.soundindex != -1 && audio_emitter_exists(pAudioInfo.emitterindex) === true)
                         {
                             audio_emitter_gain(pAudioInfo.emitterindex, gain);
                             audio_emitter_pitch(pAudioInfo.emitterindex, pitch);
-                            audio_emitter_falloff(pAudioInfo.emitterindex, falloffRef, falloffMax, falloffFac);
+                            //audio_emitter_falloff(pInfo.emitterindex, )
 
                             audio_emitter_position(pAudioInfo.emitterindex, emitterPosX, emitterPosY, 0.0);
-
-                            _pTrack.UpdateBusLayout();
-
-							if (_pTrack.m_busStruct != null
-								&& audio_emitter_get_bus(pAudioInfo.emitterindex) !== _pTrack.m_busStruct)
-							{
-								audio_emitter_bus(pAudioInfo.emitterindex, _pTrack.m_busStruct);
-							}
                         }
 
                         _srcVars.emitterIndex = pAudioInfo.emitterindex;
@@ -5860,24 +4871,24 @@ yySequenceManager.prototype.HandleInstanceTrackUpdate = function (_pEl, _pSeq, _
 							if (pInst.visible == false)
 								pInst.visible = true;
 
-							if ((_srcVars.paramset.GetBit(eT_Position)) || (_pEl.m_dirtyflags.GetBit(eT_Position)) || (_pEl.m_layer.m_xoffset != 0.0) || (_pEl.m_layer.m_yoffset != 0.0))
+							if ((_srcVars.paramset & (1<<eT_Position)) || (_pEl.m_dirtyflags & (1 << eT_Position)) || (_pEl.m_layer.m_xoffset != 0.0) || (_pEl.m_layer.m_yoffset != 0.0))
 							{
 								pInst.x = spritePosX;
 								pInst.y = spritePosY;
 							}
 
-							if ((_srcVars.paramset.GetBit(eT_Rotation)) || (_pEl.m_dirtyflags.GetBit(eT_Rotation)))
+							if ((_srcVars.paramset & (1<<eT_Rotation)) || (_pEl.m_dirtyflags & (1 << eT_Rotation)))
 							{
 								pInst.image_angle = spriteRotationZ;
 							}
 
-							if ((_srcVars.paramset.GetBit(eT_Scale)) || (_pEl.m_dirtyflags.GetBit(eT_Scale)))
+							if ((_srcVars.paramset & (1<<eT_Scale)) || (_pEl.m_dirtyflags & (1 << eT_Scale)))
 							{
 								pInst.image_xscale = spriteScaleX;
 								pInst.image_yscale = spriteScaleY;
 							}
 
-							if ((_srcVars.paramset.GetBit(eT_BlendMultiply)) || ((_pEl.m_imageBlend & 0x00ffffff) != 0xffffff) || (_pEl.m_imageAlpha != 1.0))
+							if ((_srcVars.paramset & (1<<eT_BlendMultiply)) || ((_pEl.m_imageBlend & 0x00ffffff) != 0xffffff) || (_pEl.m_imageAlpha != 1.0))
 							{								
 								var col = 0;
 
@@ -5900,13 +4911,19 @@ yySequenceManager.prototype.HandleInstanceTrackUpdate = function (_pEl, _pSeq, _
 								pInst.image_blend = col;
 								pInst.image_alpha = _srcVars.colorMultiply[3] * _pEl.m_imageAlpha;
 							}
-							
-                            if (_srcVars.paramset.GetBit(eT_ImageSpeed))
-                            {
-                                pInst.image_speed = _srcVars.imageSpeed;
 
+							if (_srcVars.paramset & (1<<eT_ImageSpeed))
+							{
+								pInst.image_speed = _srcVars.imageSpeed;
+							}
+
+							if (_srcVars.paramset & (1<<eT_ImageIndex))
+							{
+								pInst.image_index = _srcVars.imageIndex;
+                            }
+                            else if (_srcVars.paramset & (1<<eT_ImageSpeed))
+                            {
                                 //calculate image index from image speed track
-                                // @if feature("sprites")
                                 var sprite = g_pSpriteManager.Get(pInst.sprite_index);
                         	    if (sprite != null) 
                                 {
@@ -5950,12 +4967,6 @@ yySequenceManager.prototype.HandleInstanceTrackUpdate = function (_pEl, _pSeq, _
                                         }
                                     }
                                 }
-                                // @endif sprites
-                            }
-
-                            if (_srcVars.paramset.GetBit(eT_ImageIndex))
-							{
-								pInst.image_index = _srcVars.imageIndex;
                             }
 						}
 					}
@@ -5998,8 +5009,6 @@ yySequenceManager.prototype.HandleParticleTrackUpdate = function (_pEl, _pSeq, _
 
         if (ps != -1)
         {
-            ParticleSystem_SetMatrix(ps, _matrix);
-
             // Re-burst emitters when the sequence loops
 			if (_pInst.m_wrapped)
 			{
@@ -6009,16 +5018,11 @@ yySequenceManager.prototype.HandleParticleTrackUpdate = function (_pEl, _pSeq, _
                 {
                     for (var i = 0; i < pEmitters.length; i++)
                     {
-                        var emitter = pEmitters[i];
-
-                        EmitterRandomizeDelay(emitter);
-
-                        if (emitter.created
-                            && emitter.enabled
-                            && emitter.mode == PT_MODE_BURST
-                            && emitter.delayCurrent <= 0.0)
+                        if( pEmitters[i]!=null
+                            && pEmitters[i].mode == PT_MODE_BURST
+                            && pEmitters[i].number != 0)
                         {
-                            ParticleSystem_Emitter_Burst(ps, i, emitter.parttype, emitter.number);
+                            ParticleSystem_Emitter_Burst(ps, i, pEmitters[i].parttype, pEmitters[i].number);
                         }
                     }
                 }
@@ -6029,83 +5033,6 @@ yySequenceManager.prototype.HandleParticleTrackUpdate = function (_pEl, _pSeq, _
     }
 };
 
-yySequenceManager.prototype.HandleTextTrackUpdate = function(_srcVars, _track, _headPos, _seqLength)
-{
-    var keyframeStore = _track.m_keyframeStore;
-
-    var textkey = keyframeStore.GetKeyframeAtFrame(_headPos, _seqLength);
-    if (textkey == null) return;
-
-    // Check to see if we should enable particular effects 
-	// Need to check both whether the track exists and the actual track values 
-	// The reason we need to check both is that the default values in the IDE don't match the default values in the runtime 
-	// so unset parameters don't have the same values 
-	if (_srcVars.paramset.And(this.TEXTEFFECT_TRACK_MASK).AnyBitSet())
-	{ 
-		var paramset = _srcVars.paramset; 		
- 
-		_srcVars.pFontEffectParams.enabled = false; 
-		if ((paramset.GetBit(eT_TextEffect_Thickness)) && (_srcVars.pFontEffectParams.thicknessMod != 0.0)) 
-		{ 
-			_srcVars.pFontEffectParams.enabled = true; 
-		} 
- 
-		if ((paramset.GetBit(eT_TextEffect_CoreColour)) && (((_srcVars.pFontEffectParams.coreCol & 0xffffff) != 0xffffff) || (_srcVars.pFontEffectParams.coreAlpha != 1.0))) 
-		{ 
-			_srcVars.pFontEffectParams.enabled = true; 
-		} 
- 
-		// We're just ignoring colours here as they don't have any effect unless the other parameters are used		 
-		if (((paramset.GetBit(eT_TextEffect_GlowStart)) && (_srcVars.pFontEffectParams.glowStart != 0.0)) || 
-			((paramset.GetBit(eT_TextEffect_GlowEnd)) && (_srcVars.pFontEffectParams.glowEnd != 0.0))) 
-		{ 
-			_srcVars.pFontEffectParams.glowEnabled = true; 
-			_srcVars.pFontEffectParams.enabled = true; 
-		}		 
-		else 
-		{ 
-			_srcVars.pFontEffectParams.glowEnabled = false; 
-		} 
- 
-		if ((paramset.GetBit(eT_TextEffect_OutlineDistance)) && (_srcVars.pFontEffectParams.outlineDist != 0.0)) 
-		{ 
-			_srcVars.pFontEffectParams.outlineEnabled = true; 
-			_srcVars.pFontEffectParams.enabled = true; 
-		} 
-		else 
-		{ 
-			_srcVars.pFontEffectParams.outlineEnabled = false; 
-		} 
- 
-		if (((paramset.GetBit(eT_TextEffect_ShadowSoftness)) && (_srcVars.pFontEffectParams.shadowWidth != 0.0)) || 
-			((paramset.GetBit(eT_TextEffect_ShadowOffset)) && ((_srcVars.pFontEffectParams.shadowOffsetX != 0.0) || (_srcVars.pFontEffectParams.shadowOffsetY != 0.0)))) 
-		{ 
-			_srcVars.pFontEffectParams.dropShadowEnabled = true; 
-			_srcVars.pFontEffectParams.enabled = true; 
-		} 
-		else 
-		{ 
-			_srcVars.pFontEffectParams.dropShadowEnabled = false; 
-		}		 
-	} 
-	else 
-	{ 
-		_srcVars.pFontEffectParams.enabled = false; 
-	} 
-
-    // This works a bit differently to some of the other text track key parameters but this is to allow
-	// these values to be changed by the user as the sequence is evaluated
-	/*if (_srcVars.pFontEffectParams != null)
-	{
-		_srcVars.pFontEffectParams.enabled = textkey.m_channels[0].enableEffects;
-		_srcVars.pFontEffectParams.glowEnabled = textkey.m_channels[0].enableGlow;
-		_srcVars.pFontEffectParams.outlineEnabled = textkey.m_channels[0].enableOutline;
-		_srcVars.pFontEffectParams.dropShadowEnabled = textkey.m_channels[0].enableShadow;
-	}*/
-};
-// @endif sequences - manager
-
-// @if feature("sequences")
 // #############################################################################################
 /// Function:<summary>
 ///             Create a new CSequenceInstance object
@@ -6761,9 +5688,7 @@ CSequenceInstance.prototype.SetInstanceInSequenceStatus = function (_inSequence)
 
 	}
 };
-// @endif sequences - instance
 
-// @if feature("sequences")
 // #############################################################################################
 /// Function:<summary>
 ///             Create a new CSeqTrackAudioInfo object
@@ -6790,8 +5715,8 @@ function TrackEval() {
     this.matrix = new Matrix(); // This track evaluation's corresponding matrix
     this.matrixHeadPosition = -1; // The head position that was evaluated into this 
     this.overridden = 0; //override bit toggles
-    this.hascreationvalue = new yyBitField64(); // one bit per track type denoting whether this node contains a value set via creation track 
-    this.paramset = new yyBitField64();
+    this.hascreationvalue = 0; // one bit per track type denoting whether this node contains a value set via creation track 
+    this.paramset = 0;
 
     this.x = 0;
     this.y = 0;
@@ -6802,9 +5727,7 @@ function TrackEval() {
     this.yOrigin = 0;
     this.gain = 1;
     this.pitch = 1;
-    this.falloffRef = 100;
-    this.falloffMax = 10000;
-    this.falloffFactor = 1;
+    this.falloff = 0;
     //this.width = 0;
     //this.height = 0;
     this.imageIndex = 0;
@@ -6837,12 +5760,11 @@ function TrackEval() {
     this.LineSpacing = 0;
     this.ParagraphSpacing = 0;
 
-    this.pFontEffectParams = new FontEffectParams();
 }
 
 TrackEval.prototype.ApplyCreationMask = function (_creationmask)
 {
-    this.hascreationvalue.AndEquals(_creationmask);
+    this.hascreationvalue &= _creationmask;
 };
 
 // #############################################################################################
@@ -6861,9 +5783,7 @@ TrackEval.prototype.ResetVariables = function ()
     this.yOrigin = 0;
     this.gain = 1;
     this.pitch = 1;
-    this.falloffRef = 100;
-    this.falloffMax = 10000;
-    this.falloffFactor = 1;
+    this.falloff = 0;
     this.imageIndex = 0;
     this.imageSpeed = 1;
     this.imageDistance = -1;
@@ -6882,9 +5802,8 @@ TrackEval.prototype.ResetVariables = function ()
     this.LineSpacing = 0;
     this.ParagraphSpacing = 0;
 
-    this.overridden = 0;
-    this.hascreationvalue.ClearAllBits();
-    this.paramset.ClearAllBits();
+    this.hascreationvalue = 0;
+    this.paramset = 0;
 };
 
 // #############################################################################################
@@ -6963,10 +5882,6 @@ function TrackEvalNode(_parent)
                     {
                         this.value.matrix.m[i] = yyGetReal(_val[i]);
                     }
-
-                    this.value.paramset.SetBit(eT_Position);
-                    this.value.paramset.SetBit(eT_Rotation);
-                    this.value.paramset.SetBit(eT_Scale);
                 }
                 else
                 {
@@ -6987,8 +5902,6 @@ function TrackEvalNode(_parent)
 
                 this.value.matrix.unit();
                 MultiplyTrackMatrix(this.value.matrix, this.value.x, this.value.y, this.value.scaleX, this.value.scaleY, this.value.rotation, this.value.xOrigin, this.value.yOrigin);
-
-                this.value.paramset.SetBit(eT_Position);
             }
         },
         gmlposy: {
@@ -7003,8 +5916,6 @@ function TrackEvalNode(_parent)
 
                 this.value.matrix.unit();
                 MultiplyTrackMatrix(this.value.matrix, this.value.x, this.value.y, this.value.scaleX, this.value.scaleY, this.value.rotation, this.value.xOrigin, this.value.yOrigin);
-
-                this.value.paramset.SetBit(eT_Position);
             }
         },
         gmlrotation: {
@@ -7019,8 +5930,6 @@ function TrackEvalNode(_parent)
 
                 this.value.matrix.unit();
                 MultiplyTrackMatrix(this.value.matrix, this.value.x, this.value.y, this.value.scaleX, this.value.scaleY, this.value.rotation, this.value.xOrigin, this.value.yOrigin);
-
-                this.value.paramset.SetBit(eT_Rotation);
             }
         },
         gmlscalex: {
@@ -7035,8 +5944,6 @@ function TrackEvalNode(_parent)
 
                 this.value.matrix.unit();
                 MultiplyTrackMatrix(this.value.matrix, this.value.x, this.value.y, this.value.scaleX, this.value.scaleY, this.value.rotation, this.value.xOrigin, this.value.yOrigin);
-
-                this.value.paramset.SetBit(eT_Scale);
             }
         },
         gmlscaley: {
@@ -7051,8 +5958,6 @@ function TrackEvalNode(_parent)
 
                 this.value.matrix.unit();
                 MultiplyTrackMatrix(this.value.matrix, this.value.x, this.value.y, this.value.scaleX, this.value.scaleY, this.value.rotation, this.value.xOrigin, this.value.yOrigin);
-
-                this.value.paramset.SetBit(eT_Scale);
             }
         },
         gmlxorigin: {
@@ -7069,8 +5974,6 @@ function TrackEvalNode(_parent)
 
                 this.value.matrix.unit();
                 MultiplyTrackMatrix(this.value.matrix, this.value.x, this.value.y, this.value.scaleX, this.value.scaleY, this.value.rotation, this.value.xOrigin, this.value.yOrigin);
-
-                this.value.paramset.SetBit(eT_OriginX);
             }
         },
         gmlyorigin: {
@@ -7087,8 +5990,6 @@ function TrackEvalNode(_parent)
 
                 this.value.matrix.unit();
                 MultiplyTrackMatrix(this.value.matrix, this.value.x, this.value.y, this.value.scaleX, this.value.scaleY, this.value.rotation, this.value.xOrigin, this.value.yOrigin);
-
-                this.value.paramset.SetBit(eT_OriginY);
             }
         },
         gmlgain: {
@@ -7100,8 +6001,6 @@ function TrackEvalNode(_parent)
             set: function (_val)
             {
                 this.value.gain = yyGetReal(_val);
-
-                this.value.paramset.SetBit(eT_Gain);
             }
         },
         gmlpitch: {
@@ -7113,49 +6012,19 @@ function TrackEvalNode(_parent)
             set: function (_val)
             {
                 this.value.pitch = yyGetReal(_val);
-
-                this.value.paramset.SetBit(eT_Pitch);
             }
         },
-        gmlfalloffRef: {
+        gmlfalloff: {
             enumerable: true,
             get: function ()
             {
-                return this.value.falloffRef;
+                return this.value.falloff;
             },
             set: function (_val)
             {
-                this.value.falloffRef = yyGetInt32(_val);
-
-                this.value.paramset.SetBit(eT_Falloff);
+                this.value.falloff = yyGetInt32(_val);
             }
-        },
-        gmlfalloffMax: {
-            enumerable: true,
-            get: function ()
-            {
-                return this.value.falloffMax;
-            },
-            set: function (_val)
-            {
-                this.value.falloffMax = yyGetInt32(_val);
-
-                this.value.paramset.SetBit(eT_Falloff);
-            }
-        },
-        gmlfalloffFactor: {
-            enumerable: true,
-            get: function ()
-            {
-                return this.value.falloffFactor;
-            },
-            set: function (_val)
-            {
-                this.value.falloffFactor = yyGetInt32(_val);
-
-                this.value.paramset.SetBit(eT_Falloff);
-            }
-        },    
+        },        
         gmlimageindex: {
             enumerable: true,
             get: function ()
@@ -7167,8 +6036,6 @@ function TrackEvalNode(_parent)
                 this.value.imageIndex = yyGetInt32(_val);
 
                 this.value.Override(eT_ImageIndex, true);
-
-                this.value.paramset.SetBit(eT_ImageIndex);
             }
         },
         gmlimagespeed: {
@@ -7182,8 +6049,6 @@ function TrackEvalNode(_parent)
                 this.value.imageSpeed = yyGetReal(_val);
 
                 this.value.Override(eT_ImageSpeed, true);
-
-                this.value.paramset.SetBit(eT_ImageSpeed);
             }
         },
 
@@ -7218,8 +6083,6 @@ function TrackEvalNode(_parent)
                     this.value.colorMultiply[2] = ((col >> 16) & 0xff) / 255.0;
                     this.value.colorMultiply[3] = ((col >> 24) & 0xff) / 255.0;
                 }
-
-                this.value.paramset.SetBit(eT_BlendMultiply);
             }
         },
         gmlcolourmultiply: {
@@ -7253,8 +6116,6 @@ function TrackEvalNode(_parent)
                     this.value.colorMultiply[2] = ((col >> 16) & 0xff) / 255.0;
                     this.value.colorMultiply[3] = ((col >> 24) & 0xff) / 255.0;
                 }
-
-                this.value.paramset.SetBit(eT_BlendMultiply);
             }
         },
 
@@ -7289,8 +6150,6 @@ function TrackEvalNode(_parent)
                     this.value.colorAdd[2] = ((col >> 16) & 0xff) / 255.0;
                     this.value.colorAdd[3] = ((col >> 24) & 0xff) / 255.0;
                 }
-
-                this.value.paramset.SetBit(eT_BlendAdd);
             }
         },
         gmlcolouradd: {
@@ -7324,8 +6183,6 @@ function TrackEvalNode(_parent)
                     this.value.colorAdd[2] = ((col >> 16) & 0xff) / 255.0;
                     this.value.colorAdd[3] = ((col >> 24) & 0xff) / 255.0;
                 }
-
-                this.value.paramset.SetBit(eT_BlendAdd);
             }
         },
 
@@ -7437,8 +6294,6 @@ function TrackEvalNode(_parent)
                 if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
                 {
                     this.value.FrameSizeX = yyGetReal(_val);
-
-                    this.value.paramset.SetBit(eT_FrameSize);
                 }          
             }
         },
@@ -7461,8 +6316,6 @@ function TrackEvalNode(_parent)
                 if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
                 {
                     this.value.FrameSizeY = yyGetReal(_val);
-
-                    this.value.paramset.SetBit(eT_FrameSize);
                 }          
             }
         },
@@ -7485,8 +6338,6 @@ function TrackEvalNode(_parent)
                 if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
                 {
                     this.value.CharacterSpacing = yyGetReal(_val);
-
-                    this.value.paramset.SetBit(eT_CharacterSpacing);
                 }          
             }
         },
@@ -7509,8 +6360,6 @@ function TrackEvalNode(_parent)
                 if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
                 {
                     this.value.LineSpacing = yyGetReal(_val);
-
-                    this.value.paramset.SetBit(eT_LineSpacing);
                 }          
             }
         },
@@ -7533,697 +6382,6 @@ function TrackEvalNode(_parent)
                 if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
                 {
                     this.value.ParagraphSpacing = yyGetReal(_val);
-
-                    this.value.paramset.SetBit(eT_ParagraphSpacing);
-                }          
-            }
-        },
-
-        gmlthickness: {
-            enumerable: true,
-            get: function ()
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text) && (this.value.pFontEffectParams != undefined) && (this.value.pFontEffectParams != null))
-                {
-                    return this.value.pFontEffectParams.thicknessMod;
-                }
-                else
-                {
-                    return -1;
-                }
-            },
-            set: function (_val)
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
-                {
-                    if ((this.value.pFontEffectParams == undefined) || (this.value.pFontEffectParams == null))
-                        this.value.pFontEffectParams = new FontEffectParams();
-
-                    this.value.pFontEffectParams.thicknessMod = yyGetReal(_val);
-
-                    this.value.paramset.SetBit(eT_TextEffect_Thickness);
-                }          
-            }
-        },
-
-        gmlcoreColor: {
-            enumerable: true,
-            get: function ()
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text) && (this.value.pFontEffectParams != undefined) && (this.value.pFontEffectParams != null))
-                {
-                    // Need's to be in ARGB order according to http://jira.yoyogames.lan:8080/browse/SEQ-1324
-                    arrCopy = [];
-                    arrCopy[0] = this.value.pFontEffectParams.coreAlpha;
-                    arrCopy[1] = (this.value.pFontEffectParams.coreCol & 0xff) / 255.0;
-                    arrCopy[2] = ((this.value.pFontEffectParams.coreCol >> 8) & 0xff) / 255.0;
-                    arrCopy[3] = ((this.value.pFontEffectParams.coreCol >> 16) & 0xff) / 255.0;
-                    return arrCopy;
-                }
-                else
-                {
-                    return -1;
-                }
-            },
-            set: function (_val)
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
-                {
-                    if ((this.value.pFontEffectParams == undefined) || (this.value.pFontEffectParams == null))
-                        this.value.pFontEffectParams = new FontEffectParams();
-
-                    if(_val instanceof Array)
-                    {
-                        // Need' to change from ARGB order to' RGBA order according to http://jira.yoyogames.lan:8080/browse/SEQ-1324
-                        this.value.pFontEffectParams.coreAlpha = yyGetReal(_val[0]);
-
-                        this.value.pFontEffectParams.coreCol = (yyGetReal(_val[1]) * 255.0) & 0xff;
-                        this.value.pFontEffectParams.coreCol |= ((yyGetReal(_val[2]) * 255.0) & 0xff) << 8;
-                        this.value.pFontEffectParams.coreCol |= ((yyGetReal(_val[3]) * 255.0) & 0xff) << 16;
-                    }
-                    else
-                    {
-                        //throw new Error("value must be an array of numbers");
-                        var col = yyGetInt32(_val);
-                        this.value.pFontEffectParams.coreAlpha = (col & 0xff) * 255.0;
-
-                        // Do some channel switcheroo
-                        this.value.pFontEffectParams.coreCol = ((col & 0xff0000) >> 16) | (col & 0x00ff00) | ((col & 0x0000ff) << 16);
-                    }    
-                    
-                    this.value.paramset.SetBit(eT_TextEffect_CoreColour);
-                }          
-            }
-        },
-
-        gmlcoreColour: {
-            enumerable: true,
-            get: function ()
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text) && (this.value.pFontEffectParams != undefined) && (this.value.pFontEffectParams != null))
-                {
-                    // Need's to be in ARGB order according to http://jira.yoyogames.lan:8080/browse/SEQ-1324
-                    arrCopy = [];
-                    arrCopy[0] = this.value.pFontEffectParams.coreAlpha;
-                    arrCopy[1] = (this.value.pFontEffectParams.coreCol & 0xff) / 255.0;
-                    arrCopy[2] = ((this.value.pFontEffectParams.coreCol >> 8) & 0xff) / 255.0;
-                    arrCopy[3] = ((this.value.pFontEffectParams.coreCol >> 16) & 0xff) / 255.0;
-                    return arrCopy;
-                }
-                else
-                {
-                    return -1;
-                }
-            },
-            set: function (_val)
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
-                {
-                    if ((this.value.pFontEffectParams == undefined) || (this.value.pFontEffectParams == null))
-                        this.value.pFontEffectParams = new FontEffectParams();
-
-                    if(_val instanceof Array)
-                    {
-                        // Need' to change from ARGB order to' RGBA order according to http://jira.yoyogames.lan:8080/browse/SEQ-1324
-                        this.value.pFontEffectParams.coreAlpha = yyGetReal(_val[0]);
-
-                        this.value.pFontEffectParams.coreCol = (yyGetReal(_val[1]) * 255.0) & 0xff;
-                        this.value.pFontEffectParams.coreCol |= ((yyGetReal(_val[2]) * 255.0) & 0xff) << 8;
-                        this.value.pFontEffectParams.coreCol |= ((yyGetReal(_val[3]) * 255.0) & 0xff) << 16;
-                    }
-                    else
-                    {
-                        //throw new Error("value must be an array of numbers");
-                        var col = yyGetInt32(_val);
-                        this.value.pFontEffectParams.coreAlpha = (col & 0xff) * 255.0;
-
-                        // Do some channel switcheroo
-                        this.value.pFontEffectParams.coreCol = ((col & 0xff0000) >> 16) | (col & 0x00ff00) | ((col & 0x0000ff) << 16);
-                    }      
-                    
-                    this.value.paramset.SetBit(eT_TextEffect_CoreColour);
-                }          
-            }
-        },
-
-        gmlglowStart: {
-            enumerable: true,
-            get: function ()
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text) && (this.value.pFontEffectParams != undefined) && (this.value.pFontEffectParams != null))
-                {
-                    return this.value.pFontEffectParams.glowStart;
-                }
-                else
-                {
-                    return -1;
-                }
-            },
-            set: function (_val)
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
-                {
-                    if ((this.value.pFontEffectParams == undefined) || (this.value.pFontEffectParams == null))
-                        this.value.pFontEffectParams = new FontEffectParams();
-
-                    this.value.pFontEffectParams.glowStart = yyGetReal(_val);
-
-                    this.value.paramset.SetBit(eT_TextEffect_GlowStart);
-                }          
-            }
-        },
-
-        gmlglowEnd: {
-            enumerable: true,
-            get: function ()
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text) && (this.value.pFontEffectParams != undefined) && (this.value.pFontEffectParams != null))
-                {
-                    return this.value.pFontEffectParams.glowEnd;
-                }
-                else
-                {
-                    return -1;
-                }
-            },
-            set: function (_val)
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
-                {
-                    if ((this.value.pFontEffectParams == undefined) || (this.value.pFontEffectParams == null))
-                        this.value.pFontEffectParams = new FontEffectParams();
-
-                    this.value.pFontEffectParams.glowEnd = yyGetReal(_val);
-
-                    this.value.paramset.SetBit(eT_TextEffect_GlowEnd);
-                }          
-            }
-        },
-
-        gmlglowColor: {
-            enumerable: true,
-            get: function ()
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text) && (this.value.pFontEffectParams != undefined) && (this.value.pFontEffectParams != null))
-                {
-                    // Need's to be in ARGB order according to http://jira.yoyogames.lan:8080/browse/SEQ-1324
-                    arrCopy = [];
-                    arrCopy[0] = this.value.pFontEffectParams.glowAlpha;
-                    arrCopy[1] = (this.value.pFontEffectParams.glowCol & 0xff) / 255.0;
-                    arrCopy[2] = ((this.value.pFontEffectParams.glowCol >> 8) & 0xff) / 255.0;
-                    arrCopy[3] = ((this.value.pFontEffectParams.glowCol >> 16) & 0xff) / 255.0;
-                    return arrCopy;
-                }
-                else
-                {
-                    return -1;
-                }
-            },
-            set: function (_val)
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
-                {
-                    if ((this.value.pFontEffectParams == undefined) || (this.value.pFontEffectParams == null))
-                        this.value.pFontEffectParams = new FontEffectParams();
-
-                    if(_val instanceof Array)
-                    {
-                        // Need' to change from ARGB order to' RGBA order according to http://jira.yoyogames.lan:8080/browse/SEQ-1324
-                        this.value.pFontEffectParams.glowAlpha = yyGetReal(_val[0]);
-
-                        this.value.pFontEffectParams.glowCol = (yyGetReal(_val[1]) * 255.0) & 0xff;
-                        this.value.pFontEffectParams.glowCol |= ((yyGetReal(_val[2]) * 255.0) & 0xff) << 8;
-                        this.value.pFontEffectParams.glowCol |= ((yyGetReal(_val[3]) * 255.0) & 0xff) << 16;
-                    }
-                    else
-                    {
-                        //throw new Error("value must be an array of numbers");
-                        var col = yyGetInt32(_val);
-                        this.value.pFontEffectParams.glowAlpha = (col & 0xff) * 255.0;
-
-                        // Do some channel switcheroo
-                        this.value.pFontEffectParams.glowCol = ((col & 0xff0000) >> 16) | (col & 0x00ff00) | ((col & 0x0000ff) << 16);
-                    }    
-                    
-                    this.value.paramset.SetBit(eT_TextEffect_GlowColour);
-                }          
-            }
-        },
-
-        gmlglowColour: {
-            enumerable: true,
-            get: function ()
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text) && (this.value.pFontEffectParams != undefined) && (this.value.pFontEffectParams != null))
-                {
-                    // Need's to be in ARGB order according to http://jira.yoyogames.lan:8080/browse/SEQ-1324
-                    arrCopy = [];
-                    arrCopy[0] = this.value.pFontEffectParams.glowAlpha;
-                    arrCopy[1] = (this.value.pFontEffectParams.glowCol & 0xff) / 255.0;
-                    arrCopy[2] = ((this.value.pFontEffectParams.glowCol >> 8) & 0xff) / 255.0;
-                    arrCopy[3] = ((this.value.pFontEffectParams.glowCol >> 16) & 0xff) / 255.0;
-                    return arrCopy;
-                }
-                else
-                {
-                    return -1;
-                }
-            },
-            set: function (_val)
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
-                {
-                    if ((this.value.pFontEffectParams == undefined) || (this.value.pFontEffectParams == null))
-                        this.value.pFontEffectParams = new FontEffectParams();
-
-                    if(_val instanceof Array)
-                    {
-                        // Need' to change from ARGB order to' RGBA order according to http://jira.yoyogames.lan:8080/browse/SEQ-1324
-                        this.value.pFontEffectParams.glowAlpha = yyGetReal(_val[0]);
-
-                        this.value.pFontEffectParams.glowCol = (yyGetReal(_val[1]) * 255.0) & 0xff;
-                        this.value.pFontEffectParams.glowCol |= ((yyGetReal(_val[2]) * 255.0) & 0xff) << 8;
-                        this.value.pFontEffectParams.glowCol |= ((yyGetReal(_val[3]) * 255.0) & 0xff) << 16;
-                    }
-                    else
-                    {
-                        //throw new Error("value must be an array of numbers");
-                        var col = yyGetInt32(_val);
-                        this.value.pFontEffectParams.glowAlpha = (col & 0xff) * 255.0;
-
-                        // Do some channel switcheroo
-                        this.value.pFontEffectParams.glowCol = ((col & 0xff0000) >> 16) | (col & 0x00ff00) | ((col & 0x0000ff) << 16);
-                    }     
-                    
-                    this.value.paramset.SetBit(eT_TextEffect_GlowColour);
-                }          
-            }
-        },
-
-        gmloutlineDist: {
-            enumerable: true,
-            get: function ()
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text) && (this.value.pFontEffectParams != undefined) && (this.value.pFontEffectParams != null))
-                {
-                    return this.value.pFontEffectParams.outlineDist;
-                }
-                else
-                {
-                    return -1;
-                }
-            },
-            set: function (_val)
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
-                {
-                    if ((this.value.pFontEffectParams == undefined) || (this.value.pFontEffectParams == null))
-                        this.value.pFontEffectParams = new FontEffectParams();
-
-                    this.value.pFontEffectParams.outlineDist = yyGetReal(_val);
-
-                    this.value.paramset.SetBit(eT_TextEffect_OutlineDistance);
-                }          
-            }
-        },
-
-        gmloutlineColor: {
-            enumerable: true,
-            get: function ()
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text) && (this.value.pFontEffectParams != undefined) && (this.value.pFontEffectParams != null))
-                {
-                    // Need's to be in ARGB order according to http://jira.yoyogames.lan:8080/browse/SEQ-1324
-                    arrCopy = [];
-                    arrCopy[0] = this.value.pFontEffectParams.outlineAlpha;
-                    arrCopy[1] = (this.value.pFontEffectParams.outlineCol & 0xff) / 255.0;
-                    arrCopy[2] = ((this.value.pFontEffectParams.outlineCol >> 8) & 0xff) / 255.0;
-                    arrCopy[3] = ((this.value.pFontEffectParams.outlineCol >> 16) & 0xff) / 255.0;
-                    return arrCopy;
-                }
-                else
-                {
-                    return -1;
-                }
-            },
-            set: function (_val)
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
-                {
-                    if ((this.value.pFontEffectParams == undefined) || (this.value.pFontEffectParams == null))
-                        this.value.pFontEffectParams = new FontEffectParams();
-
-                    if(_val instanceof Array)
-                    {
-                        // Need' to change from ARGB order to' RGBA order according to http://jira.yoyogames.lan:8080/browse/SEQ-1324
-                        this.value.pFontEffectParams.outlineAlpha = yyGetReal(_val[0]);
-
-                        this.value.pFontEffectParams.outlineCol = (yyGetReal(_val[1]) * 255.0) & 0xff;
-                        this.value.pFontEffectParams.outlineCol |= ((yyGetReal(_val[2]) * 255.0) & 0xff) << 8;
-                        this.value.pFontEffectParams.outlineCol |= ((yyGetReal(_val[3]) * 255.0) & 0xff) << 16;
-                    }
-                    else
-                    {
-                        //throw new Error("value must be an array of numbers");
-                        var col = yyGetInt32(_val);
-                        this.value.pFontEffectParams.outlineAlpha = (col & 0xff) * 255.0;
-
-                        // Do some channel switcheroo
-                        this.value.pFontEffectParams.outlineCol = ((col & 0xff0000) >> 16) | (col & 0x00ff00) | ((col & 0x0000ff) << 16);
-                    }        
-                    
-                    this.value.paramset.SetBit(eT_TextEffect_OutlineColour);
-                }          
-            }
-        },
-
-        gmloutlineColour: {
-            enumerable: true,
-            get: function ()
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text) && (this.value.pFontEffectParams != undefined) && (this.value.pFontEffectParams != null))
-                {
-                    // Need's to be in ARGB order according to http://jira.yoyogames.lan:8080/browse/SEQ-1324
-                    arrCopy = [];
-                    arrCopy[0] = this.value.pFontEffectParams.outlineAlpha;
-                    arrCopy[1] = (this.value.pFontEffectParams.outlineCol & 0xff) / 255.0;
-                    arrCopy[2] = ((this.value.pFontEffectParams.outlineCol >> 8) & 0xff) / 255.0;
-                    arrCopy[3] = ((this.value.pFontEffectParams.outlineCol >> 16) & 0xff) / 255.0;
-                    return arrCopy;
-                }
-                else
-                {
-                    return -1;
-                }
-            },
-            set: function (_val)
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
-                {
-                    if ((this.value.pFontEffectParams == undefined) || (this.value.pFontEffectParams == null))
-                        this.value.pFontEffectParams = new FontEffectParams();
-
-                    if(_val instanceof Array)
-                    {
-                        // Need' to change from ARGB order to' RGBA order according to http://jira.yoyogames.lan:8080/browse/SEQ-1324
-                        this.value.pFontEffectParams.outlineAlpha = yyGetReal(_val[0]);
-
-                        this.value.pFontEffectParams.outlineCol = (yyGetReal(_val[1]) * 255.0) & 0xff;
-                        this.value.pFontEffectParams.outlineCol |= ((yyGetReal(_val[2]) * 255.0) & 0xff) << 8;
-                        this.value.pFontEffectParams.outlineCol |= ((yyGetReal(_val[3]) * 255.0) & 0xff) << 16;
-                    }
-                    else
-                    {
-                        //throw new Error("value must be an array of numbers");
-                        var col = yyGetInt32(_val);
-                        this.value.pFontEffectParams.outlineAlpha = (col & 0xff) * 255.0;
-
-                        // Do some channel switcheroo
-                        this.value.pFontEffectParams.outlineCol = ((col & 0xff0000) >> 16) | (col & 0x00ff00) | ((col & 0x0000ff) << 16);
-                    }  
-                    
-                    this.value.paramset.SetBit(eT_TextEffect_OutlineColour);
-                }          
-            }
-        },
-
-        gmlshadowSoftness: {
-            enumerable: true,
-            get: function ()
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text) && (this.value.pFontEffectParams != undefined) && (this.value.pFontEffectParams != null))
-                {
-                    return this.value.pFontEffectParams.shadowWidth;
-                }
-                else
-                {
-                    return -1;
-                }
-            },
-            set: function (_val)
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
-                {
-                    if ((this.value.pFontEffectParams == undefined) || (this.value.pFontEffectParams == null))
-                        this.value.pFontEffectParams = new FontEffectParams();
-
-                    this.value.pFontEffectParams.shadowWidth = yyGetReal(_val);
-
-                    this.value.paramset.SetBit(eT_TextEffect_ShadowSoftness);
-                }          
-            }
-        },
-
-        gmlshadowOffsetX: {
-            enumerable: true,
-            get: function ()
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text) && (this.value.pFontEffectParams != undefined) && (this.value.pFontEffectParams != null))
-                {
-                    return this.value.pFontEffectParams.shadowOffsetX;
-                }
-                else
-                {
-                    return -1;
-                }
-            },
-            set: function (_val)
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
-                {
-                    if ((this.value.pFontEffectParams == undefined) || (this.value.pFontEffectParams == null))
-                        this.value.pFontEffectParams = new FontEffectParams();
-
-                    this.value.pFontEffectParams.shadowOffsetX = yyGetReal(_val);
-
-                    this.value.paramset.SetBit(eT_TextEffect_ShadowOffset);
-                }          
-            }
-        },
-
-        gmlshadowOffsetY: {
-            enumerable: true,
-            get: function ()
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text) && (this.value.pFontEffectParams != undefined) && (this.value.pFontEffectParams != null))
-                {
-                    return this.value.pFontEffectParams.shadowOffsetY;
-                }
-                else
-                {
-                    return -1;
-                }
-            },
-            set: function (_val)
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
-                {
-                    if ((this.value.pFontEffectParams == undefined) || (this.value.pFontEffectParams == null))
-                        this.value.pFontEffectParams = new FontEffectParams();
-
-                    this.value.pFontEffectParams.shadowOffsetY = yyGetReal(_val);
-
-                    this.value.paramset.SetBit(eT_TextEffect_ShadowOffset);
-                }          
-            }
-        },
-
-        gmlshadowColor: {
-            enumerable: true,
-            get: function ()
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text) && (this.value.pFontEffectParams != undefined) && (this.value.pFontEffectParams != null))
-                {
-                    // Need's to be in ARGB order according to http://jira.yoyogames.lan:8080/browse/SEQ-1324
-                    arrCopy = [];
-                    arrCopy[0] = this.value.pFontEffectParams.shadowAlpha;
-                    arrCopy[1] = (this.value.pFontEffectParams.shadowCol & 0xff) / 255.0;
-                    arrCopy[2] = ((this.value.pFontEffectParams.shadowCol >> 8) & 0xff) / 255.0;
-                    arrCopy[3] = ((this.value.pFontEffectParams.shadowCol >> 16) & 0xff) / 255.0;
-                    return arrCopy;
-                }
-                else
-                {
-                    return -1;
-                }
-            },
-            set: function (_val)
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
-                {
-                    if ((this.value.pFontEffectParams == undefined) || (this.value.pFontEffectParams == null))
-                        this.value.pFontEffectParams = new FontEffectParams();
-
-                    if(_val instanceof Array)
-                    {
-                        // Need' to change from ARGB order to' RGBA order according to http://jira.yoyogames.lan:8080/browse/SEQ-1324
-                        this.value.pFontEffectParams.shadowAlpha = yyGetReal(_val[0]);
-
-                        this.value.pFontEffectParams.shadowCol = (yyGetReal(_val[1]) * 255.0) & 0xff;
-                        this.value.pFontEffectParams.shadowCol |= ((yyGetReal(_val[2]) * 255.0) & 0xff) << 8;
-                        this.value.pFontEffectParams.shadowCol |= ((yyGetReal(_val[3]) * 255.0) & 0xff) << 16;
-                    }
-                    else
-                    {
-                        //throw new Error("value must be an array of numbers");
-                        var col = yyGetInt32(_val);
-                        this.value.pFontEffectParams.shadowAlpha = (col & 0xff) * 255.0;
-
-                        // Do some channel switcheroo
-                        this.value.pFontEffectParams.shadowCol = ((col & 0xff0000) >> 16) | (col & 0x00ff00) | ((col & 0x0000ff) << 16);
-                    }      
-                    
-                    this.value.paramset.SetBit(eT_TextEffect_ShadowColour);
-                }          
-            }
-        },
-
-        gmlshadowColour: {
-            enumerable: true,
-            get: function ()
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text) && (this.value.pFontEffectParams != undefined) && (this.value.pFontEffectParams != null))
-                {
-                    // Need's to be in ARGB order according to http://jira.yoyogames.lan:8080/browse/SEQ-1324
-                    arrCopy = [];
-                    arrCopy[0] = this.value.pFontEffectParams.shadowAlpha;
-                    arrCopy[1] = (this.value.pFontEffectParams.shadowCol & 0xff) / 255.0;
-                    arrCopy[2] = ((this.value.pFontEffectParams.shadowCol >> 8) & 0xff) / 255.0;
-                    arrCopy[3] = ((this.value.pFontEffectParams.shadowCol >> 16) & 0xff) / 255.0;
-                    return arrCopy;
-                }
-                else
-                {
-                    return -1;
-                }
-            },
-            set: function (_val)
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
-                {
-                    if ((this.value.pFontEffectParams == undefined) || (this.value.pFontEffectParams == null))
-                        this.value.pFontEffectParams = new FontEffectParams();
-
-                    if(_val instanceof Array)
-                    {
-                        // Need' to change from ARGB order to' RGBA order according to http://jira.yoyogames.lan:8080/browse/SEQ-1324
-                        this.value.pFontEffectParams.shadowAlpha = yyGetReal(_val[0]);
-
-                        this.value.pFontEffectParams.shadowCol = (yyGetReal(_val[1]) * 255.0) & 0xff;
-                        this.value.pFontEffectParams.shadowCol |= ((yyGetReal(_val[2]) * 255.0) & 0xff) << 8;
-                        this.value.pFontEffectParams.shadowCol |= ((yyGetReal(_val[3]) * 255.0) & 0xff) << 16;
-                    }
-                    else
-                    {
-                        //throw new Error("value must be an array of numbers");
-                        var col = yyGetInt32(_val);
-                        this.value.pFontEffectParams.shadowAlpha = (col & 0xff) * 255.0;
-
-                        // Do some channel switcheroo
-                        this.value.pFontEffectParams.shadowCol = ((col & 0xff0000) >> 16) | (col & 0x00ff00) | ((col & 0x0000ff) << 16);
-                    }        
-                    
-                    this.value.paramset.SetBit(eT_TextEffect_ShadowColour);
-                }          
-            }
-        },
-
-        gmleffectsEnabled: {
-            enumerable: true,
-            get: function ()
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text) && (this.value.pFontEffectParams != undefined) && (this.value.pFontEffectParams != null))
-                {
-                    return this.value.pFontEffectParams.enabled;
-                }
-                else
-                {
-                    return -1;
-                }
-            },
-            set: function (_val)
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
-                {
-                    if ((this.value.pFontEffectParams == undefined) || (this.value.pFontEffectParams == null))
-                        this.value.pFontEffectParams = new FontEffectParams();
-
-                    this.value.pFontEffectParams.enabled = yyGetBool(_val);
-                }          
-            }
-        },
-
-        gmlglowEnabled: {
-            enumerable: true,
-            get: function ()
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text) && (this.value.pFontEffectParams != undefined) && (this.value.pFontEffectParams != null))
-                {
-                    return this.value.pFontEffectParams.glowEnabled;
-                }
-                else
-                {
-                    return -1;
-                }
-            },
-            set: function (_val)
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
-                {
-                    if ((this.value.pFontEffectParams == undefined) || (this.value.pFontEffectParams == null))
-                        this.value.pFontEffectParams = new FontEffectParams();
-
-                    this.value.pFontEffectParams.glowEnabled = yyGetBool(_val);
-                }          
-            }
-        },
-
-        gmloutlineEnabled: {
-            enumerable: true,
-            get: function ()
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text) && (this.value.pFontEffectParams != undefined) && (this.value.pFontEffectParams != null))
-                {
-                    return this.value.pFontEffectParams.outlineEnabled;
-                }
-                else
-                {
-                    return -1;
-                }
-            },
-            set: function (_val)
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
-                {
-                    if ((this.value.pFontEffectParams == undefined) || (this.value.pFontEffectParams == null))
-                        this.value.pFontEffectParams = new FontEffectParams();
-
-                    this.value.pFontEffectParams.outlineEnabled = yyGetBool(_val);
-                }          
-            }
-        },
-
-        gmldropShadowEnabled: {
-            enumerable: true,
-            get: function ()
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text) && (this.value.pFontEffectParams != undefined) && (this.value.pFontEffectParams != null))
-                {
-                    return this.value.pFontEffectParams.dropShadowEnabled;
-                }
-                else
-                {
-                    return -1;
-                }
-            },
-            set: function (_val)
-            {
-                if ((this.m_track != null) && (this.m_track.m_type == eSTT_Text))
-                {
-                    if ((this.value.pFontEffectParams == undefined) || (this.value.pFontEffectParams == null))
-                        this.value.pFontEffectParams = new FontEffectParams();
-
-                    this.value.pFontEffectParams.dropShadowEnabled = yyGetBool(_val);
                 }          
             }
         },
@@ -8258,23 +6416,7 @@ function TrackEvalNode(_parent)
             }
         },
     });
-};
-
-// #############################################################################################
-/// Function:<summary>
-///             Create a new CSeqTrackInstanceInfo object
-///          </summary>
-// #############################################################################################
-/** @constructor */
-function CSeqTrackInstanceInfo()
-{
-	this.pKeydata = null;
-    //CInstance* pInstance;
-    this.objectID = -1;
-	this.instanceID = -1;
-	this.ownedBySequence = false;
-	//bool beenCreated;
-};
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -8327,9 +6469,21 @@ function GetOrEmplaceTrackEvalNode(_nodeContainer, _current, _prev) {
     }
 
     return retval;
+}
+
+
+// #############################################################################################
+/// Function:<summary>
+///             Create a new CSeqTrackInstanceInfo object
+///          </summary>
+// #############################################################################################
+/** @constructor */
+function CSeqTrackInstanceInfo()
+{
+	this.pKeydata = null;
+    //CInstance* pInstance;
+    this.objectID = -1;
+	this.instanceID = -1;
+	this.ownedBySequence = false;
+	//bool beenCreated;
 };
-
-
-
-// @endif sequences - tracks
-// @endif sequences_min

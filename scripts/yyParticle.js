@@ -65,7 +65,6 @@ var persistentsystemlayernames = [];
 ///				like. We will discuss the settings below. 
 ///          </summary>
 // #############################################################################################
-// @if feature("particles")
 /**@constructor*/
 function yyParticleType()
 {
@@ -91,14 +90,10 @@ function ParticleType_ClearClass()
 	this.spritestretch = false;    				// whether to stretch the animation
 	this.spriterandom = false;     				// whether to start at a random position
 	this.shape = PT_SHAPE_PIXEL;				// particle shape
-	this.sizeMinX = 1.0;						// minimal x size
-	this.sizeMaxX = 1.0;						// maximal x size
-	this.sizeMinY = 1.0;						// minimal y size
-	this.sizeMaxY = 1.0;						// maximal y size
-	this.sizeIncrX = 0.0;						// x size increment 
-	this.sizeIncrY = 0.0;						// y size increment
-	this.sizeRandX = 0.0;						// added x size randomness
-	this.sizeRandY = 0.0;						// added y size randomness
+	this.sizemin = 1.0;							// minimal size
+	this.sizemax = 1.0;							// maximal size
+	this.sizeincr = 0.0;						// size increment and 
+	this.sizerand = 0.0;						// added randomness
 	this.xscale = 1.0;							// additional X scale values
 	this.yscale = 1.0;							// additional Y scale values
 	this.lifemin = 100;							// minimal and maximal life
@@ -162,25 +157,10 @@ function Emitter_Reset()
 	this.particles = [];							// the particles
 
 	this.created = true;		// whether created
-	this.zombie = false;		// if true then it cannot be reused until all its particles are destroyed
 
-	this.name = undefined;
-	this.enabled = true;            // if false then the emitter is disabled and it shouldn't spawn particles
-	
 	this.mode = PT_MODE_UNDEFINED;	// stream or burst
 	this.number = 0;				// number of particles to create
-	this.relative = false;			// if true then number of particles spawned is relative to the emitter's area
 
-	this.delayMin = 0;			// minimum delay before the first burst
-	this.delayMax = 0;			// maximum delay before the first burst
-	this.delayCurrent = 0;		// how much time is currently left before the first burst
-	this.delayUnit = 1;			// 0 = seconds or 1 = frames
-	
-	this.intervalMin = 0;		// minimum interval between bursts
-	this.intervalMax = 0;		// maximum interval between bursts
-	this.intervalCurrent = 0;	// how much time is currently left before the next burst
-	this.intervalUnit = 1;		// 0 = seconds or 1 = frames
-	
 	this.parttype = 0;			// type of particles	
 	this.xmin = 0.0;			// the region in which to create particles
 	this.xmax = 0.0; 
@@ -213,19 +193,11 @@ function yyParticle()
 	this.speed=0;				// speed
 	this.dir=0;					// direction
 	this.ang=0;					// angle
-	this.colmode = COLMODE_ONE;	// color mechanism used
-	this.colpar = [];			// (6) color parameters, depending on mode
-    this.colpar[0] = clWhite;
-    this.colpar[1] = clWhite;
-    this.colpar[2] = clWhite;
 	this.color=0xffffff;		// the current color
-	this.colorOverride=false;	// if true then the color overrides color defined in part. type
 	this.alpha=1.0;				// current alpha
-	this.xsize=0;				// the size of the particle
-	this.ysize=0;				// the size of the particle
+	this.size=0;				// the size of the particle
 	this.spritestart=0;			// the starting sprite image
-	this.subimg=0;				// the current sprite image
-	this.ran = 0; 				// random number for different purposes
+	this.ran = 0; 					// random number for different purposes
 	this.id = -1;
 }
 
@@ -256,8 +228,6 @@ function yyParticleSystem()
 /**@constructor*/
 function ParticleSystem_ClearClass()
 {
-	this.m_resourceID = -1;					// the id of the particle system resource that this system was created from
-
 	this.created = false;					// whether created
 	
 	this.emitters = []; 						// the emitters
@@ -268,12 +238,6 @@ function ParticleSystem_ClearClass()
 	this.ydraw = 0.0;               
 	this.automaticupdate = true;       	 	// whether to update automatically
 	this.automaticdraw = true;         	 	// whether to draw automatically
-	this.color = clWhite;					// the color to blend the particles with
-	this.alpha = 1.0;						// the particle system's alpha
-	this.angle = 0.0; 						// rotation in degrees
-
-	this.globalSpaceParticles = false;		// if true particles are simulated in global space
-	this.matrix = new Matrix();				// the global space matrix
 
 	this.m_elementID = -1;                  // layer element ID (Zeus only)
 	//this.m_origLayerID = -1;                // original layer ID (Zeus only)
@@ -289,7 +253,6 @@ function CParticleSystem()
 	this.originX = 0;
 	this.originY = 0;
 	this.drawOrder = 0;
-	this.globalSpaceParticles = false;
 
 	/// The index within instances where the particle system is stored.
 	this.index = -1;
@@ -322,7 +285,6 @@ CParticleSystem.CreateFromJSON = function (json)
 	system.originX = json.originX;
 	system.originY = json.originY;
 	system.drawOrder = json.drawOrder;
-	system.globalSpaceParticles = json.globalSpaceParticles;
 	for (var i = 0; i < json.emitters.length; ++i)
 	{
 		system.emitters.push(json.emitters[i]);
@@ -367,17 +329,6 @@ CParticleSystem.Find = function (name)
 	return -1;
 };
 
-/// <returns>An array of all particle system asset IDs.</returns>
-CParticleSystem.List = function ()
-{
-	var ids = Array(CParticleSystem.GetCount());
-	for (var i = 0; i < ids.length; ++i)
-	{
-		ids[i] = i;
-	}
-	return ids;
-};
-
 /// <returns>The index of the particle system.</returns>
 CParticleSystem.prototype.GetIndex = function ()
 {
@@ -395,12 +346,12 @@ CParticleSystem.prototype.GetIndex = function ()
 CParticleSystem.prototype.MakeInstance = function (_layerID, _persistent, _pParticleEl)
 {
 	if (_layerID === undefined) _layerID = -1;
-	if (_persistent === undefined) _persistent = true;
-	if (_pParticleEl === undefined) _pParticleEl = null;
+	if (_persistent === undefined) _persistent = false;
+	if (_pParticleEl === undefined) _persistent = null;
 
 	var ps = (_pParticleEl == null)
 		? ParticleSystem_Create(_layerID, _persistent)
-		: ParticleSystem_Create_OnLayer(_layerID, _persistent, _pParticleEl);
+		: ParticleSystem_Create_OnLayer(-1, _persistent, _pParticleEl);
 
 	if (ps == -1)
 	{
@@ -409,9 +360,6 @@ CParticleSystem.prototype.MakeInstance = function (_layerID, _persistent, _pPart
 	}
 
 	var system = g_ParticleSystems[ps];
-	system.m_resourceID = this.index;
-	system.oldtonew = (this.drawOrder == 0);
-	system.globalSpaceParticles = this.globalSpaceParticles;
 
 	for (var i = this.emitters.length - 1; i >= 0; --i)
 	{
@@ -422,11 +370,9 @@ CParticleSystem.prototype.MakeInstance = function (_layerID, _persistent, _pPart
 		var em = ParticleSystem_Emitter_Create(ps);
 		var instanceEmitter = system.emitters[em];
 
-		instanceEmitter.name = templateEmitter.name;
-		instanceEmitter.enabled = templateEmitter.enabled;
+		//instanceEmitter.enabled = templateEmitter.enabled;
 		instanceEmitter.mode = templateEmitter.mode;
 		instanceEmitter.number = templateEmitter.number;
-		instanceEmitter.relative = templateEmitter.relative;
 		instanceEmitter.posdistr = templateEmitter.posdistr;
 		instanceEmitter.shape = templateEmitter.shape;
 		instanceEmitter.xmin = templateEmitter.xmin;
@@ -436,18 +382,11 @@ CParticleSystem.prototype.MakeInstance = function (_layerID, _persistent, _pPart
 		//instanceEmitter.rotation = templateEmitter.rotation;
 		instanceEmitter.parttype = templateEmitter.parttype;
 
-		ParticleSystem_Emitter_Delay(
-			ps, em, templateEmitter.delayMin, templateEmitter.delayMax, templateEmitter.delayUnit);
-		ParticleSystem_Emitter_Interval(
-			ps, em, templateEmitter.intervalMin, templateEmitter.intervalMax, templateEmitter.intervalUnit);
-
-		if (!instanceEmitter.enabled) continue;
-
 		if (instanceEmitter.mode == PT_MODE_STREAM)
 		{
 			ParticleSystem_Emitter_Stream(ps, em, templateEmitter.parttype, templateEmitter.number);
 		}
-		else if (instanceEmitter.delayCurrent <= 0.0)
+		else
 		{
 			ParticleSystem_Emitter_Burst(ps, em, templateEmitter.parttype, templateEmitter.number);
 		}
@@ -455,7 +394,6 @@ CParticleSystem.prototype.MakeInstance = function (_layerID, _persistent, _pPart
 
 	return ps;
 };
-// @endif particles
 
 // #############################################################################################
 /// Function:<summary>
@@ -617,62 +555,64 @@ function Direction_To_Vector_v(_dir, _sp )
 // #############################################################################################
 function Compute_Color(_pParticle)
 {
-	if (_pParticle.age <= 0 || _pParticle.lifetime <= 0)
+	var pPartType = g_ParticleTypes[_pParticle.parttype];
 	{
-		// Create a new color
-		switch( _pParticle.colmode )
+		if (_pParticle.age <= 0 || _pParticle.lifetime <= 0)
 		{
-			case COLMODE_ONE: _pParticle.color = _pParticle.colpar[0];
-								break;
-			case COLMODE_TWO: _pParticle.color = _pParticle.colpar[0];
-								break;
-			case COLMODE_THREE: _pParticle.color = _pParticle.colpar[0];
-								break;
-			case COLMODE_RGB:		{
-										var r = ~~(MyRandom( _pParticle.colpar[0], _pParticle.colpar[1], PART_EDISTR_LINEAR));
-										var g = ~~(MyRandom( _pParticle.colpar[2], _pParticle.colpar[3], PART_EDISTR_LINEAR));
-										var b = ~~(MyRandom( _pParticle.colpar[4], _pParticle.colpar[5], PART_EDISTR_LINEAR));
-										_pParticle.color =   (r<<16) + (g<<8) + b;
+			// Create a new color
+			switch( pPartType.colmode )
+			{
+				case COLMODE_ONE: _pParticle.color = pPartType.colpar[0];
+									break;
+				case COLMODE_TWO: _pParticle.color = pPartType.colpar[0];
+									break;
+				case COLMODE_THREE: _pParticle.color = pPartType.colpar[0];
+									break;
+				case COLMODE_RGB:		{
+											var r = ~~(MyRandom( pPartType.colpar[0], pPartType.colpar[1], PART_EDISTR_LINEAR));
+											var g = ~~(MyRandom( pPartType.colpar[2], pPartType.colpar[3], PART_EDISTR_LINEAR));
+											var b = ~~(MyRandom( pPartType.colpar[4], pPartType.colpar[5], PART_EDISTR_LINEAR));
+											_pParticle.color =   (r<<16) + (g<<8) + b;
 
-									}
-									break;					
-			case COLMODE_HSV:		{
-											var h = ~~(MyRandom( _pParticle.colpar[0], _pParticle.colpar[1], PART_EDISTR_LINEAR));
-											var s = ~~(MyRandom( _pParticle.colpar[2], _pParticle.colpar[3], PART_EDISTR_LINEAR));
-											var v = ~~(MyRandom( _pParticle.colpar[4], _pParticle.colpar[5], PART_EDISTR_LINEAR));
-											_pParticle.color = make_color_hsv(h, s, v);
-									}
-									break;
-								case COLMODE_MIX: _pParticle.color = ConvertGMColour( Color_Merge(_pParticle.colpar[0], _pParticle.colpar[1], YYRandom(1)) );
-									break;
+										}
+										break;					
+				case COLMODE_HSV:		{
+											 var h = ~~(MyRandom( pPartType.colpar[0], pPartType.colpar[1], PART_EDISTR_LINEAR));
+											 var s = ~~(MyRandom( pPartType.colpar[2], pPartType.colpar[3], PART_EDISTR_LINEAR));
+											 var v = ~~(MyRandom( pPartType.colpar[4], pPartType.colpar[5], PART_EDISTR_LINEAR));
+											 //THSV thsv = Color_HSV(h,s,v);
+											 _pParticle.color = 0xffffff; //Color_HSVToColor( thsv );
+										}
+										break;
+									case COLMODE_MIX: _pParticle.color = ConvertGMColour( Color_Merge(pPartType.colpar[0], pPartType.colpar[1], YYRandom(1)) );
+				                        break;
+			}
 		}
-	}
-	else
-	{
-		// Adapt the color
-		switch ( _pParticle.colmode )
+		else
 		{
-			case COLMODE_ONE: _pParticle.color = _pParticle.colpar[0];
-								break;
-			case COLMODE_TWO:		{
-										var val = _pParticle.age/_pParticle.lifetime;
-										if ( val > 1 ) val = 1;
-										_pParticle.color =  Color_Merge((_pParticle.colpar[0]), (_pParticle.colpar[1]), val);
-									}
-									break;
-			case COLMODE_THREE:		{
-										var val = 2.0*_pParticle.age/_pParticle.lifetime;
-										if (val > 2) val = 2;
-										if (val < 1)
-										{
-											_pParticle.color = Color_Merge(_pParticle.colpar[0], _pParticle.colpar[1], val);
+			// Adapt the color
+			switch ( pPartType.colmode )
+			{
+				case COLMODE_TWO:		{
+											var val = _pParticle.age/_pParticle.lifetime;
+											if ( val > 1 ) val = 1;
+											_pParticle.color =  Color_Merge((pPartType.colpar[0]), (pPartType.colpar[1]), val);
 										}
-										else
-										{
-											_pParticle.color = Color_Merge(_pParticle.colpar[1], _pParticle.colpar[2], val - 1);
+										break;
+				case COLMODE_THREE:		{
+											var val = 2.0*_pParticle.age/_pParticle.lifetime;
+											if (val > 2) val = 2;
+											if (val < 1)
+											{
+												_pParticle.color = Color_Merge(pPartType.colpar[0], pPartType.colpar[1], val);
+											}
+											else
+											{
+												_pParticle.color = Color_Merge(pPartType.colpar[1], pPartType.colpar[2], val - 1);
+											}
 										}
-									}
-									break;
+										break;
+			}
 		}
 	}
 }
@@ -683,15 +623,15 @@ function Compute_Color(_pParticle)
 ///				Creates numb particles of the indicated type at the indicated position
 ///          </summary>
 ///
-/// In:		 <param name="_system"></param>
-///			 <param name="_x"></param>
-///			 <param name="_y"></param>
-///			 <param name="_parttype"></param>
+/// In:		 <param name="x"></param>
+///			 <param name="y"></param>
+///			 <param name="parttype"></param>
+///			 <param name="Result"></param>
 /// Out:	 <returns>
 ///				
 ///			 </returns>
 // #############################################################################################
-function CreateParticle(_system, _x, _y, _parttype)
+function CreateParticle(_x, _y, _parttype )
 {
 	var Result = new yyParticle;
 	
@@ -708,18 +648,11 @@ function CreateParticle(_system, _x, _y, _parttype)
 	Result.lifetime =   MyRandom( pParType.lifemin, pParType.lifemax, 0);
 	Result.age = 0;
 	Result.color = 0xffffff;	
-	Result.colmode = pParType.colmode;
-	Result.colpar = [];
-	for (var i = 0; i < pParType.colpar.length; ++i)
-	{
-		Result.colpar.push(pParType.colpar[i]);
-	}
+		
 	Compute_Color(Result);
 		
 	Result.alpha = pParType.alphastart;
-	var random = Math.random();
-	Result.xsize = pParType.sizeMinX + ((pParType.sizeMaxX - pParType.sizeMinX) * random);
-	Result.ysize = pParType.sizeMinY + ((pParType.sizeMaxY - pParType.sizeMinY) * random);
+	Result.size = MyRandom( pParType.sizemin, pParType.sizemax, 0);
 	Result.additiveblend = pParType.additiveblend;
 		
 	
@@ -731,13 +664,6 @@ function CreateParticle(_system, _x, _y, _parttype)
 	{
 		Result.spritestart = pParType.spritestart;
 	}
-	Result.subimg = Result.spritestart;
-
-	if (_system.globalSpaceParticles)
-	{
-		Result.dir += RAD(Math.atan2(_system.matrix.m[_21], _system.matrix.m[_11]));
-	}
-
 	Result.ran = YYRandom(100000);
 	return Result;
 }
@@ -875,25 +801,6 @@ function ParticleType_Sprite(_ind, _sprite, _anim, _stretch, _rand)
 
 // #############################################################################################
 /// Function:<summary>
-///          	Sets the starting sprite sub-image for the indicated particle type
-///          </summary>
-///
-/// In:		<param name="_ind">Particle type ti change</param>
-///			<param name="_subimg"></param>
-/// Out:	<returns>
-///				
-///			</returns>
-// #############################################################################################
-function ParticleType_Subimage(_ind, _subimg)
-{
-    var pPar = g_ParticleTypes[yyGetInt32(_ind)];
-	if( pPar == null || pPar==undefined ) return;
-
-	pPar.spritestart = yyGetInt32(_subimg);
-}
-
-// #############################################################################################
-/// Function:<summary>
 ///				Sets the size for the indicated particle type
 ///          </summary>
 ///
@@ -911,66 +818,12 @@ function	ParticleType_Size(_ind, _sizemin, _sizemax, _sizeincr, _sizerand)
 	var pPar = g_ParticleTypes[yyGetInt32(_ind)];
 	if( pPar == null || pPar==undefined ) return;
 		
-	pPar.sizeMinX = yyGetReal(_sizemin);
-	pPar.sizeMaxX = yyGetReal(_sizemax);
-	pPar.sizeIncrX = yyGetReal(_sizeincr);
-	pPar.sizeRandX = yyGetReal(_sizerand);
-
-	pPar.sizeMinY = yyGetReal(_sizemin);
-	pPar.sizeMaxY = yyGetReal(_sizemax);
-	pPar.sizeIncrY = yyGetReal(_sizeincr);
-	pPar.sizeRandY = yyGetReal(_sizerand);
+	pPar.sizemin = yyGetReal(_sizemin);
+	pPar.sizemax = yyGetReal(_sizemax);
+	pPar.sizeincr = yyGetReal(_sizeincr);
+	pPar.sizerand = yyGetReal(_sizerand);
 }
 
-// #############################################################################################
-/// Function:<summary>
-///				Sets the size for the indicated particle type
-///          </summary>
-///
-/// In:		 <param name="ind"></param>
-///			 <param name="sizemin"></param>
-///			 <param name="sizemax"></param>
-///			 <param name="sizeincr"></param>
-///			 <param name="sizerand"></param>
-/// Out:	 <returns>
-///				
-///			 </returns>
-// #############################################################################################
-function	ParticleType_Size_X(_ind, _sizemin, _sizemax, _sizeincr, _sizerand)
-{
-	var pPar = g_ParticleTypes[yyGetInt32(_ind)];
-	if( pPar == null || pPar==undefined ) return;
-
-	pPar.sizeMinX = yyGetReal(_sizemin);
-	pPar.sizeMaxX = yyGetReal(_sizemax);
-	pPar.sizeIncrX = yyGetReal(_sizeincr);
-	pPar.sizeRandX = yyGetReal(_sizerand);
-}
-
-// #############################################################################################
-/// Function:<summary>
-///				Sets the size for the indicated particle type
-///          </summary>
-///
-/// In:		 <param name="ind"></param>
-///			 <param name="sizemin"></param>
-///			 <param name="sizemax"></param>
-///			 <param name="sizeincr"></param>
-///			 <param name="sizerand"></param>
-/// Out:	 <returns>
-///				
-///			 </returns>
-// #############################################################################################
-function	ParticleType_Size_Y(_ind, _sizemin, _sizemax, _sizeincr, _sizerand)
-{
-	var pPar = g_ParticleTypes[yyGetInt32(_ind)];
-	if( pPar == null || pPar==undefined ) return;
-
-	pPar.sizeMinY = yyGetReal(_sizemin);
-	pPar.sizeMaxY = yyGetReal(_sizemax);
-	pPar.sizeIncrY = yyGetReal(_sizeincr);
-	pPar.sizeRandY = yyGetReal(_sizerand);
-}
 
 // #############################################################################################
 /// Function:<summary>
@@ -1178,12 +1031,12 @@ function ParticleType_Colour_RGB(_ind, _rmin, _rmax, _gmin, _gmax, _bmin, _bmax)
 	if( pPar == null || pPar==undefined ) return;
 
 	pPar.colmode = COLMODE_RGB;
-	pPar.colpar[0] = yyGetInt32(_bmin);
-	pPar.colpar[1] = yyGetInt32(_bmax);
+	pPar.colpar[0] = yyGetInt32(_rmin);
+	pPar.colpar[1] = yyGetInt32(_rmax);
 	pPar.colpar[2] = yyGetInt32(_gmin);
 	pPar.colpar[3] = yyGetInt32(_gmax);
-	pPar.colpar[4] = yyGetInt32(_rmin);
-	pPar.colpar[5] = yyGetInt32(_rmax);
+	pPar.colpar[4] = yyGetInt32(_bmin);
+	pPar.colpar[5] = yyGetInt32(_bmax);
 }
 
 
@@ -1416,18 +1269,14 @@ function ParticleSystem_Emitters_Load(_GameFile)
 		
 		type.sprite = yypt.spriteId;
 		type.spritestart = yypt.headPosition;
-		type.spriteanim = yypt.spriteAnimate;
-		type.spritestretch = yypt.spriteStretch;
-		type.spriterandom = yypt.spriteRandom;
+		type.spriteanim = false;
+		type.spritestretch = false;
+		type.spriterandom = false;
 		type.shape = yypt.texture;
-		type.sizeMinX = yypt.sizeMinX;
-		type.sizeMaxX = yypt.sizeMaxX;
-		type.sizeMinY = yypt.sizeMinY;
-		type.sizeMaxY = yypt.sizeMaxY;
-		type.sizeIncrX = yypt.sizeIncreaseX;
-		type.sizeIncrY = yypt.sizeIncreaseY;
-		type.sizeRandX = yypt.sizeWiggleX;
-		type.sizeRandY = yypt.sizeWiggleY;
+		type.sizemin = yypt.sizeMin;
+		type.sizemax = yypt.sizeMax;
+		type.sizeincr = yypt.sizeIncrease;
+		type.sizerand = yypt.sizeWiggle;
 		type.xscale = yypt.scaleX;
 		type.yscale = yypt.scaleY;
 		type.lifemin = yypt.lifetimeMin;
@@ -1463,17 +1312,10 @@ function ParticleSystem_Emitters_Load(_GameFile)
 		////////////////////////////////////////////////////////////////////////
 		// Emitter
 		var emitter = new yyEmitter();
-		emitter.name = yypse.pName;
-		emitter.enabled = yypse.enabled;
+		// TODO: Use emitter name from YYPSEmitter
+		//emitter.enabled = yypse.enabled;
 		emitter.mode = yypse.mode;
 		emitter.number = yypse.emitCount;
-		emitter.delayMin = yypse.delayMin;
-		emitter.delayMax = yypse.delayMax;
-		emitter.delayUnit = yypse.delayUnit;
-		emitter.intervalMin = yypse.intervalMin;
-		emitter.intervalMax = yypse.intervalMax;
-		emitter.intervalUnit = yypse.intervalUnit;
-		emitter.relative = yypse.emitRelative;
 		emitter.posdistr = yypse.distribution;
 		emitter.shape = yypse.shape;
 		emitter.xmin = yypse.regionX - yypse.regionW * 0.5;
@@ -1501,36 +1343,11 @@ function ParticleSystem_Emitters_Load(_GameFile)
 // #############################################################################################
 function	ParticleSystem_Emitter_Create(_ps)
 {
-	_ps = yyGetInt32(_ps);
+    var pPartSys = g_ParticleSystems[yyGetInt32(_ps)];
+	if( pPartSys ==null || pPartSys==undefined ) return -1;
 
-	if (!ParticleSystem_Exists(_ps)) return -1;
-
-	var pPartSys = g_ParticleSystems[_ps];
-	var ind = 0;
-	var emitter = null;
-
-	// Try to reuse a destroyed emitter
-	while (ind < pPartSys.emitters.length)
-	{
-		var e = pPartSys.emitters[ind];
-		if (!e.created && !e.zombie)
-		{
-			emitter = e;
-			break;
-		}
-		++ind;
-	}
-
-	// No suitable emitter was found
-	if (!emitter)
-	{
-		emitter = new yyEmitter();
-		pPartSys.emitters.push(emitter);
-	}
-
-	emitter.created = true;
-	ParticleSystem_Emitter_Clear(_ps, ind);
-
+	var ind = pPartSys.emitters.length;
+	pPartSys.emitters[ind] = new yyEmitter();
 	return ind;
 }
 
@@ -1548,15 +1365,15 @@ function	ParticleSystem_Emitter_Create(_ps)
 // #############################################################################################
 function ParticleSystem_Emitter_Destroy(_ps, _ind)
 {
-	_ps = yyGetInt32(_ps);
-	_ind = yyGetInt32(_ind);
+    _ind = yyGetInt32(_ind);
 
-	if (!ParticleSystem_Emitter_Exists(_ps, _ind)) return false;
+    var pPartSys = g_ParticleSystems[yyGetInt32(_ps)];
+	if( pPartSys ==null || pPartSys==undefined ) return false;
+	
+	var pEmitter = pPartSys.emitters[_ind];
+	if( pEmitter==null || pEmitter==undefined ) return false;
 
-	var emitter = g_ParticleSystems[_ps].emitters[_ind];
-	emitter.created = false;
-	emitter.zombie = true;
-
+	pPartSys.emitters[_ind] = null;
 	return true;
 }
 
@@ -1573,36 +1390,13 @@ function ParticleSystem_Emitter_Destroy(_ps, _ind)
 // #############################################################################################
 function ParticleSystem_Emitter_DestroyAll(_ps)
 {
-	_ps = yyGetInt32(_ps);
-	if (!ParticleSystem_Exists(_ps)) return false;
-	for (var i = g_ParticleSystems[_ps].emitters.length - 1; i >= 0; --i)
-	{
-		ParticleSystem_Emitter_Destroy(_ps, i);
-	}
+    var pPartSys = g_ParticleSystems[yyGetInt32(_ps)];
+	if( pPartSys ==null || pPartSys==undefined ) return false;
+
+	pPartSys.emitters = [];
 	return true;
 }
 
-// #############################################################################################
-/// Function:<summary>
-///				Enables or disables a particle emitter
-///          </summary>
-///
-/// In:		<param name="_ps"></param>
-///			<param name="_ind"></param>
-///			<param name="_enable"></param>
-/// Out:	<returns>
-///			</returns>
-// #############################################################################################
-function	ParticleSystem_Emitter_Enable(_ps, _ind, _enable)
-{
-	_ps = yyGetInt32(_ps);
-	_ind = yyGetInt32(_ind);
-
-	if (!ParticleSystem_Exists(_ps)) return;
-	if (!ParticleSystem_Emitter_Exists(_ps, _ind)) return;
-
-	g_ParticleSystems[_ps].emitters[_ind].enabled = yyGetBool(_enable);
-}
 
 // #############################################################################################
 /// Function:<summary>
@@ -1617,18 +1411,13 @@ function	ParticleSystem_Emitter_Enable(_ps, _ind, _enable)
 // #############################################################################################
 function	ParticleSystem_Emitter_Exists(_ps, _ind)
 {
-	_ps = yyGetInt32(_ps);
-	_ind = yyGetInt32(_ind);
-
-	if (!ParticleSystem_Exists(_ps)) return false;
-
-	var pPartSys = g_ParticleSystems[_ps];
-	if (_ind < 0 || _ind >= pPartSys.emitters.length) return false;
-
-	var pEmitter = pPartSys.emitters[_ind];
-	if (!pEmitter.created) return false;
-
-	return true;
+    var pPartSys = g_ParticleSystems[yyGetInt32(_ps)];
+	if( pPartSys ==null || pPartSys==undefined ) return false;
+	
+	var pEmitter = pPartSys.emitters[yyGetInt32(_ind)];
+	if( pEmitter==null || pEmitter==undefined ) return false;
+	
+	return true;	
 }
 
 
@@ -1645,12 +1434,13 @@ function	ParticleSystem_Emitter_Exists(_ps, _ind)
 // #############################################################################################
 function	ParticleSystem_Emitter_Clear(_ps, _ind)
 {
-	_ps = yyGetInt32(_ps);
-	_ind = yyGetInt32(_ind);
-
-	if (!ParticleSystem_Emitter_Exists(_ps, _ind)) return false;
-
-	g_ParticleSystems[_ps].emitters[_ind].Reset();
+    var pPartSys = g_ParticleSystems[yyGetInt32(_ps)];
+	if( pPartSys ==null || pPartSys==undefined ) return false;
+	
+	var pEmitter = pPartSys.emitters[yyGetInt32(_ind)];
+	if( pEmitter==null || pEmitter==undefined ) return false;
+	 
+	pEmitter.Reset();
 }
 
 
@@ -1674,174 +1464,46 @@ function	ParticleSystem_Emitter_Clear(_ps, _ind)
 // #############################################################################################
 function	ParticleSystem_Emitter_Region(_ps, _ind, _xmin, _xmax, _ymin, _ymax, _shape, _posdistr)
 {
-	_ps = yyGetInt32(_ps);
-	_ind = yyGetInt32(_ind);
+    var pPartSys = g_ParticleSystems[yyGetInt32(_ps)];
+	if( pPartSys ==null || pPartSys==undefined ) return;
+	
+	var pEmitter = pPartSys.emitters[yyGetInt32(_ind)];
+	if( pEmitter==null || pEmitter==undefined ) return;
 
-	if (!ParticleSystem_Emitter_Exists(_ps, _ind)) return;
 
-	var pEmitter = g_ParticleSystems[_ps].emitters[_ind];
-
-	pEmitter.xmin = yyGetReal(_xmin);
-	pEmitter.xmax = yyGetReal(_xmax);
-	pEmitter.ymin = yyGetReal(_ymin);
-	pEmitter.ymax = yyGetReal(_ymax);
-	pEmitter.shape = yyGetInt32(_shape);
-	pEmitter.posdistr = yyGetInt32(_posdistr);
+    pEmitter.xmin = yyGetReal(_xmin);
+    pEmitter.xmax = yyGetReal(_xmax);
+    pEmitter.ymin = yyGetReal(_ymin);
+    pEmitter.ymax = yyGetReal(_ymax);
+    pEmitter.shape = yyGetInt32(_shape);
+    pEmitter.posdistr = yyGetInt32(_posdistr);
 }
 
-function EmitParticles(_system, _emitter, _x, _y, _parttype, _numb, _overrideColor, _col)
+function EmitParticles(_ps, _em, _x, _y, _parttype, _numb, _applyColor, _col)
 {
-	var particles = _emitter.particles;
-
-	_overrideColor = (_overrideColor === undefined) ? false : _overrideColor;
+	_applyColor = (_applyColor === undefined) ? false : _applyColor;
 	_col = (_col === undefined) ? 0xFFFFFF : _col;
 
-	if (_overrideColor)
-	{
+	if (_applyColor)
 		_col = ConvertGMColour(yyGetInt32(_col));
-	}
 
 	_numb = yyGetInt32(_numb);
 	_parttype = yyGetInt32(_parttype);
 
-	for (var i = 0; i < _numb; i++)
-	{
-		var index = particles.length;
-		particles[index] = CreateParticle(_system, yyGetReal(_x), yyGetReal(_y), _parttype);
-
-		if (_overrideColor)
-		{
-			particles[index].colmode = COLMODE_ONE;
-			particles[index].colpar[0] = _col;
-		}
-	}
-}
-
-// #############################################################################################
-/// Function:<summary>
-//				
-///          </summary>
-///
-/// In:		 <param name="_system"></param>
-///			 <param name="_emitter"></param>
-///			 <param name="_x"></param>
-///			 <param name="_y"></param>
-///			 <param name="_width"></param>
-///			 <param name="_height"></param>
-///			 <param name="_shape"></param>
-///			 <param name="_distr"></param>
-///			 <param name="_ptype"></param>
-///			 <param name="_numb"></param>
-/// Out:	 <returns>
-///				
-///			 </returns>
-// #############################################################################################
-function	ParticleSystem_Emitter_Burst_Impl(
-	_system, _emitter, _x, _y, _width, _height, _shape, _distr, _ptype, _numb)
-{
-	if (_emitter.relative)
-	{
-		_numb = _width * _height * _numb * 0.00003;
-	}
-
-	if (_numb < 0)
-	{
-		// Cast to an integer
-		var r = YYRandom(-_numb) | 0;
-		if (r == 0) {
-			_numb = 1;
-		} else {
-			return;
-		}
-	}
+	var pPartSys = g_ParticleSystems[yyGetInt32(_ps)];
+	if( pPartSys ==null || pPartSys==undefined ) return;
 	
-	var fract = _numb - ~~_numb;
-	_numb = ~~_numb;
+	var pParType = g_ParticleTypes[_parttype];
+	if( pParType == null || pParType==undefined ) return false;
 
-	if (fract > 0.0 && Math.random() <= fract)
+	for(var i = 0; i < _numb; i++)
 	{
-		_numb += 1.0;
-	}
+		var particles = pPartSys.emitters[_em].particles;
+		var index = particles.length;
+		particles[index] = CreateParticle(yyGetReal(_x), yyGetReal(_y), _parttype);
 
-	if (_numb == 0.0) return;
-
-	var pos = new Vector3(_x, _y, 0);
-	var right = new Vector3(_width, 0, 0);
-	var down = new Vector3(0, _height, 0);
-
-	if (_system.globalSpaceParticles)
-	{
-		pos.X += _system.xdraw;
-		pos.Y += _system.ydraw;
-		pos = _system.matrix.TransformVec3(pos);
-
-		right.X = (_system.matrix.m[_11] * _width);
-		right.Y = (_system.matrix.m[_12] * _width);
-		right.Z = (_system.matrix.m[_13] * _width);
-
-		down.X = (_system.matrix.m[_21] * _height);
-		down.Y = (_system.matrix.m[_22] * _height);
-		down.Z = (_system.matrix.m[_23] * _height);
-	}
-
-	for (var i = 0; i < _numb; ++i)
-	{
-		var xx, yy;
-		var doBreak = false;
-
-		while (!doBreak)
-		{
-			xx = MyRandom(0.0, 1.0, _distr);
-			yy = MyRandom(0.0, 1.0, _distr);
-
-			if ((_distr == PART_EDISTR_INVGAUSSIAN) && (_shape != PART_ESHAPE_LINE)) {
-				if (YYRandom() < 0.5) {
-					xx = MyRandom(0.0, 1.0, 0);
-				} else {
-					yy = MyRandom(0.0, 1.0, 0);
-				}
-			}
-
-			switch (_shape)
-			{
-				case PART_ESHAPE_ELLIPSE: {
-					//if ((Sqr(xx - 0.5) + Sqr(yy - 0.5)) <= Sqr(0.5)) doBreak = true; break;
-					var dx = xx - 0.5;
-					var dy = yy - 0.5;
-					if ((dx * dx + dy * dy) <= 0.25) {
-						doBreak = true;
-					}
-				} break;
-
-				case PART_ESHAPE_DIAMOND:
-					if ((Math.abs(xx - 0.5) + Math.abs(yy - 0.5)) <= 0.5) {
-						doBreak = true;
-					}
-					break;
-
-				case PART_ESHAPE_RECTANGLE:
-				case PART_ESHAPE_LINE:
-				default:
-					doBreak = true;
-					break;
-			}
-		}
-
-		var particleX;
-		var particleY;
-
-		if (_shape == PART_ESHAPE_LINE)
-		{
-			particleX = pos.X + right.X * xx + down.X * xx;
-			particleY = pos.Y + right.Y * xx + down.Y * xx;
-		}
-		else
-		{
-			particleX = pos.X + right.X * xx + down.X * yy;
-			particleY = pos.Y + right.Y * xx + down.Y * yy;
-		}
-
-		EmitParticles(_system, _emitter, particleX, particleY, _ptype, 1);
+		if (_applyColor)
+			particles[index].color = _col;
 	}
 }
 
@@ -1860,24 +1522,73 @@ function	ParticleSystem_Emitter_Burst_Impl(
 // #############################################################################################
 function	ParticleSystem_Emitter_Burst(_ps, _ind, _ptype, _numb)
 {
-	_ps = yyGetInt32(_ps);
-	_ind = yyGetInt32(_ind);
+    _ptype = yyGetInt32(_ptype);
+    _numb = yyGetInt32(_numb);
 
-	if (!ParticleSystem_Emitter_Exists(_ps, _ind)) return;
+	if ( _numb < 0 )
+	{
+	    // Cast to an integer
+	    var rand = YYRandom(-_numb) | 0;
+		if (rand == 0)
+		{
+			_numb = 1;
+		}else{
+			return;
+		}
+	}
 
-	var system = g_ParticleSystems[_ps];
-	var emitter = system.emitters[_ind];
-
-	if (!emitter.enabled) return;
-
-	var emitterWidth = emitter.xmax - emitter.xmin;
-	var emitterHeight = emitter.ymax - emitter.ymin;
+	var pPartSys = g_ParticleSystems[yyGetInt32(_ps)];
+	if( pPartSys ==null || pPartSys==undefined ) return;
 	
-	_ptype = yyGetInt32(_ptype);
-	_numb = yyGetReal(_numb);
+	var pEmitter = pPartSys.emitters[yyGetInt32(_ind)];
+	if( pEmitter==null || pEmitter==undefined ) return;
 
-	ParticleSystem_Emitter_Burst_Impl(system, emitter, emitter.xmin, emitter.ymin,
-		emitterWidth, emitterHeight, emitter.shape, emitter.posdistr, _ptype, _numb);
+	for (var i = 0; i <= _numb - 1; i++)
+	{
+		var	xx,yy;
+		var brk = false;
+
+		while( brk==false )
+		{
+			xx = MyRandom(0.0, 1.0, pEmitter.posdistr);
+			yy = MyRandom(0.0, 1.0, pEmitter.posdistr);
+			if ( ( pEmitter.posdistr == PART_EDISTR_INVGAUSSIAN) && (pEmitter.shape != PART_ESHAPE_LINE) )
+			{
+				if ( YYRandom() < 0.5 ){
+					xx = MyRandom(0.0, 1.0, 0);
+				}else{
+					yy = MyRandom(0.0, 1.0, 0);
+				}
+			}
+
+
+			switch ( pEmitter.shape )
+			{
+				case PART_ESHAPE_RECTANGLE:		brk = true; break;														
+				
+				case PART_ESHAPE_ELLIPSE:{	//	if ( (Sqr(xx-0.5)+Sqr(yy-0.5)) <= Sqr(0.5) ) brk = true; break;		
+				    var dx = xx-0.5;
+				    var dy = yy-0.5;
+				    if( (dx*dx + dy*dy) <= 0.25) brk = true;
+				    break;
+				}
+				
+				case PART_ESHAPE_DIAMOND:		if ( (Math.abs(xx-0.5)+Math.abs(yy-0.5)) <= 0.5 ) brk = true; break;		
+				case PART_ESHAPE_LINE:			brk = true; break;
+				default: 
+					brk = true; break;
+			}
+		}
+
+		if ( pEmitter.shape==PART_ESHAPE_LINE )
+		{
+			EmitParticles(_ps, _ind, pEmitter.xmin + (pEmitter.xmax-pEmitter.xmin)*xx,pEmitter.ymin + (pEmitter.ymax-pEmitter.ymin)*xx,_ptype,1);
+		}
+		else
+		{
+			EmitParticles(_ps, _ind, pEmitter.xmin + (pEmitter.xmax-pEmitter.xmin)*xx,pEmitter.ymin + (pEmitter.ymax-pEmitter.ymin)*yy,_ptype,1);
+		}
+	}
 }
 
 
@@ -1895,101 +1606,14 @@ function	ParticleSystem_Emitter_Burst(_ps, _ind, _ptype, _numb)
 // #############################################################################################
 function	ParticleSystem_Emitter_Stream( _ps, _ind, _ptype, _numb)
 {
-	_ps = yyGetInt32(_ps);
-	_ind = yyGetInt32(_ind);
+	var pPartSys = g_ParticleSystems[yyGetInt32(_ps)];
+	if( pPartSys ==null || pPartSys==undefined ) return;
+	
+	var pEmitter = pPartSys.emitters[yyGetInt32(_ind)];
+	if( pEmitter==null || pEmitter==undefined ) return;
 
-	if (!ParticleSystem_Emitter_Exists(_ps, _ind)) return;
-
-	var pEmitter = g_ParticleSystems[_ps].emitters[_ind];
-
+	pEmitter.number = yyGetInt32(_numb);
 	pEmitter.parttype = yyGetInt32(_ptype);
-	pEmitter.number = yyGetReal(_numb);
-}
-
-function EmitterRandomizeDelay(_emitter)
-{
-	if (_emitter.delayMin == 0 && _emitter.delayMax == 0)
-	{
-		_emitter.delayCurrent = 0;
-		return;
-	}
-
-	_emitter.delayCurrent = (_emitter.delayUnit == 1)
-		? irandom_range(~~_emitter.delayMin, ~~_emitter.delayMax)
-		: random_range(_emitter.delayMin, _emitter.delayMax);
-}
-
-// #############################################################################################
-/// Function:<summary>
-///				
-///          </summary>
-///
-/// In:		 <param name="_ps"></param>
-///			 <param name="_ind"></param>
-///			 <param name="_delay_min"></param>
-///			 <param name="_delay_max"></param>
-///			 <param name="_delay_unit"></param>
-///				
-// #############################################################################################
-function	ParticleSystem_Emitter_Delay( _ps, _ind, _delay_min, _delay_max, _delay_unit)
-{
-	if (!ParticleSystem_Emitter_Exists(_ps, _ind)) return;
-	var pEmitter = g_ParticleSystems[_ps].emitters[_ind];
-	pEmitter.delayMin = yyGetInt32(_delay_min);
-	pEmitter.delayMax = yyGetReal(_delay_max);
-	pEmitter.delayUnit = yyGetReal(_delay_unit);
-	EmitterRandomizeDelay(pEmitter);
-}
-
-function EmitterRandomizeInterval(_emitter)
-{
-	if (_emitter.intervalMin == 0 && _emitter.intervalMax == 0)
-	{
-		_emitter.intervalCurrent = 0;
-		return;
-	}
-
-	_emitter.intervalCurrent = (_emitter.intervalUnit == 1)
-		? irandom_range(~~_emitter.intervalMin, ~~_emitter.intervalMax)
-		: random_range(_emitter.intervalMin, _emitter.intervalMax);
-}
-
-// #############################################################################################
-/// Function:<summary>
-///				
-///          </summary>
-///
-/// In:		 <param name="_ps"></param>
-///			 <param name="_ind"></param>
-///			 <param name="_interval_min"></param>
-///			 <param name="_interval_max"></param>
-///			 <param name="_interval_unit"></param>
-///				
-// #############################################################################################
-function	ParticleSystem_Emitter_Interval( _ps, _ind, _interval_min, _interval_max, _interval_unit)
-{
-	if (!ParticleSystem_Emitter_Exists(_ps, _ind)) return;
-	var pEmitter = g_ParticleSystems[_ps].emitters[_ind];
-	pEmitter.intervalMin = yyGetInt32(_interval_min);
-	pEmitter.intervalMax = yyGetReal(_interval_max);
-	pEmitter.intervalUnit = yyGetReal(_interval_unit);
-	EmitterRandomizeInterval(pEmitter);
-}
-
-// #############################################################################################
-/// Function:<summary>
-///				Enable or disable relative/density based mode.
-///			 <param name="_enable"></param>
-///				
-// #############################################################################################
-function	ParticleSystem_Emitter_Relative(_ps, _ind, _enable)
-{
-	_ps = yyGetInt32(_ps);
-	_ind = yyGetInt32(_ind);
-
-	if (!ParticleSystem_Emitter_Exists(_ps, _ind)) return;
-
-	g_ParticleSystems[_ps].emitters[_ind].relative = yyGetBool(_enable);
 }
 
 
@@ -2009,25 +1633,11 @@ function	ParticleSystem_Emitter_Relative(_ps, _ind, _enable)
 // #############################################################################################
 function ParticleSystem_Particles_Create(_ps, _x, _y, _parttype, _numb)
 {
-	var system = g_ParticleSystems[_ps];
+	var em = (g_ParticleSystems[_ps].emitters.length == 0)
+		? ParticleSystem_Emitter_Create(ps)
+		: 0;
 
-	var em = -1;
-	for (var i = 0; i < system.emitters.length; ++i)
-	{
-		var emitter = system.emitters[i];
-		if (emitter.enabled && emitter.created)
-		{
-			em = i;
-			break;
-		}
-	}
-
-	if (em == -1)
-	{
-		em = ParticleSystem_Emitter_Create(_ps);
-	}
-
-	EmitParticles(system, system.emitters[em], _x, _y, _parttype, _numb);
+	EmitParticles(_ps, em, _x, _y, _parttype, _numb);
 }
 
 // #############################################################################################
@@ -2046,93 +1656,13 @@ function ParticleSystem_Particles_Create(_ps, _x, _y, _parttype, _numb)
 // #############################################################################################
 function	ParticleSystem_Particles_Create_Color( _ps, _x, _y, _parttype, _col, _numb)
 {
-	if ( !ParticleSystem_Exists(_ps) ) {
-		console.log( "part_particles_create :: particle system does not exist!" );
-		return;
-	} // end if
-	if ( !ParticleType_Exists(_parttype) ) {
-		console.log( "part_particles_create :: particle type does not exist!" );
-		return;
-	} // end if
+    var em = (g_ParticleSystems[_ps].emitters.length == 0)
+		? ParticleSystem_Emitter_Create(ps)
+		: 0;
 
-	var system = g_ParticleSystems[_ps];
-
-	var em = -1;
-	for (var i = 0; i < system.emitters.length; ++i)
-	{
-		var emitter = system.emitters[i];
-		if (emitter.enabled && emitter.created)
-		{
-			em = i;
-			break;
-		}
-	}
-
-	if (em == -1)
-	{
-		em = ParticleSystem_Emitter_Create(_ps);
-	}
-
-	EmitParticles(system, system.emitters[em], _x, _y, _parttype, _numb, true, _col);
+	EmitParticles(_ps, em, _x, _y, _parttype, _numb, true, _col);
 }
 
-// #############################################################################################
-/// Function:<summary>
-///          	This function allows you to burst all particles defined in a particle system
-///          	resource at any position in the room. The final area, distribution and number
-///          	of the particles created depends on the configuration of emitters inside of the
-///          	particle system resource.
-///          </summary>
-///
-/// In:		<param name="_ind"></param>
-///			<param name="_x"></param>
-///			<param name="_y"></param>
-///			<param name="_partsys"></param>
-/// Out:	<returns>
-///				
-///			</returns>
-// #############################################################################################
-function ParticleSystem_Particles_Burst(_ps, _x, _y, _partsys)
-{
-	if (!ParticleSystem_Exists(_ps)) {
-		console.log("part_particles_burst :: particle system does not exist!");
-		return;
-	} // end if
-
-	var asset = CParticleSystem.Get(_partsys);
-
-	if (asset == null) {
-		console.log("part_particles_burst :: particle system asset does not exist!");
-		return;
-	} // end if
-
-	var system = g_ParticleSystems[_ps];
-	var emitterCount = asset.emitters.length;
-	var emittersEnabled = [];
-
-	for (var i = 0; i < system.emitters.length; ++i)
-	{
-		if (system.emitters[i].enabled)
-			emittersEnabled.push(i);
-	}
-
-	for (var i = emitterCount - emittersEnabled.length; i > 0; --i)
-		emittersEnabled.push(ParticleSystem_Emitter_Create(_ps));
-
-	for (var i = 0; i < emitterCount; ++i)
-	{
-		var emitterIndex = asset.emitters[emitterCount - i - 1];
-		var emitter = g_PSEmitters[emitterIndex];
-
-		if (!emitter.enabled) continue;
-
-		var emitterWidth = emitter.xmax - emitter.xmin;
-		var emitterHeight = emitter.ymax - emitter.ymin;
-
-		ParticleSystem_Emitter_Burst_Impl(system, system.emitters[emittersEnabled[i]], _x + emitter.xmin, _y + emitter.ymin,
-			emitterWidth, emitterHeight, emitter.shape, emitter.posdistr, emitter.parttype, emitter.number);
-	}
-}
 
 // #############################################################################################
 /// Function:<summary>
@@ -2148,10 +1678,7 @@ function	ParticleSystem_Particles_Clear(_ps)
 	if( pPartSys ==null || pPartSys==undefined ) return false;
 
 	for (var i = pPartSys.emitters.length - 1; i >= 0; --i)
-	{
-		var pEmitter = pPartSys.emitters[i];
-		pEmitter.particles = [];
-	}
+		pPartSys.emitters[i].particles = [];
 
 	return true;
 }
@@ -2189,10 +1716,7 @@ function	ParticleSystem_Particles_Count( _ps )
 
 	var count = 0;
 	for (var i = pPartSys.emitters.length - 1; i >= 0; --i)
-	{
-		var pEmitter = pPartSys.emitters[i];
-		count += pEmitter.particles.length;
-	}
+		count += pPartSys.emitters[i].particles.length;
 
 	return count;
 }
@@ -2243,26 +1767,22 @@ function ParticleSystem_Create_GetLayer(_layerID)
 
 function ParticleSystem_Create_OnLayer(_layerID, _persistent, _pPartEl)
 {
-	var index;
-	for (index = 0; index < g_ParticleSystems.length; ++index)
-	{
-		if (g_ParticleSystems[index] == null)
-		{
-			break;
-		}
-	}
+	var layer = null;
+	var index = g_ParticleSystems.length;
 	g_ParticleSystems[index] = new yyParticleSystem();
 	g_ParticleSystems[index].id = index;                    // remember the ID
 	g_ParticleSystems[index].m_elementID = -1;
-	ParticleSystem_Clear(index, false);
+	g_ParticleSystems[index].Clear();
 	_pPartEl.m_systemID = index;
 	g_ParticleSystems[index].m_elementID = _pPartEl.m_id;
 	g_ParticleSystems[index].m_volatile = !_persistent;
 
 	if (_layerID != -1)
 	{
+		layer = g_pLayerManager.GetLayerFromID(room, _layerID);
+
 		//g_ParticleSystems[index].m_origLayerID = _layerID;
-		g_ParticleSystems[index].depth = _pPartEl.m_layer.depth;
+		g_ParticleSystems[index].depth = layer.depth;
 	}
 
 	return index;
@@ -2295,7 +1815,7 @@ function	ParticleSystem_Create(_layerID,_persistent)
 	if (pPartEl == null)
 		return -1;
 	
-	return ParticleSystem_Create_OnLayer(_layerID, _persistent, pPartEl);
+	return ParticleSystem_Create_OnLayer(_layerID, pPartEl, _persistent);
 }
 
 // #############################################################################################
@@ -2334,13 +1854,7 @@ function  ParticleSystem_Destroy( _ps )
 	var pPartSys = g_ParticleSystems[_ps];
 	if (pPartSys == null || pPartSys == undefined) return;
 
-	ParticleSystem_Clear(_ps, false);
-
-	if (g_isZeus)
-	{
-		// Remove this from any layer it happens to be on
-		g_pLayerManager.RemoveElementById(g_RunRoom, g_ParticleSystems[_ps].m_elementID, true);
-	}
+	ParticleSystem_Clear(_ps);
 
 	g_ParticleSystems[_ps] = null;
 	return true;
@@ -2356,7 +1870,9 @@ function ParticleSystem_DestroyAll()
 {
     for (var i = 0; i < g_ParticleSystems.length; i++)
     {
-		ParticleSystem_Destroy(i);
+        if ((g_ParticleSystems[i] != null) && (g_ParticleSystems[i] != undefined)) {
+            ParticleSystem_Clear(i);
+        }
     }
 
 	g_ParticleSystems = [];
@@ -2373,46 +1889,24 @@ function ParticleSystem_DestroyAll()
 ///				
 ///			</returns>
 // #############################################################################################
-function ParticleSystem_Clear(_ps, _reset_element_depth)
+function ParticleSystem_Clear( _ps )
 {
-	_ps = yyGetInt32(_ps);
+    _ps = yyGetInt32(_ps);
 
 	var pPartSys = g_ParticleSystems[_ps];
 	if (pPartSys == null || pPartSys == undefined) return;
 
-	pPartSys.emitters = [];
-
-	pPartSys.oldtonew = true;
-	pPartSys.depth = 0.0;
-	pPartSys.xdraw = 0.0;
-	pPartSys.ydraw = 0.0;
-	pPartSys.automaticupdate = true;
-	pPartSys.automaticdraw = true;
-	pPartSys.color = clWhite;
-	pPartSys.alpha = 1.0;
-	pPartSys.angle = 0.0;
-	pPartSys.globalSpaceParticles = false;
-	pPartSys.matrix = new Matrix();
-
-	var pLayer = null;
-	var pElement = null;
-	var elementAndLayer = g_pLayerManager.GetElementAndLayerFromID(g_RunRoom, pPartSys.m_elementID);
-	if (elementAndLayer != null)
+	if (g_isZeus)
 	{
-		pLayer = elementAndLayer.layer;
-		pElement = elementAndLayer.element;
+	    // Remove this from any layer it happens to be on
+	    if (g_ParticleSystems[_ps].m_elementID !== undefined) {
+	        g_pLayerManager.RemoveElementById(g_RunRoom, g_ParticleSystems[_ps].m_elementID, true);
+	    }
+	    g_ParticleSystems[_ps].m_elementID = -1;
+	    //g_ParticleSystems[_ps].m_origLayerID = -1;
+	    g_ParticleSystems[_ps].m_volatile = false;
 	}
-	if (!_reset_element_depth || (pLayer != null && pLayer.depth == 0))
-		return;
-	
-	g_pLayerManager.RemoveElementById(g_RunRoom, pPartSys.m_elementID, true);
-	var pPartEl = new CLayerParticleElement();
-	// if (pPartEl)
-	{
-		g_pLayerManager.AddNewElementAtDepth(g_RunRoom, 0, pPartEl, true, true);
-		pPartSys.m_elementID = pPartEl.m_id;
-		pPartEl.m_systemID = _ps;
-	}
+	pPartSys.Clear();
 }
 
 function ParticleSystem_GetLayer(_ps)
@@ -2471,23 +1965,6 @@ function ParticleSystem_Layer(_ps,_layerID)
             }
         }
     }
-}
-
-// #############################################################################################
-/// Function:<summary>
-///          	Enables or disabled global space particles
-///          </summary>
-///
-/// In:		<param name="_ps"></param>
-///			<param name="_enable"></param>
-/// Out:	<returns>
-///				
-///			</returns>
-// #############################################################################################
-function ParticleSystem_GlobalSpace(_ps, _enable)
-{
-	if (!ParticleSystem_Exists(_ps)) return;
-	g_ParticleSystems[_ps].globalSpaceParticles = _enable;
 }
 
 // #############################################################################################
@@ -2566,26 +2043,6 @@ function ParticleSystem_Depth(_ps, _depth)
 	}*/
 }
 
-// #############################################################################################
-/// Function:<summary>
-///				Changes the color and alpha with which to blend the particle system.
-///          </summary>
-///
-/// In:		 <param name="ps"></param>
-///			 <param name="color"></param>
-///			 <param name="alpha"></param>
-/// Out:	 <returns>
-///				
-///			 </returns>
-// #############################################################################################
-function	ParticleSystem_Color(_ps, _color, _alpha)
-{
-	var pPartSys = g_ParticleSystems[yyGetInt32(_ps)];
-	if( pPartSys ==null || pPartSys==undefined ) return;
-
-	pPartSys.color = yyGetInt32(_color);
-	pPartSys.alpha = yyGetReal(_alpha);
-}
 
 // #############################################################################################
 /// Function:<summary>
@@ -2608,24 +2065,6 @@ function	ParticleSystem_Position(_ps, _x, _y)
 	pPartSys.ydraw = yyGetReal(_y);
 }
 
-// #############################################################################################
-/// Function:<summary>
-///				Changes the rotation of the particle system.
-///          </summary>
-///
-/// In:		 <param name="ps"></param>
-///			 <param name="angle"></param>
-/// Out:	 <returns>
-///				
-///			 </returns>
-// #############################################################################################
-function	ParticleSystem_Angle(_ps, _angle)
-{
-	var pPartSys = g_ParticleSystems[yyGetInt32(_ps)];
-	if( pPartSys ==null || pPartSys==undefined ) return;
-
-	pPartSys.angle = yyGetReal(_angle);
-}
 
 // #############################################################################################
 /// Function:<summary>
@@ -2683,43 +2122,38 @@ function HandleLife( _ps, _em )
 {
 	var i = 0;
 	var numb = 0;
+	var ind = 0;
 
 	var pPartSys = g_ParticleSystems[_ps];
-	var pEmitter = pPartSys.emitters[_em];
-	var pParticles = pEmitter.particles;
-
-	while (i < pParticles.length)
+	var pParticles = pPartSys.emitters[_em].particles;	
+	i = 0;
+	while( i<pParticles.length )
 	{
+			
 		var pParticle = pParticles[i];
 		var pParType = g_ParticleTypes[ pParticle.parttype ];
-		
+
 		// Update the age and create death particles
 		pParticle.age++;
 			
 		if ( pParticle.age >= pParticle.lifetime )			// change this to a check with 0... and count age down.
 		{
-			if (pParType !== null)
-			{
-				numb = pParType.deathnumber;
-				if ( numb<0 ){
-					if ( ~~YYRandom(-numb) == 0 ) numb = 1;
-				}
-				if  ( numb > 0 ){
-					EmitParticles(pPartSys, pEmitter, pParticle.x, pParticle.y, pParType.deathtype, numb);
-				}
+			numb = pParType.deathnumber;
+			if ( numb<0 ){
+				if ( YYRandom(-numb) == 0 ) numb = 1;
+			}
+			if  ( numb > 0 ){
+				ParticleSystem_Particles_Create( _ps, pParticle.x, pParticle.y, pParType.deathtype, numb);
 			}
 			pParticles.splice(i,1);	// remove particle
-		} else {
-			if (pParType !== null)
-			{
-				// Create step particles
-				numb = pParType.stepnumber;
-				if ( numb<0 ){
-					if ( ~~YYRandom(-numb) == 0 ) numb = 1;
-				}
-				if ( numb > 0 ){
-					EmitParticles(pPartSys, pEmitter, pParticle.x, pParticle.y, pParType.steptype, numb);
-				}
+		}else{	
+			// Create step particles
+			numb = pParType.stepnumber;
+			if ( numb<0 ){
+				if ( YYRandom(-numb) == 0 ) numb = 1;
+			}
+			if ( numb > 0 ){
+				ParticleSystem_Particles_Create(_ps, pParticle.x, pParticle.y, pParType.steptype,numb);
 			}
 		
 			i++;		// next particle. Dont do if we deleted one, because SPLICE moves them all down...
@@ -2760,10 +2194,7 @@ function HandleMotion( _ps, _em )
 	{
 		var pParticle = pParticles[i];
 		var pParType = g_ParticleTypes[ pParticle.parttype ];
-		
-		// Fix for null particle HTML5 crash - happens when particle type is destroyed but emitter is still alive
-		if (pParType === null) continue;
-		
+	
 		// adapt speed and direction and angle
 		pParticle.speed = pParticle.speed + pParType.spincr;
 		if ( pParticle.speed < 0 ) pParticle.speed = 0;
@@ -2831,15 +2262,10 @@ function  HandleShape(_ps, _em)
 		var pParticle = pParticles[i];
 		var pParType = g_ParticleTypes[ pParticle.parttype ];
 		
-		// Fix for null particle HTML5 crash - happens when particle type is destroyed but emitter is still alive
-		if (pParType === null) continue;
 		
 		// adapt the size
-		pParticle.xsize = pParticle.xsize + pParType.sizeIncrX;
-		if ( pParticle.xsize < 0 ) { pParticle.xsize = 0; }
-		
-		pParticle.ysize = pParticle.ysize + pParType.sizeIncrY;
-		if ( pParticle.ysize < 0 ) { pParticle.ysize = 0; }
+		pParticle.size = pParticle.size + pParType.sizeincr;
+		if ( pParticle.size < 0 ) { pParticle.size = 0; }
 		
 		
 		// adapt the color
@@ -2886,43 +2312,15 @@ function ParticleSystem_Update(_ps)
 	{
 		for (var i = 0; i < pEmitters.length; i++)
 		{
-			var pEmitter = pEmitters[i];
-
-			if (!pEmitter.enabled) continue;
-			if (!pEmitter.created && !pEmitter.zombie) continue;
-
 			HandleLife(_ps, i);
 			HandleMotion(_ps, i);
 			HandleShape(_ps, i);
 
-			if (pEmitter.delayCurrent > 0.0)
+			if( pEmitters[i]!=null
+				&& pEmitters[i].mode != PT_MODE_BURST
+				&& pEmitters[i].number != 0)
 			{
-				pEmitter.delayCurrent -= (pEmitter.delayUnit == 1)
-					? 1.0 : (g_pBuiltIn.delta_time * 0.000001);
-
-				if (pEmitter.delayCurrent <= 0.0)
-				{
-					ParticleSystem_Emitter_Burst(_ps, i, pEmitter.parttype, pEmitter.number);
-				}
-
-				continue;
-			}
-
-			if (pEmitter.mode != PT_MODE_BURST)
-			{
-				pEmitter.intervalCurrent -= (pEmitter.intervalUnit == 1)
-					? 1.0 : (g_pBuiltIn.delta_time * 0.000001);
-
-				if (pEmitter.intervalCurrent <= 0.0)
-				{
-					ParticleSystem_Emitter_Burst(_ps, i, pEmitter.parttype, pEmitter.number);
-					EmitterRandomizeInterval(pEmitter);
-				}
-			}
-
-			if (pEmitter.particles.length == 0)
-			{
-				pEmitter.zombie = false;
+				ParticleSystem_Emitter_Burst(_ps, i, pEmitters[i].parttype, pEmitters[i].number);
 			}
 		}
 	}
@@ -2953,19 +2351,12 @@ function  ParticleSystem_UpdateAll()
 	}
 }
 
-function ParticleSystem_SetMatrix(_ps, _matrix)
-{
-	if (!ParticleSystem_Exists(_ps)) return;
-	g_ParticleSystems[_ps].matrix = new Matrix(_matrix);
-}
-
 // #############################################################################################
 /// Function:<summary>
 ///				Draws a particle
 ///          </summary>
 ///
-/// In:		 <param name="_pPartSys"></param>
-///			 <param name="_pParticle"></param>
+/// In:		 <param name="_pParticle"></param>
 ///			 <param name="_xoff"></param>
 ///			 <param name="_yoff"></param>
 ///			 <param name="_color"></param>
@@ -2974,26 +2365,19 @@ function ParticleSystem_SetMatrix(_ps, _matrix)
 ///				
 ///			 </returns>
 // #############################################################################################
-function	DrawParticle(_pPartSys, _pParticle, _xoff, _yoff, _color, _alpha)
+function	DrawParticle(_pParticle, _xoff, _yoff, _color, _alpha)
 {
 	_color = (_color === undefined) ? 0xffffff : _color;
 	_alpha = (_alpha === undefined) ? 1.0 : _alpha;
-	
-	var psColor = _pPartSys.color;
-	var psAlpha = _pPartSys.alpha;
-	
+
 	var spr= null;
 	var pTexture=null;
 
 	if ( _pParticle.lifetime <= 0 ) return;
 	var pParType = g_ParticleTypes[ _pParticle.parttype ];
-	
-	// Fix for null particle HTML5 crash - happens when particle type is destroyed but emitter is still alive
-	if (pParType === null) return;
 
-	// @if feature("sprites")
+
 	spr = g_pSpriteManager.Get( pParType.sprite );
-	// @endif sprites
 	if( spr == null )
 	{
 		var shape = pParType.shape;
@@ -3011,6 +2395,9 @@ function	DrawParticle(_pPartSys, _pParticle, _xoff, _yoff, _color, _alpha)
 		}
 	}
 
+
+	var n ;
+
 	// If a default particle, then no animation for it, just draw it.
 	if( pTexture!=null ){
 		
@@ -3020,22 +2407,15 @@ function	DrawParticle(_pPartSys, _pParticle, _xoff, _yoff, _color, _alpha)
 
 		if ( !pParType.spriteanim )
 		{
-			// _pParticle.subimg = _pParticle.spritestart;
+			n = _pParticle.spritestart;
 		}
 		else if ( pParType.spritestretch )
 		{
-			var duration = (spr.m_skeletonSprite)
-				? spr.m_skeletonSprite.m_skeletonData.animations[0].duration
-				: spr.numb;
-			_pParticle.subimg = _pParticle.spritestart + duration * _pParticle.age/_pParticle.lifetime;
+			n = _pParticle.spritestart + (spr.numb * _pParticle.age/_pParticle.lifetime);
 		}
 		else
 		{
-			var fps = (spr.m_skeletonSprite) ? g_GameTimer.GetFPS() : 1.0;
-			if (fps > 0.0)
-			{
-				_pParticle.subimg += 1.0 / fps;
-			}
+			n = _pParticle.spritestart + _pParticle.age;
 		}
 	}
 
@@ -3053,19 +2433,26 @@ function	DrawParticle(_pPartSys, _pParticle, _xoff, _yoff, _color, _alpha)
 	r = ((_pParticle.age+_pParticle.ran) % 16)/4.0;
 	if ( r > 2.0 ) r = 4.0-r;
 	r = r-1.0;
+	
+	// Set the blend mode to additive if the particles is set to be additive.
+	// This is reset in ParticleSystem_Draw after all particles have been drawn.
+	draw_set_blend_mode(_pParticle.additiveblend ? 1 : 0);
 
-	var sx = _pParticle.xsize + r*pParType.sizeRandX;
-	var sy = _pParticle.ysize + r*pParType.sizeRandY;
+	var s = _pParticle.size + r*pParType.sizerand;   
 
-	var mulColor = Color_Multiply(psColor, Color_Multiply(_pParticle.color, _color));
-	var mulAlpha = psAlpha * _pParticle.alpha * _alpha;
+	var mulColor = make_color_rgb(
+		(color_get_red(_pParticle.color) * color_get_red(_color)) / 255.0,
+		(color_get_green(_pParticle.color) * color_get_green(_color)) / 255.0,
+		(color_get_blue(_pParticle.color) * color_get_blue(_color)) / 255.0
+	);
+	var mulAlpha = _pParticle.alpha * _alpha;
 
 	// If a built in particle, make it right here...
 	if (pTexture != null)
 	{
 		var xscale,yscale,ang;
-		var xsc = pParType.xscale*sx;
-		var ysc = pParType.yscale*sy;
+		var xsc = pParType.xscale*s;
+		var ysc = pParType.yscale*s;
 		var rot = aa;
 
 		var _X = ~~(_pParticle.x+_xoff);
@@ -3080,30 +2467,12 @@ function	DrawParticle(_pPartSys, _pParticle, _xoff, _yoff, _color, _alpha)
 		}
 	}else{
 		// If a user supplied particle, call via sprite handler to draw it.
-		if (spr.m_skeletonSprite)
-		{
-			spr.m_skeletonSprite.DrawTime(null, null,
-				_pParticle.subimg,
-				_pParticle.x+_xoff,
-				_pParticle.y+_yoff,
-				g_ParticleTypes[_pParticle.parttype].xscale*sx,
-				g_ParticleTypes[_pParticle.parttype].yscale*sy,
-				aa,
-				mulColor,
-				mulAlpha);
-		}
-		else
-		{
-			spr.Draw(
-				_pParticle.subimg,
-				_pParticle.x+_xoff,
-				_pParticle.y+_yoff,
-				g_ParticleTypes[_pParticle.parttype].xscale*sx,
-				g_ParticleTypes[_pParticle.parttype].yscale*sy,
-				aa,
-				mulColor,
-				mulAlpha);
-		}
+		spr.Draw( n,	_pParticle.x+_xoff,_pParticle.y+_yoff, 
+						g_ParticleTypes[_pParticle.parttype].xscale*s, g_ParticleTypes[_pParticle.parttype].yscale*s,
+						aa,
+						mulColor,
+						mulAlpha
+				);		
 	}
 }
 
@@ -3134,70 +2503,32 @@ function ParticleSystem_Draw( _ps, _color, _alpha )
 	    src = GR_BlendSrc;
 	    dest = GR_BlendDest;
 	}
-	var additiveBlend = false;
-	var setAdditiveBlend = function (_enable) {
-		if (_enable && !additiveBlend)
-		{
-			draw_set_blend_mode(1);
-			additiveBlend = true;
-		}
-		else if (!_enable && additiveBlend)
-		{
-			if (g_webGL != null) {
-				draw_set_blend_mode_ext(src, dest);
-			} else {
-				draw_set_blend_mode(0);
-			}
-			additiveBlend = false;
-		}
-	};
-
-	var xoff, yoff, matrixWorld;
-	if (pPartSys.globalSpaceParticles)
-	{
-		xoff = 0;
-		yoff = 0;
-		matrixWorld = WebGL_GetMatrix(MATRIX_WORLD);
-		WebGL_SetMatrix(MATRIX_WORLD, new Matrix());
-	}
-	else
-	{
-		xoff = pPartSys.xdraw;
-		yoff = pPartSys.ydraw;
-	}
-
+    
 	for (var e = 0; e < pPartSys.emitters.length; ++e)
 	{
-		var pEmitter = pPartSys.emitters[e];
-		if (!pEmitter.enabled) continue;
-
-		var pParticles = pEmitter.particles;
+		var pParticles = pPartSys.emitters[e].particles;
 		if ( pPartSys.oldtonew )
 		{
 			for (var i = 0; i < pParticles.length; i++)
-			{
-				var pParticle = pParticles[i];
-				setAdditiveBlend(pParticle.additiveblend);
-				DrawParticle(pPartSys, pParticle, xoff, yoff, _color, _alpha );
+			{            	
+				DrawParticle( pParticles[i], pPartSys.xdraw, pPartSys.ydraw, _color, _alpha );
 			}
 		}
 		else
 		{
-			for(var i = pParticles.length - 1; i >= 0; i--)
+			for(var i=pParticles.length-1 ; i >= 0 ; i-- )
 			{
-				var pParticle = pParticles[i];
-				setAdditiveBlend(pParticle.additiveblend);
-				DrawParticle(pPartSys, pParticle, xoff, yoff, _color, _alpha );
+				DrawParticle( pParticles[i], pPartSys.xdraw, pPartSys.ydraw, _color, _alpha );
 			}
 		}
 	}
 
-	if (pPartSys.globalSpaceParticles)
-	{
-		WebGL_SetMatrix(MATRIX_WORLD, matrixWorld);
+	if (g_webGL != null) {
+	    draw_set_blend_mode_ext(src, dest);
 	}
-
-	setAdditiveBlend(false);
+	else {	    
+	    draw_set_blend_mode(0);
+	}
 }
 
 
@@ -3231,110 +2562,109 @@ function ParticleSystem_DrawDepth(_d)
 
 
 function ParticleSystem_AddAllToLayers() {
-	if (!g_isZeus) return;
+    if (g_isZeus)
+    {
+        if (persistentsystemlayernames.length < g_ParticleSystems.length)
+        {
+            var oldlength = persistentsystemlayernames.length;
+            for(var i = oldlength; i < g_ParticleSystems.length; i++)
+            {
+                persistentsystemlayernames[i] = null;
+            }
+        }
+        for(var i = 0; i < g_ParticleSystems.length; i++)
+        {
+            var pPartSys = g_ParticleSystems[i];
+            if (pPartSys != null)
+            {
+                if (pPartSys.m_elementID == -1)
+                {
+                    var pTempLayer = null;
+                    var pLayerName = persistentsystemlayernames[i];
+                    if (pLayerName != null)
+                    {
+                        // Use the same logic as persistent objects to look for a layer with a matching name	
+                        pTempLayer = g_pLayerManager.GetLayerFromName(g_RunRoom, pLayerName);
+                        if (pTempLayer == null)
+                        {
+                            // We didn't find a matching layer, so create one with that name and the particle system's depth
+                            pTempLayer = g_pLayerManager.AddLayer(g_RunRoom, pPartSys.depth, pLayerName);
+                        }
+                    }
 
-	if (persistentsystemlayernames.length < g_ParticleSystems.length)
-	{
-		var oldlength = persistentsystemlayernames.length;
-		for(var i = oldlength; i < g_ParticleSystems.length; i++)
-		{
-			persistentsystemlayernames[i] = null;
-		}
-	}
+                    // Add this particle system to the layer system
+                    var pPartEl = new CLayerParticleElement();
+                    pPartEl.m_systemID = i;
 
-	for(var i = 0; i < g_ParticleSystems.length; i++)
-	{
-		var pSystem = g_ParticleSystems[i];
+                    if (pTempLayer != null)
+                    {
+                        pPartSys.m_elementID = g_pLayerManager.AddNewElement(g_RunRoom, pTempLayer, pPartEl, true);
+                    }                    
 
-		if (!pSystem || pSystem.m_elementID != -1) continue;
+                    if (pPartSys.m_elementID == -1)
+                    {
+                        // If no layer was specified, or if the specified layer doesn't exist in the current room, add the element at the system depth
+                        pPartSys.m_elementID = g_pLayerManager.AddNewElementAtDepth(g_RunRoom, pPartSys.depth, pPartEl, true, true);
+                    }                    
+                }
+            }
+        }
 
-		var pTempLayer = null;
-		var pLayerName = persistentsystemlayernames[i];
-		if (pLayerName != null)
-		{
-			// Use the same logic as persistent objects to look for a layer with a matching name	
-			pTempLayer = g_pLayerManager.GetLayerFromName(g_RunRoom, pLayerName);
-			if (pTempLayer == null)
-			{
-				// We didn't find a matching layer, so create one with that name and the particle system's depth
-				pTempLayer = g_pLayerManager.AddLayer(g_RunRoom, pSystem.depth, pLayerName);
-			}
-		}
-
-		// Add this particle system to the layer system
-		var pPartEl = new CLayerParticleElement();
-		pPartEl.m_systemID = i;
-
-		if (pTempLayer != null)
-		{
-			pSystem.m_elementID = g_pLayerManager.AddNewElement(g_RunRoom, pTempLayer, pPartEl, true);
-		}
-
-		if (pSystem.m_elementID == -1)
-		{
-			// If no layer was specified, or if the specified layer doesn't exist in the current room, add the element at the system depth
-			pSystem.m_elementID = g_pLayerManager.AddNewElementAtDepth(g_RunRoom, pSystem.depth, pPartEl, true, true);
-		}
-	}
-
-	persistentsystemlayernames = [];
+        persistentsystemlayernames = [];
+    }
 };
 
 function ParticleSystem_RemoveAllFromLayers()
 {
-	if (!g_isZeus) return;
+    if (g_isZeus)
+    {
+        for(var i = 0; i < g_ParticleSystems.length; i++)
+        {
+            var pPartSys = g_ParticleSystems[i];
+            if (pPartSys != null)
+            {
+                var pTempLayer = null;
 
-	persistentsystemlayernames = new Array(g_ParticleSystems.length).fill(null);
+                if (pPartSys.m_elementID != -1)
+                {
+                    // Get layer
+                    var elandlay = g_pLayerManager.GetElementAndLayerFromID(g_RunRoom, pPartSys.m_elementID);
+                    if (elandlay != null)
+                    {
+                        pTempLayer = elandlay.layer;
+                    }
 
-	for (var i = 0; i < g_ParticleSystems.length; ++i)
-	{
-		var pSystem = g_ParticleSystems[i];
+                    g_pLayerManager.RemoveElementById(g_RunRoom, g_ParticleSystems[i].m_elementID, true);
+                    pPartSys.m_elementID = -1;
+                }
 
-		if (!pSystem) continue;
+                if (pPartSys.m_volatile == true)
+                {
+                    ParticleSystem_Destroy(i);  // this particle system is volatile so nuke it
 
-		// Get layer and element that the particle system is on
-		var pLayer = null;
-		var pLayerElement = null;
-
-		if (pSystem.m_elementID != -1)
-		{
-			var layerAndElement = g_pLayerManager.GetElementAndLayerFromID(g_RunRoom, pSystem.m_elementID);
-			if (layerAndElement != null)
-			{
-				pLayer = layerAndElement.layer;
-				pLayerElement = layerAndElement.element;
-			}
-		}
-
-		// Handle volatile particle system
-		if (pSystem.m_volatile)
-		{
-			var isOnPersistentRoomLayer = (pLayer && !pLayer.m_dynamic && pLayerElement);
-
-			if (isOnPersistentRoomLayer)
-			{
-				pLayerElement.m_systemID = -1;
-				pSystem.m_elementID = -1;
-			}
-
-			ParticleSystem_Destroy(i);
-			persistentsystemlayernames[i] = null;
-			continue;
-		}
-
-		// Handle persistent particle systems
-		g_pLayerManager.RemoveElementById(g_RunRoom, pSystem.m_elementID, true);
-		pSystem.m_elementID = -1;
-		
-		if (pLayer && pLayer.m_pName && !pLayer.m_dynamic)
-		{
-			persistentsystemlayernames[i] = pLayer.m_pName;
-		}
-		else
-		{
-			persistentsystemlayernames[i] = null;
-		}
-	}
+                    persistentsystemlayernames[i] = null;
+                }
+                else
+                {
+                    if (pTempLayer != null)
+                    {
+                        if (pTempLayer.m_dynamic == true)
+                        {
+                            persistentsystemlayernames[i] = null;
+                        }
+                        else
+                        {
+                            persistentsystemlayernames[i] = pTempLayer.m_pName;
+                        }
+                    }
+                    else
+                    {
+                        persistentsystemlayernames[i] = null;
+                    }
+                }
+            }
+        }
+    }
 }
 
 function ParticleSystem_AutoDraw(_ps) {

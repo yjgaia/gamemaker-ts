@@ -18,11 +18,9 @@ var MAX_KEYS = 256;
 var MAX_BUTTONS = 5;
 var MAX_INPUT_STRING = 1024;
 
-// @if function("virtual_key_*")
 var VIRTUALKEY_ACTIVE = 1;
 var VIRTUALKEY_DRAW = 2;
 var VIRTUALKEY_OUTLINE = 4;
-// @endif
 
 var	NEW_INPUT_EVENT = 1;                // this is a new event
 var	TOUCH_INPUT_EVENT = 2;				// this was done via mouse or touch
@@ -44,10 +42,7 @@ var g_ButtonButton = 0,
 	g_MouseUP = 0,
 	g_MouseDOWN = 0,
 	g_BrowserInputCapture = false,
-	g_MouseWheel = 0,
-	g_MouseLocked = false,
-	g_MouseDeltaX = 0,
-	g_MouseDeltaY = 0;
+	g_MouseWheel = 0;
 
 
 var g_KeyDown = [];
@@ -55,21 +50,17 @@ var g_KeyPressed = [];
 var g_KeyUp = [];
 
 // Used for virtual key-press tracking
-// @if function("virtual_key_*")
 var g_VirtualKeys = [];
-// @endif
 var g_InputEvents = [];
 
 // Collects together the current set of input events, including holding onto the mouse down state
 var g_CurrentInputEvents = [];
 
-// @if function("virtual_key_*")
 var g_LastVirtualKeys = 0;
-// @endif
 
 // Collects together all touch events as single-button mice
 var g_TouchEvents = [];
-// @if feature("keyboard")
+
 var g_UnshiftedKeyboardMapping = {
 8: String.fromCharCode(8),
 9:0,
@@ -286,7 +277,7 @@ var g_ShiftedKeyboardMapping = {
 	222: "~",	//single quote	222
 	223: "¬"
 };
-// @endif
+
 
 
 // #############################################################################################
@@ -345,11 +336,23 @@ function hideshow(which)
 function CheckJSON_Game(_ifr, _can) {
 	try
 	{
-		let _guid = _ifr?.JSON_game?.Options?.gameGuid;
-		if (_guid && _guid == JSON_game.Options.gameGuid) {
-			_ifr.focus();
-			_can.focus();
-			return true;
+		if (_ifr)
+		{
+			if (_ifr.JSON_game)
+			{
+				if (_ifr.JSON_game.Options)
+				{
+					if (_ifr.JSON_game.Options.gameGuid)
+					{
+						if (_ifr.JSON_game.Options.gameGuid == JSON_game.Options.gameGuid)
+						{
+							_ifr.focus();
+							_can.focus();
+							return true;
+						}
+					}
+				}
+			}
 		}
 	} catch (err)
 	{
@@ -664,7 +667,6 @@ function CancelFullScreenMode() {
 // #############################################################################################
 function CaptureBrowserInput() {
 	if (g_InputCaught) return;
-	// @if feature("keyboard")
 	window.onkeyup = function () { yyKeyUpCallback(arguments[0] || window.event); };
 	window.onkeydown = function ()
 	{
@@ -690,7 +692,6 @@ function CaptureBrowserInput() {
             return false;
 		}
 	};
-	// @endif
 	window.onmouseup = onMouseUp;
 	g_InputCaught = true;
 }
@@ -703,10 +704,8 @@ function CaptureBrowserInput() {
 // #############################################################################################
 function ReleaseBrowserInput() {
 	if (g_InputCaught == false) return;
-	// @if feature("keyboard")
 	window.onkeydown = null;
 	window.onkeyup = null;
-	// @endif
 	window.onmouseup = null;
 
 	g_InputCaught = false;
@@ -886,18 +885,6 @@ function onMouseMove(_evt) {
 
 	g_EventMouseX = _evt.clientX;
 	g_EventMouseY = _evt.clientY;
-	
-	g_MouseDeltaX = _evt.movementX
-		|| _evt.mozMovementX
-		|| _evt.webkitMovementX
-		|| _evt.msMovementX
-		|| 0;
-
-	g_MouseDeltaY = _evt.movementY
-		|| _evt.mozMovementY
-		|| _evt.webkitMovementY
-		|| _evt.msMovementY
-		|| 0;
 
 	// Keep the current input events updated        		
 	g_CurrentInputEvents[_evt.button].x = g_EventMouseX;
@@ -968,7 +955,6 @@ function onMouseUp(_evt) {
 /// In:		<param name="_evt"></param>
 // #############################################################################################
 function onMouseWheel(_evt) {
-	_evt.preventDefault();
 	if(_evt.detail)
 	{
 		g_MouseWheel = -_evt.detail;
@@ -1037,7 +1023,6 @@ function    yyIOManager( )
     this.Update = IO_Update;
     //this.Clear = IO_Clear;
     this.StartStep = IO_StartStep;
-	// @if feature("keyboard")
     this.Char_Last_Get = Char_Last_Get;
     this.Char_Last_Set = Char_Last_Set;
     this.Key_Last_Get = Key_Last_Get;
@@ -1047,8 +1032,7 @@ function    yyIOManager( )
     this.Key_Down = Key_Down;
     this.Key_Pressed = Key_Pressed;
     this.Key_Released = Key_Released;
-	this.Key_Clear = Key_Clear;
-    // @endif keyboard
+    this.Key_Clear = Key_Clear;
     this.Button_Last_Get = Button_Last_Get;
     this.Button_Current_Get = Button_Current_Get;
 	this.Button_Last_Set = Button_Last_Set;
@@ -1058,14 +1042,10 @@ function    yyIOManager( )
     this.Button_Released = Button_Released;
     this.Button_Clear = Button_Clear;
     this.Button_Clear_All = Button_Clear_All;
-	// @if feature("keyboard")
     this.HandleKeyDown =    IO_HandleKeyDown;
     this.HandleKeyPressed=  IO_HandleKeyPressed;
     this.HandleKeyReleased= IO_HandleKeyReleased;
-	// @endif
-	// @if function("virtual_key_*")
     this.ProcessVirtualKeys = ProcessVirtualKeys;
-	// @endif
 
 	// going from 0 to max makes it a "proper" packed array, and is much faster for some Javascript engines.
     for (var l = 0; l < MAX_KEYS; l++){
@@ -1086,14 +1066,6 @@ function    yyIOManager( )
     
     browser_input_capture( true );    
 
-}
-
-function onMouseLockChange()
-{
-	g_MouseLocked = (document.pointerLockElement === canvas
-		|| document.mozPointerLockElement === canvas
-		|| document.webkitPointerLockElement === canvas
-		|| document.msPointerLockElement === canvas);
 }
 
 function browser_input_capture( _enable )
@@ -1127,11 +1099,6 @@ function browser_input_capture( _enable )
         window.addEventListener("focus", yySetINFocus);
         window.addEventListener("blur", yySetOUTFocus);
 
-		document.onpointerlockchange = onMouseLockChange;
-		document.onmozpointerlockchange = onMouseLockChange;
-		document.onwebkitpointerlockchange = onMouseLockChange;
-		document.onmspointerlockchange = onMouseLockChange;
-		
         // IE, Chrome, FireFox and Safari
       
         CaptureBrowserInput();
@@ -1164,11 +1131,6 @@ function browser_input_capture( _enable )
         window.onfocus = null;
         window.onblur = null;
 
-		document.onpointerlockchange = null;
-		document.onmozpointerlockchange = null;
-		document.onwebkitpointerlockchange = null;
-		document.onmspointerlockchange = null;
-		
         // IE, Chrome, FireFox and Safari
        
         ReleaseBrowserInput();
@@ -1202,9 +1164,7 @@ function yyInputEvent()
 // #############################################################################################
 function Clear_Pressed() 
 {
-	// @if feature("keyboard")
 	IO_Key_Clear_All();
-	// @endif keyboard
 	IO_Button_Clear_All();
 	g_pBuiltIn.keyboard_key = 0;
 	g_pBuiltIn.keyboard_key = "";
@@ -1226,9 +1186,7 @@ function Clear_Pressed()
 //function IO_Clear()
 yyIOManager.prototype.Clear = function () {
 	//String_Clear();
-	// @if feature("keyboard")
 	this.Key_Clear_All();
-	// @endif keyboard
 	this.Button_Clear_All();
 
 	g_pBuiltIn.keyboard_key = 0;
@@ -1691,7 +1649,6 @@ function    IO_Update()
         g_CurrentInputEvents[eventIndex].Flags &= ~NEW_INPUT_EVENT;
     }
 
-	// @if feature("keyboard")
 	if (g_LastKeyPressed_code)
 	{
 		if (g_LastKeyPressed)
@@ -1727,7 +1684,6 @@ function    IO_Update()
 	    g_pBuiltIn.keyboard_lastkey = g_pBuiltIn.keyboard_key;
 	    g_pBuiltIn.keyboard_key = 0;
 	}
-	// @endif
 
     this.MouseX = g_EventMouseX;
     this.MouseY = g_EventMouseY;
@@ -1824,9 +1780,7 @@ function    IO_Update()
     g_pBuiltIn.mouse_button = g_EventButtonDown + 1;
     g_pBuiltIn.mouse_lastbutton = g_EventLastButtonDown + 1;
     
-    // @if function("virtual_key_*")
     this.ProcessVirtualKeys();
-	// @endif
 }
 
 // #############################################################################################
@@ -1835,7 +1789,6 @@ function    IO_Update()
 ///          </summary>
 // #############################################################################################
 /** @this {yyIOManager} */
-// @if function("virtual_key_*")
 function ProcessVirtualKeys()
 {       
     var CurrentVirtualKeyEvents = 0;
@@ -1909,7 +1862,6 @@ function ProcessVirtualKeys()
 
 	g_LastVirtualKeys = CurrentVirtualKeyEvents;
 }
-// @endif virtualkey
 
 // #############################################################################################
 /// Function:<summary>
@@ -2209,7 +2161,6 @@ function HandleKeyboard()
     g_pIOManager.HandleKeyReleased();
 }
 
-// @if function("virtual_key_*")
 // #############################################################################################
 /// Function:<summary>
 ///             Constructor for a VirtualKey object
@@ -2277,8 +2228,6 @@ function DeleteAllVirtualKeys() {
 		g_VirtualKeys[l].flags = 0;
 	}
 }
-// @endif virtualkey helpers
-
 // #############################################################################################
 /// Property: <summary>
 ///           	Render IO specific stuff.
@@ -2301,7 +2250,7 @@ yyIOManager.prototype.Render = function () {
 	Graphics_SetTransform(trans);
 	//graphics._setTransform(trans[0], trans[1], trans[2], trans[3], trans[4], trans[5]);
 
-	// @if function("virtual_key_*")
+
 	var oldalpha = draw_get_alpha();
 	var oldcolour = draw_get_color();
 
@@ -2318,5 +2267,4 @@ yyIOManager.prototype.Render = function () {
 	draw_set_color(oldcolour);
 	draw_set_alpha(oldalpha);
 	Graphics_Restore();
-	// @endif virtualkey draw
 };

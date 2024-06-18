@@ -51,11 +51,9 @@ function yyVBufferManager(_commandBuilder,_renderStateManager) {
     ///          </summary>
     // #############################################################################################
     /** @this {yyVBufferManager} */
-    this.Dispatch = function (_prim, _texture, _vbuffer, _vertexStart, _vertexCount) {
-		var size = (_vertexCount === undefined)
-			? _vbuffer.Current - _vertexStart
-			: _vertexCount;
+    this.Dispatch = function (_prim, _texture, _vbuffer, _vertexStart) {
 
+        var size = _vbuffer.Current - _vertexStart;
         switch (_prim)
     	{
     		case yyGL.PRIM_TRIANGLE:

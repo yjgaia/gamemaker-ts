@@ -36,7 +36,7 @@ var REGIONATTACHMENT_OY4 = 7;
 function SetSkeletonDrawInstance(_instance) {
     g_skeletonDrawInstance = _instance;
 };
-// @if feature("spine")
+
 function yyImageProxy()
 {
     this.width = null;
@@ -159,21 +159,6 @@ yySkeletonSprite.prototype.Load = function (_atlasDir, _sprName, _jsonData, _atl
                 newTex.image = 	e.SrcElement;
                 var target = e.target || e.srcElement;      // for compatibility with IE6-8
                 self.SetupTPE(newTex.name, target.width, target.height, tex);
-
-                if (_sprite.prefetchOnLoad != undefined)
-                {
-                    if (_sprite.prefetchOnLoad == true)
-                    {
-                        // We need to create the GL texture here and set it up
-                        var newTPE = self.m_TPE[newTex.name];
-                        WebGL_BindTexture(newTPE);
-
-                        if (newTPE.texture.webgl_textureid)
-                        {
-                            WebGL_RecreateTexture(newTPE.texture.webgl_textureid);							
-                        }	                        
-                    }
-                }
             };
             g_Textures[tex].onerror = function (e) {
                 var target = e.target || e.srcElement;      // for compatibility with IE6-8
@@ -259,10 +244,8 @@ yySkeletonSprite.prototype.DrawFrame = function (_animation, _skin, frame, x, y,
 	pAnim.SelectSkin(_skin);		
 	pAnim.SetAnimationTransform(frame, x, y, xs, ys, angle);	
 
-	var origin = pAnim.GetScreenOrigin();
-
 	// Do the actual drawing of the animation's skeleton
-	this.DrawSkeleton(pAnim.m_skeleton, col, alpha, pAnim.m_rotationMatrix, origin[0], origin[1]);
+	this.DrawSkeleton(pAnim.m_skeleton, col, alpha);	
 };
 
 // #############################################################################################
@@ -283,10 +266,8 @@ yySkeletonSprite.prototype.DrawTime = function (_animation, _skin, _time, x, y, 
 	pAnim.SelectSkin(_skin);		
 	pAnim.SetAnimationTransformTime(_time, x, y, xs, ys, angle);	
 
-	var origin = pAnim.GetScreenOrigin();
-
 	// Do the actual drawing of the animation's skeleton
-	this.DrawSkeleton(pAnim.m_skeleton, col, alpha, pAnim.m_rotationMatrix, origin[0], origin[1]);
+	this.DrawSkeleton(pAnim.m_skeleton, col, alpha);	
 };
 
 
@@ -307,11 +288,9 @@ yySkeletonSprite.prototype.Draw = function (frame, x, y, xs, ys, angle, col, alp
 		// Make sure the animation is in the correct physical state
 		var anim = g_skeletonDrawInstance.SkeletonAnimation();
 		anim.SetAnimationTransform(frame, x, y, xs, ys, angle, g_skeletonDrawInstance);
-
-		var origin = anim.GetScreenOrigin();
-
+		
 		// Do the actual drawing of the animation's skeleton
-		this.DrawSkeleton(anim.m_skeleton, col, alpha, anim.m_rotationMatrix, origin[0], origin[1]);
+		this.DrawSkeleton(anim.m_skeleton, col, alpha);		
 
         if (anim.m_drawCollisionData) {		
 			this.DrawCollisionBounds(anim.m_skeletonBounds);
@@ -417,7 +396,7 @@ yySkeletonSprite.prototype.DrawCollision = function (_animation, ind, x, y, xs, 
 ///             Draw a fully setup skeleton
 ///          </summary>
 // #############################################################################################
-yySkeletonSprite.prototype.DrawSkeleton = function (_skeleton, color, alpha, rotationMatrix, origin_x, origin_y) {
+yySkeletonSprite.prototype.DrawSkeleton = function (_skeleton, color, alpha) {    
 
     var gmr = (color & 0xff) / 255.0,
 	    gmg = ((color & 0xff00) >> 8)  / 255.0,
@@ -425,15 +404,15 @@ yySkeletonSprite.prototype.DrawSkeleton = function (_skeleton, color, alpha, rot
 
     if (g_webGL)
     {
-        this.DrawSkeleton_WebGL(_skeleton, gmr, gmg, gmb, alpha, rotationMatrix, origin_x, origin_y);
+        this.DrawSkeleton_WebGL(_skeleton, gmr, gmg, gmb, alpha);
     }
     else
     {
-        this.DrawSkeleton_RELEASE(_skeleton, gmb, gmg, gmr, alpha, rotationMatrix, origin_x, origin_y);         // swap red and blue for canvas drawing
+        this.DrawSkeleton_RELEASE(_skeleton, gmb, gmg, gmr, alpha);         // swap red and blue for canvas drawing
     }
 };
 
-yySkeletonSprite.prototype.DrawSkeleton_RELEASE = function (_skeleton, _gmr, _gmg, _gmb, _alpha, _rotation_matrix, _origin_x, _origin_y)
+yySkeletonSprite.prototype.DrawSkeleton_RELEASE = function (_skeleton, _gmr, _gmg, _gmb, _alpha)
 {
     var regionIndices = [0, 1, 2, 2, 3, 0];
     var vertices = [];
@@ -523,7 +502,7 @@ yySkeletonSprite.prototype.DrawSkeleton_RELEASE = function (_skeleton, _gmr, _gm
             else
             {
                 // Draw as a quad rather than tris to avoid triangulation artifacts
-                this.DrawRegion_RELEASE(slot, col, a / 255.0, _rotation_matrix, _origin_x, _origin_y);
+                this.DrawRegion_RELEASE(slot, col, a / 255.0);
             }
         }
         else if (slot.attachment instanceof spine.MeshAttachment)
@@ -607,15 +586,7 @@ yySkeletonSprite.prototype.DrawSkeleton_RELEASE = function (_skeleton, _gmr, _gm
                 ind2++;
                 pts[2].y = verts[ind2];
                 pts[2].v = uvs[uvoffset + ind2];
-
-                /* Apply sprite rotation to X/Y co-ordinates. */
-                for(var pi = 0; pi < 3; ++pi)
-                {
-                    var tmp = RotatePointAroundOrigin([ pts[pi].x, pts[pi].y ], [ _origin_x, _origin_y ], _rotation_matrix);
-                    pts[pi].x = tmp[0];
-                    pts[pi].y = tmp[1];
-                }
-
+                
                 this.drawTriangle(graphics, tex,
                                 pts[0].x, pts[0].y,
                                 pts[1].x, pts[1].y,
@@ -682,7 +653,7 @@ function ConvertSpineBlend(_spineBlendmode, _premul, _convertedblend)
     }
 }
 
-yySkeletonSprite.prototype.DrawSkeleton_WebGL = function (_skeleton, _gmr, _gmg, _gmb, _alpha, _rotation_matrix, _origin_x, _origin_y)
+yySkeletonSprite.prototype.DrawSkeleton_WebGL = function (_skeleton, _gmr, _gmg, _gmb, _alpha)
 {
     var regionIndices = [0, 1, 2, 2, 3, 0];
     var vertices = [];
@@ -872,14 +843,8 @@ yySkeletonSprite.prototype.DrawSkeleton_WebGL = function (_skeleton, _gmr, _gmg,
             {
                 var index = indices[v];
 
-                /* Apply sprite rotation to X/Y co-ordinates. */
-
-                var vx = verts[(index * vertstride) + 0];
-                var vy = verts[(index * vertstride) + 1];
-                var rotatedXY = RotatePointAroundOrigin([ vx, vy ], [ _origin_x, _origin_y ], _rotation_matrix);
-
-                pCoords[v0 + 0] = rotatedXY[0];
-                pCoords[v0 + 1] = rotatedXY[1];
+                pCoords[v0 + 0] = verts[(index * vertstride) + 0];
+                pCoords[v0 + 1] = verts[(index * vertstride) + 1];
                 pCoords[v0 + 2] = GR_Depth;
 
                 pColours[v0 + 0] = col;
@@ -950,7 +915,7 @@ yySkeletonSprite.prototype.DrawCollisionBounds = function (_skeletonBounds) {
 ///             Draw data non-WebGL style
 ///          </summary>
 // #############################################################################################
-yySkeletonSprite.prototype.DrawRegion_RELEASE = function (slot, col, alpha, rotationMatrix, originX, originY) {
+yySkeletonSprite.prototype.DrawRegion_RELEASE = function (slot, col, alpha) {
 
     var region = slot.attachment, vertices = [], uvs;
 	var posX = 0;
@@ -1019,15 +984,7 @@ yySkeletonSprite.prototype.DrawRegion_RELEASE = function (slot, col, alpha, rota
 	pts[3].y = vertices[REGIONATTACHMENT_OY1];
 	pts[3].u = uvs[REGIONATTACHMENT_OX1];
 	pts[3].v = uvs[REGIONATTACHMENT_OY1];*/
-
-	/* Apply sprite rotation to X/Y co-ordinates. */
-	for(var i = 0; i < 3; ++i)
-	{
-		var tmp = RotatePointAroundOrigin([ pts[i].x, pts[i].y ], [ originX, originY ], rotationMatrix);;
-		pts[i].x = tmp[0];
-		pts[i].y = tmp[1];
-	}
-
+	
 	graphics.globalAlpha = alpha;
 	
 	var atlasPage = region.region.renderObject.page;
@@ -1376,7 +1333,7 @@ yySkeletonSprite.prototype.drawQuad = function (ctx, im, x0, y0, x1, y1, x2, y2,
 ///             Draw a region WebGL style
 ///          </summary>
 // #############################################################################################
-yySkeletonSprite.prototype.DrawRegion_WebGL = function (slot, col, alpha, rotationMatrix) {
+yySkeletonSprite.prototype.DrawRegion_WebGL = function (slot, col, alpha) {
 
     var region = slot.attachment, vertices = [], uvs;	
 	var posX=0;
@@ -1796,38 +1753,3 @@ yySkeletonSprite.prototype.GetSlotData = function (_list) {
 		ds_list_add(_list, map);
 	}	
 };
-
-yySkeletonSprite.prototype.GetAttachmentsForSlot = function(_slotName)
-{
-	var pSlot = this.m_skeletonData.findSlot(_slotName);
-	if(pSlot === null)
-	{
-		/* Couldn't find the slot. */
-		return [];
-	}
-
-	var attachmentNames = [];
-
-	for (var skinIndex = 0; skinIndex < this.m_skeletonData.skins.length; skinIndex++)
-	{
-		var skin = this.m_skeletonData.skins[skinIndex];
-
-		var skinSlotEntries = [];
-		skin.getAttachmentsForSlot(pSlot.index, skinSlotEntries);
-
-		for (var i = 0; i < skinSlotEntries.length; ++i)
-		{
-			attachmentNames.push(skinSlotEntries[i].name);
-		}
-	}
-
-	/* Strip out duplicate attachment names (skins may re-use attachment names) */
-
-	attachmentNames = attachmentNames.filter(function(value, index, array)
-	{
-		return array.indexOf(value) === index;
-	});
-
-	return attachmentNames;
-};
-// @endif spine

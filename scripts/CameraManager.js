@@ -1,4 +1,4 @@
-// **********************************************************************************************************************
+﻿// **********************************************************************************************************************
 // 
 // Copyright (c)2018, YoYo Games Ltd. All Rights reserved.
 // 
@@ -21,7 +21,6 @@ function CameraManager() {
     this.camId = 0;
     this.m_activeCamera = null;
     this.m_CamPool = new yyList();
-    this.m_tempCamera = null;
 };
 
 
@@ -195,8 +194,6 @@ CameraManager.prototype.DestroyCamera = function (camid) {
         var pCam = this.m_CamPool.Get(i);
         if (pCam) {
             if (pCam.m_id === camid) {
-                if (this.m_tempCamera == pCam)
-                    this.m_tempCamera = null;
                 this.m_CamPool.DeleteItem(pCam);
                 return;
             }
@@ -281,7 +278,7 @@ CameraManager.prototype.Clean = function () {
     this.m_activeCamera = null;
     this.m_cameraListCurr = 0;
     this.m_lastCamPos = 0;
-    this.m_tempCamera = null;
+
 };
 
 // ################################################################################################
@@ -289,12 +286,6 @@ CameraManager.prototype.Clean = function () {
 // ################################################################################################
 CameraManager.prototype.GetActiveCamera = function () {
     return this.m_activeCamera;
-};
-
-CameraManager.prototype.GetTempCamera = function () {
-    if (this.m_tempCamera == null)
-        this.m_tempCamera = this.GetCamera(this.CreateCamera());
-    return this.m_tempCamera;
 };
 
 CameraManager.prototype.SetActiveCamera = function (arg0) {
@@ -513,13 +504,61 @@ CCamera.prototype.GetCamRight = function () {
 
 
 CCamera.prototype.ApplyMatrices = function () {
-    UpdateViewExtents(this.m_viewMat, this.m_projMat, this.m_invViewMat, this.m_invViewProjMat);
+    if (this.IsOrthoProj()) {
+        var campos = this.GetCamPos();
+
+        // Experimental
+        // Back transform clip space extents by the inverse of our view-proj matrix to get our room-space bounds
+        var leftvec, rightvec, upvec, downvec;
+        leftvec = this.m_invViewProjMat.TransformVec3(new Vector3(-1.0, 0.0, 0.0));
+        rightvec = this.m_invViewProjMat.TransformVec3(new Vector3(1.0, 0.0, 0.0));
+        upvec = this.m_invViewProjMat.TransformVec3(new Vector3(0.0, 1.0, 0.0));
+        downvec = this.m_invViewProjMat.TransformVec3(new Vector3(0.0, -1.0, 0.0));
+
+        var diffh = rightvec.Sub(leftvec);
+        var diffv = upvec.Sub(downvec);
+
+        g_worldw = diffh.Length();
+        g_worldh = diffv.Length();
+
+        g_worldx = campos.X - (g_worldw * 0.5);
+        g_worldy = campos.Y - (g_worldh * 0.5);
+
+        var normdiffv = diffv;
+        normdiffv.Normalise();
+
+        var angle = Math.acos(normdiffv.Y);
+        if (normdiffv.X < 0.0) {
+            angle = (2.0 * Math.PI) - angle;
+        }
+
+        var ViewAreaA = (angle / (2.0 * Math.PI)) * 360.0;
+
+        /*g_worldx = campos.X - (this.m_viewWidth * 0.5);
+		g_worldy = campos.Y - (this.m_viewHeight * 0.5);
+		g_worldw = this.m_viewWidth;
+		g_worldh = this.m_viewHeight;
+		var ViewAreaA = this.m_viewAngle;*/
+
+        //Needs implmenting
+        SetViewExtents(g_worldx, g_worldy, g_worldw, g_worldh, ViewAreaA);
+
+
+    }
+    else {
+        // Not ideal, but set the view area to the room extents if this is a perspective camera
+        // We would need to change the way we do culling and work out extents for tile drawing etc across the codebase to handle this properly
+        g_worldx = 0;
+        g_worldy = 0;
+        g_worldw = g_RunRoom != null ? g_RunRoom.GetWidth() : 1;
+        g_worldh = g_RunRoom != null ? g_RunRoom.GetHeight() : 1;
+        SetViewExtents(g_worldx, g_worldy, g_worldw, g_worldh, 0);
+    }
 
     if (g_webGL != null) {
         WebGL_SetMatrix(MATRIX_VIEW, this.m_viewMat);
     }
     else {
-        // @if feature("2d")
         WebGL_SetMatrix(MATRIX_VIEW, this.m_viewMat);
         // Work out port scaling
         var wscale = g_clipw / g_worldw;
@@ -536,7 +575,6 @@ CCamera.prototype.ApplyMatrices = function () {
 
         // for some reason this function takes the matrix transposed
         graphics._setTransform(g_transform[0], g_transform[3], g_transform[1], g_transform[4], g_transform[2], g_transform[5]);
-        // @endif
     }
 
     if (g_RenderTargetActive == -1) {
@@ -768,51 +806,6 @@ function camera_apply(arg0) {
     }
 }
 
-function camera_copy_transforms(arg0,arg1) {
-    var dest = g_pCameraManager.GetCamera(yyGetInt32(arg0));
-    var src = g_pCameraManager.GetCamera(yyGetInt32(arg1));
-
-    if (dest == null)
-    {
-        dbg_csol.Output("camera_copy_settings() - camera to copy to doesn't exist\n");
-        return;
-    }
-    if (src == null)
-    {
-        dbg_csol.Output("camera_copy_settings() - camera to copy from doesn't exist\n");
-        return;
-    }
-    if (src == dest)
-    {
-        dbg_csol.Output("camera_copy_settings() - source and destination cameras are the same\n");
-		return;
-    }
-
-    // copy all values
-    dest.m_viewX = src.m_viewX;
-    dest.m_viewY = src.m_viewY;
-    dest.m_viewWidth = src.m_viewWidth;
-    dest.m_viewHeight = src.m_viewHeight;
-    dest.m_viewSpeedX = src.m_viewSpeedX;
-    dest.m_viewSpeedY = src.m_viewSpeedY;
-    dest.m_viewBorderX = src.m_viewBorderX;
-    dest.m_viewBorderY = src.m_viewBorderY;
-    dest.m_viewAngle = src.m_viewAngle;    
-
-    var viewmat = new Matrix(src.m_viewMat);
-    var projmat = new Matrix(src.m_projMat);
-    var viewProjMat = new Matrix(src.m_viewProjMat);
-    var invProjMat = new Matrix(src.m_invProjMat);
-    var invViewMat = new Matrix(src.m_invViewMat);
-    var invViewProjMat = new Matrix(src.m_invViewProjMat);
-    dest.m_projMat = projmat;
-    dest.m_viewMat = viewmat;
-    dest.m_viewProjMat = viewProjMat;
-    dest.m_invProjMat = invProjMat;
-    dest.m_invViewMat = invViewMat;
-    dest.m_invViewProjMat = invViewProjMat;    
-}
-
 function camera_get_active() {
     var cam = g_pCameraManager.GetActiveCamera();
     if (cam != null)
@@ -869,22 +862,20 @@ function camera_set_view_target(arg0, arg1) {
     }
 };
 
+
 function camera_set_update_script(arg0, arg1) {
     var pCam = g_pCameraManager.GetCamera(yyGetInt32(arg0));
     if (pCam != null) {
-        switch (typeof arg1)
+        if(typeof (arg1) === "number")
         {
-            case "number":
-                var ind = yyGetInt32(arg1);
-                if (ind >= 100000)
-                    ind -= 100000;
-                pCam.SetUpdateScript(g_pGMFile.Scripts[ind]);
-                break;
-            case "function":
-                pCam.SetUpdateScript(arg1);
-                break;
-            default:    
-                yyError("camera_set_end_script : argument0 is not a function or a script");
+            var ind = yyGetInt32(arg1);
+            if( ind >= 100000 )
+                ind -= 100000;
+            pCam.SetUpdateScript(g_pGMFile.Scripts[ind]);
+        }
+        else if(typeof arg1 == "function")
+        {
+            pCam.SetUpdateScript(arg1);
         }
     }
 };
@@ -892,19 +883,16 @@ function camera_set_update_script(arg0, arg1) {
 function camera_set_begin_script(arg0, arg1) {
     var pCam = g_pCameraManager.GetCamera(yyGetInt32(arg0));
     if (pCam != null) {
-        switch (typeof arg1)
+        if(typeof (arg1) === "number")
         {
-            case "number":
-                var ind = yyGetInt32(arg1);
-                if( ind >= 100000 )
-                    ind -= 100000;
-                pCam.SetBeginScript(g_pGMFile.Scripts[ind]);
-                break;
-            case "function":
-                pCam.SetBeginScript(arg1);
-                break;
-            default:    
-                yyError("camera_set_begin_script : argument0 is not a function or a script");
+            var ind = yyGetInt32(arg1);
+            if( ind >= 100000 )
+                ind -= 100000;
+            pCam.SetBeginScript(g_pGMFile.Scripts[ind]);
+        }
+        else if(typeof arg1 == "function")
+        {
+            pCam.SetBeginScript(arg1);
         }
     }
 };
@@ -912,19 +900,16 @@ function camera_set_begin_script(arg0, arg1) {
 function camera_set_end_script(arg0, arg1) {
     var pCam = g_pCameraManager.GetCamera(yyGetInt32(arg0));
     if (pCam != null) {
-        switch (typeof arg1)
+        if(typeof (arg1) === "number")
         {
-            case "number":
-                var ind = yyGetInt32(arg1);
-                if( ind >= 100000 )
-                    ind -= 100000;
-                pCam.SetEndScript(g_pGMFile.Scripts[ind]);
-                break;
-            case "function":
-                pCam.SetEndScript(arg1);
-                break;
-            default:    
-                yyError("camera_set_end_script : argument0 is not a function or a script");
+            var ind = yyGetInt32(arg1);
+            if( ind >= 100000 )
+                ind -= 100000;
+            pCam.SetEndScript(g_pGMFile.Scripts[ind]);
+        }
+        else if(typeof arg1 == "function")
+        {
+            pCam.SetEndScript(arg1);
         }
     }
 };
@@ -1020,60 +1005,30 @@ function camera_get_proj_mat(arg0) {
 function camera_get_view_target(arg0) {
     var pCam = g_pCameraManager.GetCamera(yyGetInt32(arg0));
     if (pCam != null) {
-        var instanceID = pCam.GetTargetInstance();
-        return (instanceID < 0)
-            ? instanceID
-            : MAKE_REF(REFID_INSTANCE, instanceID);
+        return pCam.GetTargetInstance();
     }
     return -1;
 };
-
 function camera_get_update_script(arg0) {
     var pCam = g_pCameraManager.GetCamera(yyGetInt32(arg0));
     if (pCam != null) {
-        var script = pCam.GetUpdateScript();
-        if (typeof script === "number")
-        {
-            return method_get_index(script);
-        }
-        else if (typeof script == "function")
-        {
-            return script;
-        }
+        return method_get_index(pCam.GetUpdateScript());
     }
-    return -1;
+    return null;
 };
-
 function camera_get_begin_script(arg0) {
     var pCam = g_pCameraManager.GetCamera(yyGetInt32(arg0));
     if (pCam != null) {
-        var script = pCam.GetBeginScript();
-        if (typeof script === "number")
-        {
-            return method_get_index(script);
-        }
-        else if (typeof script == "function")
-        {
-            return script;
-        }
+        return method_get_index(pCam.GetBeginScript());
     }
-    return -1;
+    return null;
 };
-
 function camera_get_end_script(arg0) {
     var pCam = g_pCameraManager.GetCamera(yyGetInt32(arg0));
     if (pCam != null) {
-        var script = pCam.GetEndScript();
-        if(typeof script === "number")
-        {
-            return method_get_index(script);
-        }
-        else if (typeof script == "function")
-        {
-            return script;
-        }
+        return method_get_index(pCam.GetEndScript());
     }
-    return -1;
+    return null;
 };
 
 function camera_get_view_x(arg0) {

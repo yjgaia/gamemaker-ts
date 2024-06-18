@@ -1,4 +1,4 @@
-// **********************************************************************************************************************
+﻿// **********************************************************************************************************************
 // 
 // Copyright (c)2011, YoYo Games Ltd. All Rights reserved.
 // 
@@ -282,6 +282,7 @@ function point_direction(_x1,_y1, _x2,_y2)
 		}
 	}
 }
+function ComputeDir(_x1,_y1, _x2,_y2){ return point_direction(_x1,_y1, _x2,_y2); }
 
 
 // #############################################################################################
@@ -453,7 +454,7 @@ function random_use_old_version(_true_false) {
 // #############################################################################################
 /// Function:<summary>
 ///          	Returns a random number between 0 and 1
-///             PRNG from https://web.archive.org/web/20160303224645/http://www.lomont.org/Math/Papers/2008/Lomont_PRNG_2008.pdf
+///             PRNG from http://www.lomont.org/Math/Papers/2008/Lomont_PRNG_2008.pdf
 ///             other reading http://stackoverflow.com/questions/1046714/what-is-a-good-random-number-generator-for-a-game
 ///          </summary>
 // #############################################################################################
@@ -986,8 +987,8 @@ function radtodeg(_x) {
 // #############################################################################################
 function mean() 
 {
-	var args = arguments;
-	var argc = arguments.length;
+	var args = mean.arguments;
+	var argc = mean.arguments.length;
 
 	if (argc == 0) return 0;
     
@@ -1011,8 +1012,8 @@ function mean()
 // #############################################################################################
 function median()
 {
-    var args = arguments;
-    var argc = arguments.length;
+    var args = median.arguments;
+    var argc = median.arguments.length;
 
     if (argc == 0) return 0;
 
@@ -1119,9 +1120,7 @@ function dot_product_normalised(_x1,_y1,_x2,_y2)
     // return DOT product
     return (_x1 * _x2 + _y1 * _y2) / (mag1 * mag2);
 }
-// @if function("dot_product_normalized")
 var dot_product_normalized = dot_product_normalised;
-// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -1155,9 +1154,7 @@ function dot_product_3d_normalised(_x1, _y1, _z1, _x2, _y2, _z2) {
     // return DOT product
 	return (_x1 * _x2 + _y1 * _y2 + _z1 * _z2) / (mag1 * mag2);
 }
-// @if function("dot_product_3d_normalized")
 var dot_product_3d_normalized = dot_product_3d_normalised;
-// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -1170,88 +1167,61 @@ var dot_product_3d_normalized = dot_product_3d_normalised;
 ///			</returns>
 // #############################################################################################
 function is_real(_x) {
-    if (typeof (_x) == "number") return true;
-    else return false;
+    if (typeof (_x) == "number") return 1;
+    else return 0;
 }
 
 function is_numeric(_x) {
-    var ret = false;
+    var ret = 0;
     switch (typeof (_x)) {
     case "number":
     case "boolean":
-        ret = true;
+        ret = 1;
         break;
     case "object":
         if (_x instanceof Long) {
-            ret = true;
+            ret = 1;
         } // end if
         break;
     } // end switch
     return ret;
 } // end is_numeric
 
-function is_bool(_x) {
-	if (typeof (_x) == "boolean") return true; 
-	else return false;
-}
 
+function is_bool(_x) {
+	if (typeof (_x) == "boolean") return 1; 
+	else return 0;
+}
 function is_undefined(_x) {
-	if (typeof (_x) == "undefined") return true; 
-	else return false;
+	if (typeof (_x) == "undefined") return 1; 
+	else return 0;
 }
 
 function is_int32(_x) {
-	if ((typeof (_x) === "number") && (~~_x === _x)) return true; 
-	else return false;
+	if ((typeof (_x) === "number") && (~~_x === _x)) return 1; 
+	else return 0;
 }
 
 function is_int64(_x) {
-    if (_x instanceof Long) return true;
-	else return false;
+    if (_x instanceof Long) return 1;
+	else return 0;
 }
 
 function is_ptr(_x) {
-    return (typeof(_x) == "object" && (_x instanceof ArrayBuffer)) ? true : false;
+    return (typeof(_x) == "object" && (_x instanceof ArrayBuffer)) ? 1 : 0;
 }
 
 function is_struct(_x) {
-    return ((typeof _x === "object") && (_x.__yyIsGMLObject)) ? true : false;
+    return ((typeof _x === "object") && (_x.__yyIsGMLObject)) ? 1 : 0;
 }
 
 function is_nan(_x) {
-    
-    // Try to convert to Real and check isNaN
-    try 
-    {
-        // If x is a pointer then it's a number.
-        if (is_ptr(_x)) return false;
-        if (is_struct(_x)) return true;
-        if (is_method(_x)) return true;
-
-        // Else try to convert to real
-        value = yyGetReal(_x);
-        return Number.isNaN(value);
-    }
-    // If there was an error then it's not-a-number
-    catch 
-    { 
-        return true;
-    }
+    return Number.isNaN(yyGetReal(_x));
 }
 
 function is_infinity(_x) {
-
-    // Try to convert to Real and check for infinity
-    try 
-    {
-        _x = yyGetReal(_x);
-        return !Number.isFinite(_x) && !Number.isNaN(_x);
-    }
-    // If there was an error then it's not infinity.
-    catch 
-    { 
-        return false;
-    }
+    _x = yyGetReal(_x);
+    return !Number.isFinite(_x) && !Number.isNaN(_x);
 }
 
 function static_get( s )
@@ -1263,16 +1233,13 @@ function static_get( s )
             if (funcId >= 100000) {
                 func = JSON_game.Scripts[ funcId - 100000];
                 ret = func.prototype;
-                ret.__yyIsGMLObject = true;
             } // end if
             break;
         case "function":
             ret = s.prototype;
-            ret.__yyIsGMLObject = true;
             break;
         case "object":
             ret = Object.getPrototypeOf(s);
-            if (s.__yyIsGMLObject) ret.__yyIsGMLObject = true;
             break;
     } // end switch
     return ret;
@@ -1400,28 +1367,6 @@ function ptr(_x) {
     } // end if
     return ret;
 }
-
-function handle( _s )
-{
-    var ret = undefined;
-    if ((typeof _s == "string" ) && _s.startsWith("ref ")) {
-
-        // get the type of the handle
-        var indexOfSpace = _s.indexOf( " ", 4 );
-        var handleTypeString = _s.substring( 4, indexOfSpace );
-
-        // get the index of the handle
-        var numberString = _s.substring(indexOfSpace+1);
-        var handleIndex = Number(numberString);
-
-        // convert the handleTypeString to the Reference type
-        var type = Name2Ref( handleTypeString );
-
-        // get the reference type
-        ret = MAKE_REF( type, handleIndex );
-    } // end if
-    return ret;
-} // end handle
 
 // #############################################################################################
 /// Function:<summary>
@@ -1560,7 +1505,7 @@ function lerp(_val1, _val2, _amount) {
     _val1 = yyGetReal(_val1);
     _val2 = yyGetReal(_val2);
 
-    return _val1 + ((_val2 - _val1) * yyGetReal(_amount));
+    return _val1 + ((_val2 - _val1) * _amount);
 }
 
 
@@ -1623,34 +1568,7 @@ var g_NumberRE = new RegExp(
 function yyCompareVal(_val1, _val2, _prec, _showError) {
     var ret = undefined;
     _showError = (_showError == undefined) ?  true : _showError;
-
-    // Check if we are comparing YYRefs
-    var compareRefs = false;
-    if (_val1 instanceof YYRef) {
-        if (!(_val2 instanceof YYRef)) {
-            _val1 = _val1.value; // Cast the YYRef to it's index
-        }
-        // Both are YYRefs
-        else compareRefs = true;
-    }
-    else if (_val2 instanceof YYRef) {
-        // At this point we know _val1 is not a YYRef
-        _val2 = _val2.value; // Cast the YYRef to it's index
-    }
-
-    // Both are YYRefs
-    if (compareRefs) {
-        var t = _val1.type - _val2.type;
-        if (t == 0) {
-            // Type match we need to compare the value
-            var v = _val1.value - _val2.value;
-            ret = (v == 0) ? 0 : (v < 0) ? -1 : 1;
-        } else {
-            // Type mismatch don't even know how to compare this we should probably error
-            ret = (t < 0) ? -1 : 1;
-        }
-    } // end if
-    else if ((typeof _val1 == "number") && (typeof _val2 == "number")) {
+    if ((typeof _val1 == "number") && (typeof _val2 == "number")) {
         var f = _val1 - _val2;
         if (Number.isNaN(f)) {
             f = (_val1 == _val2) ? 0 : f;

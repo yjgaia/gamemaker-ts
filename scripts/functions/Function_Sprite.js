@@ -33,11 +33,8 @@ var		MASK_PRECISE   = 0,
 // #############################################################################################
 function    sprite_exists( _index )
 {
-	// @if feature("sprites")
-	return g_pSpriteManager.Get(yyGetInt32(_index)) != null;
-	// @else
-	return false;
-	// @endif sprites
+    if( g_pSpriteManager.Get(yyGetInt32(_index)) == null ) return false;
+    return true;
 }
 
 
@@ -54,11 +51,9 @@ function    sprite_exists( _index )
 // #############################################################################################
 function    sprite_get_width( _index )
 {
-	// @if feature("sprites")
     var pSpr = g_pSpriteManager.Get(yyGetInt32(_index));
-    if( pSpr!=null) return pSpr.width;
-	// @endif sprites
-    return 0;
+    if( pSpr==null) return 0;
+    return pSpr.width;
 }
 
 
@@ -74,11 +69,9 @@ function    sprite_get_width( _index )
 // #############################################################################################
 function    sprite_get_height( _index )
 {
-	// @if feature("sprites")
     var pSpr = g_pSpriteManager.Get(yyGetInt32(_index));
-    if( pSpr!=null) return pSpr.height;;
-	// @endif sprites
-    return 0;
+    if( pSpr==null) return 0;
+    return pSpr.height;
 }
 
 
@@ -304,26 +297,10 @@ function    sprite_set_bbox( _index, _left, _top, _right, _bottom )
 {
     var pSpr = g_pSpriteManager.Get(yyGetInt32(_index));
     if( pSpr===null) return;
-
-	var left = yyGetInt32(_left);
-	var right = yyGetInt32(_right);
-	var top = yyGetInt32(_top);
-	var bottom = yyGetInt32(_bottom);
-
-	var maskupdate_needed = false;
-
-	if(pSpr.bbox.left != left || pSpr.bbox.right!=right || pSpr.bbox.top!=top || pSpr.bbox.bottom!=bottom)
-		maskupdate_needed = true;
-
-    pSpr.bbox.left = left;
-    pSpr.bbox.top  = top;
-    pSpr.bbox.right = right;
-    pSpr.bbox.bottom = bottom;
-
-	if(maskupdate_needed)
-		pSpr.CreateMask();
-
-
+    pSpr.bbox.left = yyGetInt32(_left);
+    pSpr.bbox.top  = yyGetInt32(_top);
+    pSpr.bbox.right = yyGetInt32(_right);
+    pSpr.bbox.bottom = yyGetInt32(_bottom);
 }
 
 // #############################################################################################
@@ -404,8 +381,7 @@ function sprite_set_alpha_from_sprite( _dest, _src )
 ///			 <param name="_smooth"></param>
 ///				
 // #############################################################################################
-function sprite_add_from_screen(){}
-// @if feature("2d")
+var sprite_add_from_screen = sprite_add_from_screen_RELEASE;
 function sprite_add_from_screen_RELEASE(_ind, _x, _y, _w, _h, _removeback, _smooth) {
 
     _ind = yyGetInt32(_ind);
@@ -457,8 +433,6 @@ function sprite_add_from_screen_RELEASE(_ind, _x, _y, _w, _h, _removeback, _smoo
 
 	return _ind;
 }
-compile_if_used(sprite_add_from_screen = sprite_add_from_screen_RELEASE);
-// @endif
 
 
 // #############################################################################################
@@ -479,8 +453,7 @@ compile_if_used(sprite_add_from_screen = sprite_add_from_screen_RELEASE);
 ///				
 ///			 </returns>
 // #############################################################################################
-function sprite_create_from_surface(){}
-// @if feature("2d")
+var sprite_create_from_surface = sprite_create_from_surface_RELEASE;
 function sprite_create_from_surface_RELEASE(_id, _x, _y, _w, _h, _removeback, _smooth, _xorig, _yorig)
 {
     _id = yyGetInt32(_id);
@@ -521,7 +494,7 @@ function sprite_create_from_surface_RELEASE(_id, _x, _y, _w, _h, _removeback, _s
 	pNewSpr.smooth = true;
 	pNewSpr.preload = true;
 	pNewSpr.bboxmode = 0;
-	pNewSpr.colcheck = yySprite_CollisionType.AXIS_ALIGNED_RECT;
+	pNewSpr.colcheck = false;
 	pNewSpr.xOrigin = _xorig;
 	pNewSpr.yOrigin = _yorig;
 
@@ -558,8 +531,6 @@ function sprite_create_from_surface_RELEASE(_id, _x, _y, _w, _h, _removeback, _s
 
 	return newindex;
 }
-compile_if_used(sprite_create_from_surface = sprite_create_from_surface_RELEASE);
-// @endif
 
 
 
@@ -580,8 +551,7 @@ compile_if_used(sprite_create_from_surface = sprite_create_from_surface_RELEASE)
 ///				
 ///			 </returns>
 // #############################################################################################
-function sprite_add_from_surface(){}
-// @if feature("2d")
+var sprite_add_from_surface = sprite_add_from_surface_RELEASE;
 function sprite_add_from_surface_RELEASE(_ind, _id, _x, _y, _w, _h, _removeback, _smooth)
 {
     _ind = yyGetInt32(_ind);
@@ -633,8 +603,6 @@ function sprite_add_from_surface_RELEASE(_ind, _id, _x, _y, _w, _h, _removeback,
 
 	return _ind;
 }
-compile_if_used(sprite_add_from_surface = sprite_add_from_surface_RELEASE);
-// @endif
 
 
 
@@ -684,7 +652,8 @@ function sprite_save(_ind,_subimg,_fname)
 ///				
 ///			 </returns>
 // #############################################################################################
-function sprite_duplicate(_ind) 
+var sprite_duplicate = sprite_duplicate_RELEASE;
+function sprite_duplicate_RELEASE(_ind) 
 {
     var pSpr = g_pSpriteManager.Get(yyGetInt32(_ind));
 	if (pSpr == null) return 0;
@@ -772,7 +741,7 @@ function sprite_duplicate(_ind)
 ///				When an error occurs -1 is returned.
 ///			 </returns>
 // #############################################################################################
-function sprite_add(_filename, _imgnumb, _removeback, _smooth, _xorig, _yorig, _prefetch)
+function sprite_add(_filename, _imgnumb, _removeback, _smooth, _xorig, _yorig)
 {
     _filename = yyGetString(_filename);
     _imgnumb = yyGetInt32(_imgnumb);
@@ -788,14 +757,6 @@ function sprite_add(_filename, _imgnumb, _removeback, _smooth, _xorig, _yorig, _
 
 	if (_filename.substring(0, 5) == "file:") return -1;
 	pNewSpr.pName = _filename;
-
-	if (_prefetch != undefined)
-	{
-		if (_prefetch)
-		{
-			pNewSpr.prefetchOnLoad = true;
-		}
-	}
 
 	var newindex = g_pSpriteManager.AddSprite(pNewSpr);
 
@@ -829,7 +790,7 @@ function sprite_add(_filename, _imgnumb, _removeback, _smooth, _xorig, _yorig, _
 	pNewSpr.smooth = yyGetBool(_smooth);
 	pNewSpr.preload = true;
 	pNewSpr.bboxmode = 0;
-	pNewSpr.colcheck = yySprite_CollisionType.AXIS_ALIGNED_RECT;
+	pNewSpr.colcheck = false;
 	pNewSpr.xOrigin = yyGetInt32(_xorig);
 	pNewSpr.yOrigin = yyGetInt32(_yorig);
 
@@ -865,11 +826,6 @@ function sprite_add(_filename, _imgnumb, _removeback, _smooth, _xorig, _yorig, _
 	}
 
 	return newindex;
-}
-
-function sprite_add_ext(_filename, _imgnumb, _xorig, _yorig, _prefetch)
-{
-	return sprite_add(_filename, _imgnumb, false, false, _xorig, _yorig, _prefetch);
 }
 
 // #############################################################################################
@@ -954,7 +910,7 @@ function sprite_replace(_ind, _filename, _imgnumb, _removeback, _smooth, _xorig,
 	pNewSpr.smooth = yyGetBool(_smooth);
 	pNewSpr.preload = true;
 	pNewSpr.bboxmode = 0;
-	pNewSpr.colcheck = yySprite_CollisionType.AXIS_ALIGNED_RECT;
+	pNewSpr.colcheck = false;
 	pNewSpr.xOrigin = yyGetInt32(_xorig);
 	pNewSpr.yOrigin = yyGetInt32(_yorig);
 
@@ -1166,7 +1122,7 @@ function sprite_collision_mask( _ind, _sepmasks, _bbmode,_bbleft,_bbtop,_bbright
 {
     var pSpr = g_pSpriteManager.Get(yyGetInt32(_ind));        
     if( pSpr===null) { return false; }
-    pSpr.colcheck = yySprite_CollisionType.PRECISE;
+    pSpr.colcheck = true;
 
     // Clean up if required
     pSpr.colmask = [];
@@ -1183,8 +1139,6 @@ function sprite_collision_mask( _ind, _sepmasks, _bbmode,_bbleft,_bbtop,_bbright
     _kind = yyGetInt32(_kind);
     _tolerance = yyGetInt32(_tolerance);
 
-
-	
     pSpr.bboxmode = _bbmode;
 
 	// Create the bounding box
@@ -1252,65 +1206,37 @@ function sprite_collision_mask( _ind, _sepmasks, _bbmode,_bbleft,_bbtop,_bbright
 		pSpr.bbox.right = yyGetInt32(_bbright);
 		pSpr.bbox.top = yyGetInt32(_bbtop);
 		pSpr.bbox.bottom = yyGetInt32(_bbbottom); 	
-
-		if (pSpr.bbox.top > pSpr.bbox.bottom)
-		{
-			var tmp = pSpr.bbox.bottom;
-			pSpr.bbox.bottom = pSpr.bbox.top;
-			pSpr.bbox.top = tmp;
-		}
-
-		if (pSpr.bbox.left > pSpr.bbox.right)
-		{
-			var tmp = pSpr.bbox.right;
-			pSpr.bbox.right = pSpr.bbox.left;
-			pSpr.bbox.left = tmp;
-		}
-
 	}
 
 
     // if bounding box mode, then don't assign sprites, just fill in the bounding box.
+    //if( _kind==1 ){
+    //}
 
 
-	if (_kind != MASK_RECTANGLE)
-	{
-		// Compute the mask(s)
-		var ppTPE = pSpr.ppTPE;
-		pSpr.colmask = [];
-		if(pSpr.sepmasks)
-		{
-			for (var i = 0; i < pSpr.numb; i++)
-			{
-				pSpr.colmask[i] = TMaskCreate(null, pSpr.ppTPE[i], _bbmode, pSpr.bbox, _kind, _tolerance);
-			}
-		}
-		else
-		{
-			// If not separate masks, then OR them altogether. 
-			pSpr.colmask[0] = TMaskCreate(pSpr.colmask[0], pSpr.ppTPE[0], _bbmode, pSpr.bbox, _kind, _tolerance);
-		
-			for (var i=1;i < pSpr.numb; i++){
-				pSpr.colmask[0] = TMaskCreate(pSpr.colmask[0], pSpr.ppTPE[i], _bbmode, pSpr.bbox, _kind, _tolerance);
-			}
-		}
-		pSpr.maskcreated = true;   
-	}	    
+    // Compute the mask(s)
+    var ppTPE = pSpr.ppTPE;
+    pSpr.colmask = [];
+    if(pSpr.sepmasks)
+    {
+    	for (var i = 0; i < pSpr.numb; i++)
+    	{
+    		pSpr.colmask[i] = TMaskCreate(null, pSpr.ppTPE[i], _bbmode, pSpr.bbox, _kind, _tolerance);
+        }
+    }
+    else
+    {
+        // If not separate masks, then OR them altogether. 
+    	pSpr.colmask[0] = TMaskCreate(pSpr.colmask[0], pSpr.ppTPE[0], _bbmode, pSpr.bbox, _kind, _tolerance);
+    
+        for (var i=1;i < pSpr.numb; i++){
+        	pSpr.colmask[0] = TMaskCreate(pSpr.colmask[0], pSpr.ppTPE[i], _bbmode, pSpr.bbox, _kind, _tolerance);
+        }
+    }
+    pSpr.maskcreated = true;   	    
 }
      
-function SetColMaskBit(u, v, mwidth,pMaskData,length)
-{
 
-	var byteindex = u >> 3;
-	var bitindex = u & 0x7;
-	var finalindex = mwidth * v + byteindex;
-
-
-	if(finalindex<length) //Just a bit of protection in case the ellipse or diamond try to write outside the size of the array
-		pMaskData[finalindex] |= 1 << (7 - bitindex);
-
-
-}
 
 // #############################################################################################
 /// Function:<summary>
@@ -1332,12 +1258,8 @@ function TMaskCreate(_merge, _pTPE, _bbmode, _bbox, _kind, _tolerance)
 	var w = _pTPE.ow;
 	var h = _pTPE.oh;
 
-	var bwidth = _bbox.right - _bbox.left + 1; 
-	var mwidth = (bwidth + 7) >> 3; 
-	var ht = _bbox.bottom - _bbox.top + 1; 
-
 	// get the image bytes
-	var wh = ht * mwidth;
+	var wh = h * w;
 	var pData = new Uint8Array(wh);
 	for(var j=0;j<wh;j++) pData[j] = false;	// clear the array
 
@@ -1346,33 +1268,29 @@ function TMaskCreate(_merge, _pTPE, _bbmode, _bbox, _kind, _tolerance)
 	{
 		var pByteData = Graphics_ExtractImageBytes(_pTPE);
 		var index = 0;
-
-
-		var validlength = pByteData.length ;
-		
-		for (var k = 0; k <= ht - 1; k++)
+		for (var i = 0; i < pByteData.length; i+=4)
 		{
-			for (var j = 0; j < mwidth; j++)
-			{
-				var targ = 0;
-				var baseindex = 4*(((k + _bbox.top) * w) + _bbox.left+(j  ) * 8)+3;
-				if ((baseindex + 0 < validlength) && (pByteData[baseindex + 0*4] )>_tolerance )targ |= (1 << 7);
-				if ((baseindex + 1 < validlength) && (pByteData[baseindex + 1*4] )>_tolerance )targ |= (1 << 6);
-				if ((baseindex + 2 < validlength) && (pByteData[baseindex + 2*4] )>_tolerance )targ |= (1 << 5);
-				if ((baseindex + 3 < validlength) && (pByteData[baseindex + 3*4] )>_tolerance )targ |= (1 << 4);
-				if ((baseindex + 4 < validlength) && (pByteData[baseindex + 4*4] )>_tolerance )targ |= (1 << 3);
-				if ((baseindex + 5 < validlength) && (pByteData[baseindex + 5*4] )>_tolerance )targ |= (1 << 2);
-				if ((baseindex + 6 < validlength) && (pByteData[baseindex + 6*4] )>_tolerance )targ |= (1 << 1);
-				if ((baseindex + 7 < validlength) && (pByteData[baseindex + 7*4] )>_tolerance )targ |= (1 << 0);
-
-				pData[j + (k * mwidth)] = targ;
+			if (pByteData[i + 3] > _tolerance) {
+			    pData[index] = true; 
 			}
+			else {
+			    pData[index] = false;
+			}
+			index++;
 		}
 	}
 	else {
 		// Create the mask 
 		switch (_kind)
 		{
+			case MASK_RECTANGLE:		{
+											for(var y=_bbox.top;y<=_bbox.bottom;y++){
+												for(var x=_bbox.left;x<=_bbox.right;x++){
+													pData[x+(y*w)] = true;
+												}
+											}
+											break;
+										}
 
 			case MASK_ELLIPSE:		{
 											var mx = (_bbox.left + _bbox.right) / 2;
@@ -1383,8 +1301,7 @@ function TMaskCreate(_merge, _pTPE, _bbmode, _bbox, _kind, _tolerance)
 											for(var y=_bbox.top;y<=_bbox.bottom;y++){
 												for(var x=_bbox.left;x<=_bbox.right;x++){
 													if( (dx > 0) && (dy > 0) ) {
-														if(sqr( (x-mx)/dx) + sqr( (y-my)/dy ) < 1)
-															SetColMaskBit(x-_bbox.left, y-_bbox.top, mwidth, pData, wh);
+														pData[x+(y*w)] = sqr( (x-mx)/dx) + sqr( (y-my)/dy ) < 1;
 													}
 												}
 											}
@@ -1400,8 +1317,7 @@ function TMaskCreate(_merge, _pTPE, _bbmode, _bbox, _kind, _tolerance)
 											for(var y=_bbox.top;y<=_bbox.bottom;y++){
 												for(var x=_bbox.left;x<=_bbox.right;x++){
 													if( (dx > 0) && (dy > 0) ) {
-														if(Math.abs((x-mx)/dx) + Math.abs((y-my)/dy) < 1)
-															SetColMaskBit(x-_bbox.left, y-_bbox.top, mwidth, pData, wh);
+														pData[x+(y*w)] = Math.abs((x-mx)/dx) + Math.abs((y-my)/dy) < 1;
 													}
 												}
 											}
@@ -1502,11 +1418,7 @@ function sprite_set_cache_size_ext(_ind, _index, _max) {
 // #############################################################################################
 function sprite_get_tpe(_index, _subimage)
 {
-    _index = yyGetRef(_index, REFID_SPRITE, g_pSpriteManager.Sprites.length, g_pSpriteManager.Sprites);
-	if(typeof _subimage != "number")
-	{
-		yyError("sprite_get_tpe() subimg argument should be a Real!");
-	}
+    _index = yyGetInt32(_index);
     _subimage = yyGetInt32(_subimage);
 
 	var pSpr = g_pSpriteManager.Get(_index);
@@ -1552,12 +1464,8 @@ function sprite_get_tpe(_index, _subimage)
 // #############################################################################################
 function sprite_get_texture(_spriteIndex, _frameIndex)
 {
-    _spriteIndex = yyGetRef(_spriteIndex, REFID_SPRITE, g_pSpriteManager.Sprites.length, g_pSpriteManager.Sprites);
-	if(typeof _frameIndex != "number")
-	{
-		yyError("sprite_get_texture() subimg argument should be a Real!");
-	}
-	
+    _spriteIndex = yyGetInt32(_spriteIndex);
+
     if (sprite_exists(_spriteIndex)) {
     
         var spr = g_pSpriteManager.Get(_spriteIndex);        
@@ -1567,7 +1475,9 @@ function sprite_get_texture(_spriteIndex, _frameIndex)
 				{
 					WebGLTexture: pTPE.texture,
 					TPE: pTPE,
-					toString: () => "Texture:" + pTPE.texture.URL
+					toString: () => {
+						return "Texture:" + pTPE.texture.URL;
+					}
 				}
 			);
 	    }
@@ -1590,11 +1500,8 @@ function sprite_get_texture(_spriteIndex, _frameIndex)
 // #############################################################################################
 function sprite_get_uvs(_spriteIndex, _frameIndex)
 {
-    _spriteIndex = yyGetRef(_spriteIndex, REFID_SPRITE, g_pSpriteManager.Sprites.length, g_pSpriteManager.Sprites);
-	if(typeof _frameIndex != "number")
-	{
-		yyError("sprite_get_uvs() subimg argument should be a Real!");
-	}
+    _spriteIndex = yyGetInt32(_spriteIndex);
+
     if (sprite_exists(_spriteIndex)) {
     
         var spr = g_pSpriteManager.Get(_spriteIndex);
@@ -1607,7 +1514,7 @@ function sprite_get_uvs(_spriteIndex, _frameIndex)
 	    
 	    var arrayData = [];
 	    arrayData.push(pTPE.x*oneTexelW, pTPE.y*oneTexelH, (pTPE.x+pTPE.CropWidth)*oneTexelW, (pTPE.y+pTPE.CropHeight)*oneTexelH);
-	    arrayData.push(pTPE.XOffset, pTPE.YOffset, pTPE.CropWidth/pTPE.ow,pTPE.CropHeight/pTPE.oh );
+	    arrayData.push(pTPE.XOffset, pTPE.YOffset, pTPE.CropWidth/pTPE.ow,pTPE.CropHeight/pTPE.ow );
 
 	    return arrayData;
     }
@@ -1863,7 +1770,7 @@ function sprite_get_info( _spriteIndex )
         variable_struct_set(ret, "num_subimages", pSpr.numb); //ret.gmlnum_subimages = pSpr.numb;
         variable_struct_set(ret, "frame_speed", (pSpr.playbackspeed != undefined) ? pSpr.playbackspeed : -1); //ret.gmlframe_speed = (pSpr.playbackspeed != undefined) ? pSpr.playbackspeed : -1;
         variable_struct_set(ret, "frame_type", (pSpr.playbackspeedtype != undefined) ? pSpr.playbackspeedtype : -1); //ret.gmlframe_type = (pSpr.playbackspeedtype != undefined) ? pSpr.playbackspeedtype : -1;
-        variable_struct_set(ret, "use_mask", pSpr.colcheck === yySprite_CollisionType.PRECISE); //ret.gmluse_mask = pSpr.colcheck;
+        variable_struct_set(ret, "use_mask", pSpr.colcheck); //ret.gmluse_mask = pSpr.colcheck;
         variable_struct_set(ret, "num_masks", pSpr.colmask.length); //ret.gmlnum_masks  = pSpr.colmask.length;
 
         switch( type ) {
@@ -1892,7 +1799,6 @@ function sprite_get_info( _spriteIndex )
             break;
         case 1: // SWF
             break;
-		// @if feature("spine")
         case 2: // SPINE
             if (pSpr.m_skeletonSprite != undefined) {
 
@@ -1960,21 +1866,15 @@ function sprite_get_info( _spriteIndex )
                         variable_struct_set(nslot, "dark_blue", slot.darkColor.b); //nslot.gmldark_blue = slot.darkColor.b;
                         variable_struct_set(nslot, "dark_alpha", slot.darkColor.a); //nslot.gmldark_alpha = slot.darkColor.a;
                     } // end if
-
-                    var slotAttachmentsArray = pSpr.m_skeletonSprite.GetAttachmentsForSlot(slot.name);
-                    variable_struct_set(nslot, "attachments", slotAttachmentsArray);
-
                     slotsArray.push(nslot);
                 } // end for
 				variable_struct_set(ret, "slots", slotsArray); //ret.gmlslots = slotsArray;
             } // end if
             break;
-		// @endif
+
         } // end switch
-		
-		// @if feature("nineslice")
+
         variable_struct_set(ret, "nineslice", (pSpr.nineslicedata != undefined) ? pSpr.nineslicedata : undefined); //ret.gmlnineslice = (pSpr.nineslicedata != undefined) ? pSpr.nineslicedata : undefined;
-		// @endif
 
         if (pSpr.sequence != undefined) {
             // get broadcast messages

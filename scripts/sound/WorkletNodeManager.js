@@ -1,4 +1,3 @@
-// @if feature("audio")
 function WorkletNodeManager() {
 	this.nodes = [];
 	this.handle = setInterval(() => this.cleanup(), 5000);
@@ -88,4 +87,3 @@ WorkletNodeManager.prototype.killNode = function(_node) {
 };
 
 var g_WorkletNodeManager = new WorkletNodeManager();
-// @endif

@@ -13,7 +13,6 @@
 // 15/02/2012		1.0         CPH     1st version
 // 
 // **********************************************************************************************************************
-// @if feature("physics")
 var PHYSICS_DEFAULT_UPDATE_ITERATIONS = 10,    
     PHYSICS_COLLISION_CATEGORIES = 32,
     PHYSICS_DEBUG_RENDER_SHAPE = (1 << 0),
@@ -688,171 +687,79 @@ yyPhysicsWorld.prototype.DispatchContactEvents = function () {
     this.m_contactList = [];
 };
 
-function ApplyOffsetToFixture(fixtureDef, offs)
-{
-
-	switch (fixtureDef.shape.GetType())
-	{
-	case yyBox2D.Shape.e_circle:
-	{
-		var circle = fixtureDef.shape;
-		circle.m_p.x += offs.x;
-		circle.m_p.y += offs.y;
-	}
-	break;
-
-	case yyBox2D.Shape.e_polygon:
-	{
-		var polygon = fixtureDef.shape;
-		for (var i = 0; i < polygon.m_count; i++)
-		{
-			polygon.m_vertices[i].x += offs.x;
-			polygon.m_vertices[i].y += offs.y;
-		}
-	}
-	break;
-
-	case yyBox2D.Shape.e_chain:
-	{
-		var chain = fixtureDef.shape;
-
-		for (var i = 0; i < chain.m_count; i++)
-		{
-			chain.m_vertices[i].x += offs.x;
-			chain.m_vertices[i].y += offs.y;
-		}
-	}
-	break;
-
-	case yyBox2D.Shape.e_edge:
-	{
-		var edge = fixtureDef.shape;
-
-
-		edge.m_vertex1.x += offs.x;
-		edge.m_vertex1.y += offs.y;
-		edge.m_vertex2.x += offs.x;
-		edge.m_vertex2.y += offs.y;
-	}
-	break;
-
-	default:
-		break;
-	}
-}
-
 // #############################################################################################
 /// Function:<summary>
 ///             Bind a fixture and create a physics body
 ///          </summary>
 // #############################################################################################
-yyPhysicsWorld.prototype.CreateBody = function (_pFixture, _pInst, _xoffs, _yoffs, ApplyOffsetToBody)
-{
-	if (ApplyOffsetToBody === undefined) ApplyOffsetToBody = true;
-	
-    var returnIndex = -1;
-    if (!_pFixture.Finalise()) return;
+yyPhysicsWorld.prototype.CreateBody = function (_fixture, _instance, _xo, _yo) {
 
-	// Build simple collision bits settings	
-	var fixtureDef = _pFixture.m_fixtureDef;
-	// Don't just blow up if they've screwed up the setup
-	if (fixtureDef.shape == null) {
-		var err = "No fixture shape data present for " + _pInst.GetObj().GetName() + "\n";
-		yyError(err, true);
+    var fixtureIndex = -1;
+
+    // Make sure any setting up of the fixture is complete
+    if (!_fixture.Finalise()) {
+        return;
+    }
+        
+    var collisionCategory = this.BuildCollisionBits(_instance.object_index);
+    if (collisionCategory != -1) {
+    
+        _fixture.m_fixtureDef.filter.categoryBits = this.m_objectToCollisionCategory[collisionCategory].categoryBits;
+		_fixture.m_fixtureDef.filter.maskBits = this.m_objectToCollisionCategory[collisionCategory].maskBits;
+    }
+    else {
+		_fixture.m_fixtureDef.filter.categoryBits = 0;
+		_fixture.m_fixtureDef.filter.maskBits = 0;
+    }
+
+    // work out what "type" the physics object should take on the basis of this fixture
+    var bodyType = (_fixture.m_fixtureDef.density == 0)
+                    ? (_fixture.m_kinematic ? yyBox2D.Body.b2_kinematicBody : yyBox2D.Body.b2_staticBody)
+                    : yyBox2D.Body.b2_dynamicBody;
+    
+    // Check if the instance already has a physics body
+    var yyObject = _instance.m_physicsObject;
+    if (_instance.m_physicsObject) {
+
+        var physicsBody = yyObject.m_physicsBody;
+        var fixture = physicsBody.GetFixtureList();
+        if ((fixture == null) || (fixture == undefined)) 
+        {
+            physicsBody.SetType(bodyType);
+        }
+            
+        var fixture = physicsBody.CreateFixture(_fixture.m_fixtureDef);
+        fixtureIndex = yyObject.GetFixtureIndex(fixture);
+    }
+    else {
+        var bodyDef = new yyBox2D.BodyDef();
+        bodyDef.type = bodyType;
+        bodyDef.angle = -_instance.image_angle * Pi / 180.0;        
+        bodyDef.linearDamping = _fixture.m_linearDamping;
+        bodyDef.angularDamping = _fixture.m_angularDamping;
+        bodyDef.awake = _fixture.m_awake;
+        var finalOffset = _instance.ApplyVisualOffset(bodyDef.angle, { x: _xo, y: _yo });
+        bodyDef.position.x = (_instance.x - finalOffset.x) * this.m_pixelToMetreScale;
+        bodyDef.position.y = (_instance.y - finalOffset.y) * this.m_pixelToMetreScale;
+        bodyDef.userData = _instance;        
+    
+        var physicsBody = this.m_world.CreateBody(bodyDef);
+        var fixture = physicsBody.CreateFixture(_fixture.m_fixtureDef);
+        
+        // Create our wrapper object and give the instance a reference to it
+        yyObject = new yyPhysicsObject(physicsBody, collisionCategory, _xo, _yo);
+        _instance.m_physicsObject = yyObject;
+        // Make sure initial physical states are present
+        _instance.RefreshPhysicalProperties(physicsBody);
+        
+        fixtureIndex = yyObject.GetFixtureIndex(fixture);
+        
+        // As a result of trying to keep down the number of collision categories we need
+	    // to run through any added bodies and ensure their collision bits are up to date
+	    this.UpdateInstantiatedShapesCollisionBits();
 	}
-	else {
-		var collisionCategory = this.BuildCollisionBits(_pInst.object_index);
-		if (collisionCategory != -1) {
-		
-			fixtureDef.filter.categoryBits = this.m_objectToCollisionCategory[collisionCategory].categoryBits;
-			fixtureDef.filter.maskBits = this.m_objectToCollisionCategory[collisionCategory].maskBits;
-		}
-		else {
-			fixtureDef.filter.categoryBits = 0;
-			fixtureDef.filter.maskBits = 0;
-		}
-
-		// Work out the type of body this fixture indicates if it's the only fixture attached to the physics body
-		var bodyType = (_pFixture.m_fixtureDef.density > 0) ? yyBox2D.Body.b2_dynamicBody : (_pFixture.m_kinematic ? yyBox2D.Body.b2_kinematicBody : yyBox2D.Body.b2_staticBody);
-		
-		// if the instance already has a body asssociated with it then we're just adding a new shape/fixture to the pre-existing body
-		if (_pInst.m_physicsObject != null)
-		{
-			var pBody = _pInst.m_physicsObject.m_physicsBody;
-			if (pBody.GetFixtureList() == null)
-			{
-				// No fixtures currently attached, presumably all deleted... allow the new fixture's density to dictate the body type
-				pBody.SetType(bodyType);
-			}
-
-			var offs = _pInst.ApplyVisualOffset(-_pInst.image_angle * Pi / 180.0, { x: _xoffs* this.m_pixelToMetreScale, y: _yoffs* this.m_pixelToMetreScale });
-
-			ApplyOffsetToFixture(fixtureDef, offs);
-
-			
-
-			var pFixture = pBody.CreateFixture(fixtureDef);
-			returnIndex = _pInst.m_physicsObject.GetFixtureIndex(pFixture);
-
-			offs.x = -offs.x;
-			offs.y = -offs.y;
-
-			ApplyOffsetToFixture(fixtureDef, offs);
-
-		}
-		else
-		{
-			var bodyDef = new yyBox2D.BodyDef();
-			bodyDef.type = bodyType;
-			bodyDef.angle = -_pInst.image_angle * Pi / 180.0;        
-			bodyDef.linearDamping = _pFixture.m_linearDamping;
-			bodyDef.angularDamping = _pFixture.m_angularDamping;
-			bodyDef.awake = _pFixture.m_awake;
-			// Fixture position should be adjusted according to the visual offset provided if it's non-zero		
-			var finalOffs;
-			if (ApplyOffsetToBody)
-				finalOffs = _pInst.ApplyVisualOffset(bodyDef.angle, { x: _xoffs, y: _yoffs });
-			else
-				finalOffs = _pInst.ApplyVisualOffset(bodyDef.angle, { x: 0, y: 0 });
-			bodyDef.position.x = (_pInst.x - finalOffs.x) * this.m_pixelToMetreScale;
-			bodyDef.position.y = (_pInst.y - finalOffs.y) * this.m_pixelToMetreScale;
-			bodyDef.userData = _pInst;        
-			var pBody = this.m_world.CreateBody(bodyDef);
-			
-			if (!ApplyOffsetToBody)
-			{
-				finalOffs = _pInst.ApplyVisualOffset(bodyDef.angle, { x: _xoffs* this.m_pixelToMetreScale, y: _yoffs* this.m_pixelToMetreScale });
-				ApplyOffsetToFixture(fixtureDef, finalOffs);
-				_xoffs = 0;
-				_yoffs = 0;
-			}
-
-
-			var pFixture = pBody.CreateFixture(fixtureDef);
-			
-			// Create a physics object for this instance and ensure the instance has a reference to it
-			// Also, ensure a note of the collision category is maintained for updating collision bits
-			var physicsObject = new yyPhysicsObject(pBody, collisionCategory, _xoffs, _yoffs);
-			_pInst.m_physicsObject = physicsObject;
-			// Make sure initial physical states are present
-			_pInst.RefreshPhysicalProperties(pBody);
-
-			returnIndex = physicsObject.GetFixtureIndex(pFixture);
-
-			if (!ApplyOffsetToBody)
-			{
-				finalOffs.x = -finalOffs.x;
-				finalOffs.y = -finalOffs.y;
-
-				ApplyOffsetToFixture(fixtureDef, finalOffs);
-			}
-
-			// As a result of trying to keep down the number of collision categories we need
-			// to run through any added bodies and ensure their collision bits are up to date
-			this.UpdateInstantiatedShapesCollisionBits();
-		}
-	}
-    return returnIndex;
+    
+    return fixtureIndex;
 };
 
 // #############################################################################################
@@ -2214,25 +2121,8 @@ yyPhysicsWorld.prototype.DrawParticles_WebGL = function (_typeMask, _category, _
 		    pCoords[v0 + 2] = pCoords[v1 + 2] = pCoords[v2 + 2] = pCoords[v3 + 2] = pCoords[v4 + 2] = pCoords[v5 + 2] = GR_Depth;
             
             var col = (colours[n].b & 0xff) | ((colours[n].g << 8) & 0xff00) | ((colours[n].r << 16) & 0xff0000) | ((colours[n].a << 24) & 0xff000000);
-			var col2 = col;
-			var col3 = col;
-			var col4 = col;
-			if (GR_MarkVertCorners) {
-			
-				col  &= 0xfffefffe;			// clear out bits, ready for "marking"
-				col2 &= 0xfffefffe;			// 
-				col3 &= 0xfffefffe;			// 
-				col4 &= 0xfffefffe;			// 
-				col2 |= 0x00000001;			// Mark which corner we're in!
-				col3 |= 0x00010000;
-				col4 |= 0x00010001;
-			}
-			
-            pColours[v0] = pColours[v5] = col;
-			pColours[v1] = col2;
-			pColours[v2] = pColours[v3] = col3;
-			pColours[v4] = col4;
-			
+            pColours[v0] = pColours[v1] = pColours[v2] = pColours[v3] = pColours[v4] = pColours[v5] = col;
+            
             pUVs[v0 + 0] = pUVs[v4 + 0] = pUVs[v5 + 0] = pTPE.x / pTPE.texture.width;
             pUVs[v0 + 1] = pUVs[v1 + 1] = pUVs[v5 + 1] = pTPE.y / pTPE.texture.height;
             pUVs[v1 + 0] = pUVs[v2 + 0] = pUVs[v3 + 0] = (pTPE.x + pTPE.w) / pTPE.texture.width;
@@ -2299,20 +2189,7 @@ yyPhysicsWorld.prototype.DrawParticlesExt_WebGL = function (_typeMask, _category
     
     // _col, _alpha
     var col = _col | (((_alpha * 255) & 0xff) << 24);    
-    var col2 = col;
-	var col3 = col;
-	var col4 = col;
-	if (GR_MarkVertCorners) {
-	
-		col  &= 0xfffefffe;			// clear out bits, ready for "marking"
-		col2 &= 0xfffefffe;			// 
-		col3 &= 0xfffefffe;			// 
-		col4 &= 0xfffefffe;			// 
-		col2 |= 0x00000001;			// Mark which corner we're in!
-		col3 |= 0x00010000;
-		col4 |= 0x00010001;
-	}
-			
+    
     var x1 =  -_xscale * (_spr.xOrigin-pTPE.XOffset);
 	var y1 =  -_yscale * (_spr.yOrigin-pTPE.YOffset);
 	var x2 = x1 + (_xscale*pTPE.CropWidth);
@@ -2334,12 +2211,9 @@ yyPhysicsWorld.prototype.DrawParticlesExt_WebGL = function (_typeMask, _category
 	    	    pCoords[v1 + 0] = pCoords[v2 + 0] = pCoords[v3 + 0] = x + x2;
 	    	    pCoords[v2 + 1] = pCoords[v3 + 1] = pCoords[v4 + 1] = y + y2;
 	    	    pCoords[v0 + 2] = pCoords[v1 + 2] = pCoords[v2 + 2] = pCoords[v3 + 2] = pCoords[v4 + 2] = pCoords[v5 + 2] = GR_Depth;
-                         
-				pColours[v0] = pColours[v5] = col;
-				pColours[v1] = col2;
-				pColours[v2] = pColours[v3] = col3;
-				pColours[v4] = col4;
-			
+                            
+                pColours[v0] = pColours[v1] = pColours[v2] = pColours[v3] = pColours[v4] = pColours[v5] = col;
+                
                 pUVs[v0 + 0] = pUVs[v4 + 0] = pUVs[v5 + 0] = pTPE.x / pTPE.texture.width;
                 pUVs[v0 + 1] = pUVs[v1 + 1] = pUVs[v5 + 1] = pTPE.y / pTPE.texture.height;
                 pUVs[v1 + 0] = pUVs[v2 + 0] = pUVs[v3 + 0] = (pTPE.x + pTPE.w) / pTPE.texture.width;
@@ -2419,4 +2293,3 @@ yyPhysicsWorld.prototype.SetParticleRadius = function (_radius)     { this.m_wor
 yyPhysicsWorld.prototype.SetParticleDensity = function (_density)   { this.m_world.SetParticleDensity(_density); };
 yyPhysicsWorld.prototype.SetParticleDamping = function (_damping)   { this.m_world.SetParticleDamping(_damping); };
 yyPhysicsWorld.prototype.SetParticleGravityScale = function (_scale){ this.m_world.SetParticleGravityScale(_scale); };
-// @endif

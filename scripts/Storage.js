@@ -52,7 +52,6 @@ function TPE_Copy(_pTPE)
 }
 
 
-// @if feature("sprites")
 /** @constructor */
 function    YYSprite()
 {
@@ -72,7 +71,6 @@ function    YYSprite()
     this.yOrigin = 0;
     this.TPageEntrys = [];          // followed by count * (YYTPageEntry*)
 }
-// @endif sprites
 
 
 /** @constructor */
@@ -97,6 +95,24 @@ function YYInstancesStorage()
     this.index = 0;
     this.id = 0;
     this.pCode = null;   
+}
+
+
+/** @constructor */
+function YYTileStorage()
+{
+    this.x = 0;
+    this.y = 0;
+    this.index = 0;
+    this.xo = 0;
+    this.yo = 0;
+    this.w = 0;
+    this.h = 0;
+    this.depth = 0;
+    this.id = 0;
+    this.scaleX = 1.0;
+    this.scaleY = 1.0;
+    this.colour = -1;
 }
 
 

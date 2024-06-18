@@ -14,7 +14,6 @@
 //
 // **********************************************************************************************************************
 
-// @if function("network_*")
 var NETWORK_SOCKET_WS = 6;
 var NETWORK_SOCKET_WSS = 7;
 
@@ -507,5 +506,3 @@ function network_destroy(_socket) {
     yyWebSocketList_remove(wrap);
     return 0;
 }
-
-// @endif

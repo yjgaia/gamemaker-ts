@@ -1,4 +1,3 @@
-// @if feature("audio_effects")
 function AudioEffect() {}
 
 AudioEffect.PARAM_TIME_CONSTANT = 0.005; // 5ms
@@ -10,16 +9,12 @@ AudioEffect.Type = {
     HPF2: 3,
     LPF2: 4,
     Reverb1: 5,
-    Tremolo: 6,
-    PeakEQ: 7,
-    HiShelf: 8,
-    LoShelf: 9,
-    EQ: 10,
-    Compressor: 11
+    Tremolo: 6
 };
 
 AudioEffect.getWorkletName = function(_type) {
-    switch (_type) {
+    switch (_type)
+    {
         case AudioEffect.Type.Bitcrusher:   return "bitcrusher-processor";
         case AudioEffect.Type.Delay:        return "delay-processor";
         case AudioEffect.Type.Gain:         return "gain-processor";
@@ -27,11 +22,6 @@ AudioEffect.getWorkletName = function(_type) {
         case AudioEffect.Type.LPF2:         return "lpf2-processor";
         case AudioEffect.Type.Reverb1:      return "reverb1-processor";
         case AudioEffect.Type.Tremolo:      return "tremolo-processor";
-        case AudioEffect.Type.PeakEQ:       return "peak-eq-processor";
-        case AudioEffect.Type.HiShelf:      return "hi-shelf-processor";
-        case AudioEffect.Type.LoShelf:      return "lo-shelf-processor";
-        case AudioEffect.Type.EQ:           return null;
-        case AudioEffect.Type.Compressor:   return "compressor-processor";
         default:                            return null;
     }
 };
@@ -44,7 +34,7 @@ function AudioEffectStruct(_type) {
     this.nodes = [];
 
     this.type = _type;
-    this.params = [];
+    this.params = {};
     
     // Define user-facing properties
     Object.defineProperties(this, {
@@ -60,94 +50,59 @@ function AudioEffectStruct(_type) {
         gmlbypass: {
             enumerable: true,
             get: () => {
-                return this.params[AudioEffectStruct.Index.Bypass];  
+                return this.params.bypass;  
             },
             set: (_state) => {
-                const val = this.setParam(AudioEffectStruct.Index.Bypass, _state);
+                this.setParam(AudioEffectStruct.paramDescriptors().bypass, _state);
 
                 this.nodes.forEach((_node) => {
                     const bypass = _node.parameters.get("bypass");
-                    bypass.value = val;
+                    bypass.value = this.params.bypass;
                 });
             }
         }
     });
 }
 
-AudioEffectStruct.GetStructType = function(_type) {
+AudioEffectStruct.Create = function(_type, _params) {
     switch (_type)
     {
-        case AudioEffect.Type.Bitcrusher:   return BitcrusherEffectStruct;
-        case AudioEffect.Type.Delay:        return DelayEffectStruct;
-        case AudioEffect.Type.Gain:         return GainEffectStruct;
-        case AudioEffect.Type.HPF2:         return HPF2EffectStruct;
-        case AudioEffect.Type.LPF2:         return LPF2EffectStruct;
-        case AudioEffect.Type.Reverb1:      return Reverb1EffectStruct;
-        case AudioEffect.Type.Tremolo:      return TremoloEffectStruct;
-        case AudioEffect.Type.PeakEQ:       return PeakEQEffectStruct;
-        case AudioEffect.Type.HiShelf:      return HiShelfEffectStruct;
-        case AudioEffect.Type.LoShelf:      return LoShelfEffectStruct;
-        case AudioEffect.Type.EQ:           return EQEffectStruct;
-        case AudioEffect.Type.Compressor:   return CompressorEffectStruct;
-        default:                            return undefined;
+        case AudioEffect.Type.Bitcrusher:   return new BitcrusherEffectStruct(_params);
+        case AudioEffect.Type.Delay:        return new DelayEffectStruct(_params);
+        case AudioEffect.Type.Gain:         return new GainEffectStruct(_params);
+        case AudioEffect.Type.HPF2:         return new HPF2EffectStruct(_params);
+        case AudioEffect.Type.LPF2:         return new LPF2EffectStruct(_params);
+        case AudioEffect.Type.Reverb1:      return new Reverb1EffectStruct(_params);
+        case AudioEffect.Type.Tremolo:      return new TremoloEffectStruct(_params);
+        default:                            return null;
     }
 };
 
-AudioEffectStruct.Create = function(_type, _params) {
-    const structType = AudioEffectStruct.GetStructType(_type);
-    return (structType === undefined) ? undefined : new structType(_params);
-};
+AudioEffectStruct.paramDescriptors = () => ({
+    bypass: { name: "bypass", integer: true, defaultValue: 0, minValue: 0, maxValue: 1 }
+});
 
-AudioEffectStruct.Index = {
-    Bypass: 0
-};
-
-AudioEffectStruct.ParamDescriptors = [
-    { name: "bypass", integer: true, defaultValue: 0, minValue: 0, maxValue: 1 }
-];
-
-AudioEffectStruct.prototype.addInstance = function() {
+AudioEffectStruct.prototype.addNode = function() {
     const node = g_WorkletNodeManager.createEffect(this);
     this.nodes.push(node);
-
-    const ret = { input: node, output: node };
-    return ret;
+    
+    return node;
 };
 
-AudioEffectStruct.prototype.initParams = function(_params) {    
-    const descriptors = this.getParamDescriptors();
-    
-    descriptors.forEach((_desc, _idx) => {
-        let val = _desc.defaultValue;
-    
-        if (_params !== undefined && _params["gml" + _desc.name] !== undefined) {
-            val = _params["gml" + _desc.name];
-        }
-
-        this.setParam(_idx, val);
+AudioEffectStruct.prototype.initParams = function(_params, _descriptors) {
+    Object.values(_descriptors).forEach(_desc => {
+        const val = _params ? (_params["gml" + _desc.name] ?? _desc.defaultValue) : _desc.defaultValue;
+        this.setParam(_desc, val);
     });
 };
 
-AudioEffectStruct.prototype.setParam = function(_idx, _val) {
-    const structType = AudioEffectStruct.GetStructType(this.type);
-    const desc = structType.ParamDescriptors[_idx];
+AudioEffectStruct.prototype.setParam = function(_desc, _val) {
+    _val = clamp(_val, _desc.minValue, _desc.maxValue);
 
-    _val = clamp(_val, desc.minValue, desc.maxValue);
-
-    if (desc.integer === true)
+    if (_desc.integer === true)
         _val = ~~_val;
 
-    this.params[_idx] = _val;
-    return _val;
-};
-
-AudioEffectStruct.prototype.getParamDescriptors = function() {
-    const structType = AudioEffectStruct.GetStructType(this.type);
-    return structType.ParamDescriptors;
-};
-
-AudioEffectStruct.prototype.getParamDescriptor = function(_idx) {
-    return this.getParamDescriptors()[_idx];
+    this.params[_desc.name] = _val;
 };
 
 AudioEffectStruct.prototype.removeNode = function(_node) { 
@@ -158,32 +113,3 @@ AudioEffectStruct.prototype.removeNode = function(_node) {
         this.nodes.splice(idx, 1);
     }
 };
-
-AudioEffectStruct.prototype.updateFreqDesc = function(_desc) {
-    if (this.isFilter() === false) {
-        return _desc;
-    }
-
-    if (_desc.name !== "cutoff" && _desc.name !== "freq") {
-        return _desc;
-    }
-
-    _desc.maxValue = g_WebAudioContext ? Math.min(g_WebAudioContext.sampleRate / 2, _desc.maxValue)
-                                       : _desc.maxValue;
-    _desc.defaultValue = Math.min(_desc.defaultValue, _desc.maxValue);
-    return _desc;
-};
-
-AudioEffectStruct.prototype.isFilter = function() {
-    switch (this.type) {
-        case AudioEffect.Type.HiShelf:
-        case AudioEffect.Type.HPF2:
-        case AudioEffect.Type.LoShelf:
-        case AudioEffect.Type.LPF2:
-        case AudioEffect.Type.PeakEQ:
-            return true;
-        default:
-            return false;
-    }
-};
-// @endif

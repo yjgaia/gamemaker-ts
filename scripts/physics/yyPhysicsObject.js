@@ -13,7 +13,6 @@
 // 15/02/2012		1.0         CPH     1st version
 // 
 // **********************************************************************************************************************
-// @if feature("physics")
 /** @constructor */
 function yyPhysicsObject(_b2Body, _collisionCategory, _xo, _yo) {
 	    		
@@ -214,15 +213,14 @@ yyPhysicsObject.prototype.DebugRenderShapes = function(_scale) {
     while ((fixture != null) && (fixture != undefined)) {
     
         var shape = fixture.GetShape();
-		var transform = this.m_physicsBody.GetTransform();
+        var bodyPosition = this.m_physicsBody.GetPosition();
 		if (shape instanceof yyBox2D.CircleShape)
-	    {
-			var center = yyBox2D.Mul_t_v2(transform, shape.m_p);
+	    {	        
 			draw_ellipse(
-				(center.x - shape.m_radius) * _scale, 
-				(center.y - shape.m_radius) * _scale, 
-				(center.x + shape.m_radius) * _scale, 
-				(center.y + shape.m_radius) * _scale, 
+				(bodyPosition.x - shape.m_radius) * _scale, 
+				(bodyPosition.y - shape.m_radius) * _scale, 
+				(bodyPosition.x + shape.m_radius) * _scale, 
+				(bodyPosition.y + shape.m_radius) * _scale, 
 				true);
 	    }
 	    else if (shape instanceof yyBox2D.PolygonShape)
@@ -233,9 +231,13 @@ yyPhysicsObject.prototype.DebugRenderShapes = function(_scale) {
 			{
 				var posA = shape.m_vertices[n];
 				var posB = shape.m_vertices[(n + 1) % shape.m_count];
-				var posAT = yyBox2D.Mul_t_v2(transform, posA);
-				var posBT = yyBox2D.Mul_t_v2(transform, posB);
-				draw_line(posAT.x * _scale, posAT.y * _scale, posBT.x * _scale, posBT.y * _scale);
+
+				// Draw with rotated positions
+				draw_line(
+					(bodyPosition.x + ((posA.x * cs) - (posA.y * sn))) * _scale,
+					(bodyPosition.y + ((posA.x * sn) + (posA.y * cs))) * _scale,
+					(bodyPosition.x + ((posB.x * cs) - (posB.y * sn))) * _scale,
+					(bodyPosition.y + ((posB.x * sn) + (posB.y * cs))) * _scale);
 			}			
 		}		
 		fixture = fixture.m_next;
@@ -457,50 +459,3 @@ yyPhysicsObject.prototype.SetRestitution = function(_fixtureIndex, _val) {
         this.m_fixtures[_fixtureIndex].SetRestitution(_val);
     }    
 };
-
-
-yyPhysicsObject.prototype.raycast = function( xStart, yStart, xEnd, yEnd, maxFraction )
-{
-	var ret = undefined;
-	var pixelToMetreScale = g_RunRoom.m_pPhysicsWorld.m_pixelToMetreScale;
-
-	var input = new yyBox2D.RayCastInput();
-	input.p1.x = xStart * pixelToMetreScale;
-	input.p1.y = yStart * pixelToMetreScale;
-	input.p2.x = xEnd * pixelToMetreScale;
-	input.p2.y = yEnd * pixelToMetreScale;
-	input.maxFraction = maxFraction;
-
-	var fHit = false;
-	var _fraction = Number.MAX_VALUE;
-	var _normalX = -1;
-	var _normalY = -1;
-	var output = new yyBox2D.RayCastOutput();
-
-	for (var f = this.m_physicsBody.GetFixtureList(); f; f = f.m_next)
-	{
-		if (f.RayCast(output, input, 0)) {
-			if (output.fraction < _fraction) {
-				_fraction = output.fraction;
-				_normalX = output.normal.x;
-				_normalY = output.normal.y;
-				fHit = true;
-			} // end if
-		} // end if
-	} // end for
-
-	if (fHit) {
-		ret = { };
-	    ret.__yyIsGMLObject = true;
-		variable_struct_set( ret, "normalX", _normalX);
-		variable_struct_set( ret, "normalY", _normalY);
-		variable_struct_set( ret, "fraction", _fraction);
-		variable_struct_set( ret, "hitpointX", xStart + _fraction * (xEnd - xStart));
-		variable_struct_set( ret, "hitpointY", yStart + _fraction * (yEnd - yStart));
-	} // end if
-
-	return ret;
-};
-
-
-// @endif

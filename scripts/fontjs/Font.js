@@ -1,4 +1,3 @@
-// @if function("font_add")
 /**
 
   Font.js v2012.01.25
@@ -826,4 +825,3 @@
     window.Font = Font;
 
 } (window));
-// @endif

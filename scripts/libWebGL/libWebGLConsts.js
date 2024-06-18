@@ -72,13 +72,6 @@ var yyGL = {
     Blend_InvBlendFactor: 15,
     Blend_SrcColour2: 16,
     Blend_InvSrcColour2: 16,
-	
-	// Blend equations
-	BlendEquation_Add: 1,
-	BlendEquation_Max: 2,
-	BlendEquation_Subtract: 3,
-	BlendEquation_Min: 4,
-	BlendEquation_InvSubtract: 5,
     
     // Render states
     RenderState_None: 0,
@@ -118,9 +111,7 @@ var yyGL = {
 	RenderState_SrcBlendAlpha: 34,
 	RenderState_DestBlendAlpha: 35,
 	RenderState_CullOrder: 36,
-	RenderState_BlendEquation: 37,
-	RenderState_BlendEquationAlpha: 38,
-	RenderState_MAX: 39,
+	RenderState_MAX: 37,
       
     // Stencil operations
     StencilOp_Keep: 1,

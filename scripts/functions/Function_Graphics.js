@@ -122,9 +122,8 @@ function display_set_gui_maximise(_xscale, _yscale, _xoffset, _yoffset)
         Calc_GUI_Scale();
     }
 }
-// @if function("display_set_gui_maximize")
+
 var display_set_gui_maximize = display_set_gui_maximise;
-// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -219,9 +218,9 @@ function draw_clear( _col )
 ///				
 ///			</returns>
 // #############################################################################################
-function draw_clear_alpha(){}
-// @if feature("2d")
-draw_clear_alpha = (_col, _alpha) => {
+var draw_clear_alpha = draw_clear_alpha_RELEASE;
+function draw_clear_alpha_RELEASE(_col, _alpha) 
+{
     _col = yyGetInt32(_col);
     _alpha = yyGetReal(_alpha);
 
@@ -251,8 +250,7 @@ draw_clear_alpha = (_col, _alpha) => {
 	}
 
 	Graphics_Restore();
-};
-// @endif
+}
 
 
 // #############################################################################################
@@ -272,9 +270,9 @@ function make_color_rgb(_red,_green,_blue)
 {
     return (yyGetInt32(_red)) | (yyGetInt32(_green) << 8) | (yyGetInt32(_blue) << 16);
 }
-// @if function("make_colour_rgb")
+function    make_color(_r, _g, _b) { return make_color_rgb(_r, _g, _b); }
 var make_colour_rgb = make_color_rgb;
-// @endif
+var make_colour = make_color;
 
 // #############################################################################################
 /// Function:<summary>
@@ -290,9 +288,7 @@ function color_get_blue(_col)
 {
     return (yyGetInt32(_col) >> 16) & 0xff;
 }
-// @if function("colour_get_blue")
 var colour_get_blue = color_get_blue;
-// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -308,9 +304,7 @@ function color_get_green(_col)
 {
     return (yyGetInt32(_col) >> 8) & 0xff;
 }
-// @if function("colour_get_green")
 var colour_get_green = color_get_green;
-// @endif
 
 
 // #############################################################################################
@@ -327,9 +321,7 @@ function color_get_red(_col)
 {
     return (yyGetInt32(_col) & 0xff);
 }
-// @if function("colour_get_red")
 var colour_get_red = color_get_red;
-// @endif
 
 
 // #############################################################################################
@@ -393,9 +385,7 @@ function color_get_hue(_col)
     var hsv = Color_RGBtoHSV(_col);
     return hsv.h;
 }
-// @if function("colour_get_hue")
 var colour_get_hue = color_get_hue;
-// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -412,9 +402,7 @@ function color_get_saturation(_col)
     var hsv = Color_RGBtoHSV(_col);
     return hsv.s;
 }
-// @if function("colour_get_saturation")
 var colour_get_saturation = color_get_saturation;
-// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -431,9 +419,7 @@ function color_get_value(_col)
     var hsv = Color_RGBtoHSV(_col);
     return hsv.v;
 }
-// @if function("colour_get_value")
 var colour_get_value = color_get_value;
-// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -471,8 +457,7 @@ function merge_color(_col1,_col2,_amount)
     
     return ((r<<16)&0xff0000) | ((g<<8)&0xff00) | (b&0xff);
 }
-function merge_colour(){}
-compile_if_used(merge_colour = merge_color);
+var merge_colour = merge_color;
 
 // #############################################################################################
 /// Function:<summary>
@@ -538,8 +523,7 @@ function make_color_hsv( _hue,_saturation,_value )
 	return Result;
 
 }
-function make_colour_hsv(){}
-compile_if_used(make_colour_hsv = make_color_hsv);
+var make_colour_hsv = make_color_hsv;
 
 
 // #############################################################################################
@@ -555,7 +539,10 @@ function draw_set_alpha( _alpha )
     _alpha = yyGetReal(_alpha);
 
     // cap _alpha to between 0 and 1
-    g_GlobalAlpha = _alpha < 0 ? 0 : (_alpha > 1 ? 1 : _alpha);
+    if (_alpha < 0) { _alpha = 0; }
+    if (_alpha > 1) { _alpha = 1; }
+    
+    g_GlobalAlpha = _alpha;    
     g_GlobalColour_HTML_RGBA = GetHTMLRGBA(g_GlobalColour, g_GlobalAlpha);
 }
 
@@ -586,8 +573,7 @@ function draw_get_color( )
 {
     return g_GlobalColour_GM;
 }
-function draw_get_colour(){}
-compile_if_used(draw_get_colour = draw_get_color);
+var draw_get_colour = draw_get_color;
 
 // #############################################################################################
 /// Function:<summary>
@@ -606,9 +592,8 @@ function draw_set_color( _colour )
     g_GlobalColour_HTML_RGB = GetHTMLRGB(g_GlobalColour);
     g_GlobalColour_HTML_RGBA = GetHTMLRGBA(g_GlobalColour,g_GlobalAlpha);
 }
-// @if function("draw_set_colour")
+
 var draw_set_colour = draw_set_color;
-// @endif
 
 function draw_set_lighting(_enable)
 {
@@ -697,9 +682,7 @@ function draw_roundrect_ext(_x1, _y1, _x2, _y2, _radx, _rady, _outline) {
 function draw_roundrect_color(_x1, _y1, _x2, _y2, _col1, _col2, _outline) {
     draw_roundrect_color_ext(_x1, _y1, _x2, _y2, 10, 10, _col1, _col2, _outline);
 }
-// @if function("draw_roundrect_colour")
 var draw_roundrect_colour = draw_roundrect_color;
-// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -713,9 +696,8 @@ var draw_roundrect_colour = draw_roundrect_color;
 ///			 <param name="_outline">Outline the rect?</param>
 ///				
 // #############################################################################################
-function draw_roundrect_color_ext(){}
-function draw_roundrect_colour_ext(){}
-// @if feature("2d")
+var draw_roundrect_color_ext = draw_roundrect_color_EXT_RELEASE;
+var draw_roundrect_colour_ext = draw_roundrect_color_EXT_RELEASE;
 function draw_roundrect_color_EXT_RELEASE(_x1, _y1, _x2, _y2, _radx, _rady, _col1, _col2, _outline) 
 {
     _x1 = yyGetReal(_x1);
@@ -776,9 +758,6 @@ function draw_roundrect_color_EXT_RELEASE(_x1, _y1, _x2, _y2, _radx, _rady, _col
         graphics.fill();
     }
 }
-draw_roundrect_color_ext = draw_roundrect_color_EXT_RELEASE;
-compile_if_used(draw_roundrect_colour_ext = draw_roundrect_color_EXT_RELEASE);
-// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -792,8 +771,7 @@ compile_if_used(draw_roundrect_colour_ext = draw_roundrect_color_EXT_RELEASE);
 ///			 <param name="_outline">Outline the rect?</param>
 ///				
 // #############################################################################################
-function draw_rectangle(){}
-// @if feature("2d")
+var draw_rectangle = draw_rectangle_RELEASE;
 function draw_rectangle_RELEASE ( _x1,_y1, _x2,_y2, _outline )
 {
     _x1 = yyGetReal(_x1);
@@ -829,8 +807,6 @@ function draw_rectangle_RELEASE ( _x1,_y1, _x2,_y2, _outline )
         graphics._fillRect(_x1,_y1, _x2-_x1+1,_y2-_y1+1);
     }        
 }
-draw_rectangle = draw_rectangle_RELEASE; // used for vkeys
-// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -845,9 +821,8 @@ draw_rectangle = draw_rectangle_RELEASE; // used for vkeys
 ///			 <param name="_outline">Whether or not to draw the rect as an outline</param>
 ///				
 // #############################################################################################
-function draw_rectangle_color(){}
-function draw_rectangle_colour(){}
-// @if feature("2d")
+var draw_rectangle_color = draw_rectangle_color_RELEASE;
+var draw_rectangle_colour = draw_rectangle_color_RELEASE;
 function    draw_rectangle_color_RELEASE( _x1,_y1, _x2,_y2, _col1, _col2,_col3,_col4, _outline ) {
 
     //return;
@@ -891,9 +866,74 @@ function    draw_rectangle_color_RELEASE( _x1,_y1, _x2,_y2, _col1, _col2,_col3,_
         graphics._fillRect(_x1 + 0.5, _y1 + 0.5, (_x2 - _x1), (_y2 - _y1));
     }        
 }
-draw_rectangle_color = draw_rectangle_color_RELEASE; // NB! used to clear screen
-compile_if_used(draw_rectangle_colour = draw_rectangle_color_RELEASE);
-// @endif
+
+// #############################################################################################
+/// Function:<summary>
+///             Draw a rectangle with a gradient
+///          </summary>
+///
+/// In:		 <param name="_x1">Top X coordinate</param>
+///			 <param name="_y1">Top Y coordinate</param>
+///			 <param name="_x2">Bottom X coordinate</param>
+///			 <param name="_y2">Bottom X coordinate</param>
+///			 <param name="_col1">Start colour of the rect as a number</param>
+///			 <param name="_col2">End colour of the rect as a number</param>
+///			 <param name="_vert">Whether or not the gradient should be vertical (or horizontal)</param>
+///			 <param name="_outline">Whether or not to draw the rect as an outline</param>
+///				
+// #############################################################################################
+var draw_rectangle_gradient = draw_rectangle_gradient_RELEASE;
+function draw_rectangle_gradient_RELEASE(_x1, _y1, _x2, _y2, _col1, _col2, _vert, _outline)
+{
+    _x1 = yyGetReal(_x1);
+    _y1 = yyGetReal(_y1);
+    _x2 = yyGetReal(_x2);
+    _y2 = yyGetReal(_y2);
+    _col1 = yyGetInt32(_col1);
+    _col2 = yyGetInt32(_col2);
+    _vert = yyGetBool(_vert);
+    _outline = yyGetBool(_outline);
+
+	graphics.globalAlpha = g_GlobalAlpha;
+	graphics.lineWidth = 1;
+
+	var col1 = GetHTMLRGBA( ConvertGMColour(_col1), 1.0 );
+    var col2 = GetHTMLRGBA( ConvertGMColour(_col2), 1.0 );
+    var gradient;
+    if (_vert) {
+        gradient = graphics.createLinearGradient(_x1, _y1, _x1, _y2);
+    }
+    else {
+        gradient = graphics.createLinearGradient(_x1, _y1, _x2, _y1);        
+    }
+    gradient.addColorStop(0, col1 );
+    gradient.addColorStop(1, col2 );
+    
+    if (_outline)
+    {
+        if (offsethack != 0.0)
+        {
+            _x1 += offsethack;
+            _y1 += offsethack;
+            _x2 += offsethack;
+            _y2 += offsethack;
+        }
+
+        graphics.strokeStyle = gradient;
+        graphics._strokeRect(_x1 + 0.5, _y1 + 0.5, _x2 - _x1, _y2 - _y1);
+    }
+    else 
+    {
+        if (offsethack != 0.0)
+        {        
+            _x2 += offsethack;
+            _y2 += offsethack;
+        }
+
+        graphics.fillStyle = gradient;
+        graphics._fillRect(_x1 + 0.5, _y1 + 0.5, _x2 - _x1, _y2 - _y1);
+    } 
+}
 
 // #############################################################################################
 /// Function:<summary>
@@ -906,9 +946,9 @@ compile_if_used(draw_rectangle_colour = draw_rectangle_color_RELEASE);
 ///				
 ///			</returns>
 // #############################################################################################
-function draw_point(){}
-// @if feature("2d")
-draw_point = (_x, _y) => {
+var draw_point = draw_point_RELEASE;
+function draw_point_RELEASE(_x, _y)
+{
     _x = yyGetReal(_x);
     _y = yyGetReal(_y);
 
@@ -921,8 +961,8 @@ draw_point = (_x, _y) => {
     graphics.globalAlpha = g_GlobalAlpha;
     graphics.fillStyle = g_GlobalColour_HTML_RGBA;
     graphics._fillRect(_x, _y, 1, 1);
-};
-// @endif
+}
+
 
 
 // #############################################################################################
@@ -937,9 +977,7 @@ draw_point = (_x, _y) => {
 ///			<param name="_w"></param>
 ///				
 // #############################################################################################
-function draw_line_width(){}
-// @if feature("2d")
-draw_line_width = (_x1, _y1, _x2, _y2, _w) => {
+function draw_line_width(_x1, _y1, _x2, _y2, _w) {
 
     _x1 = yyGetReal(_x1);
     _y1 = yyGetReal(_y1);
@@ -965,8 +1003,8 @@ draw_line_width = (_x1, _y1, _x2, _y2, _w) => {
 	graphics._closePath();
 	graphics._stroke();
 	graphics._fillRect(_x2, _y2, 1, 1);		// CHROME doesn't fill in the bottom pixel!
-};
-// @endif
+}
+
 
 
 
@@ -999,10 +1037,13 @@ function draw_line(_x1,_y1,_x2,_y2)
 ///				The colour of the pixel, or 0 for off screen/canvas.
 ///			</returns>
 // #############################################################################################
-function draw_getpixel(){}
-function draw_getpixel_ext(){}
+var draw_getpixel = draw_getpixel_RELEASE;
+var draw_getpixel_ext = draw_getpixel_ext_RELEASE;
+function draw_getpixel_RELEASE(_x, _y)
+{    
+    return draw_getpixel_ext_RELEASE(yyGetReal(_x), yyGetReal(_y)) & 0x00ffffff;
+}
 
-// @if feature("2d")
 function draw_getpixel_ext_RELEASE(_x, _y)
 {
     var ws = canvas.width / g_OriginalWidth;
@@ -1012,9 +1053,6 @@ function draw_getpixel_ext_RELEASE(_x, _y)
     var col = GetCanvasPixel(canvas, yyGetReal(_x) * ws, yyGetReal(_y) * hs);
 	return col;
 }
-compile_if_used(draw_getpixel = (_x, _y) => draw_getpixel_ext_RELEASE(yyGetReal(_x), yyGetReal(_y)) & 0x00ffffff);
-compile_if_used(draw_getpixel_ext = draw_getpixel_ext_RELEASE);
-// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -1032,8 +1070,7 @@ compile_if_used(draw_getpixel_ext = draw_getpixel_ext_RELEASE);
 ///				
 ///			 </returns>
 // #############################################################################################
-function draw_triangle(){}
-// @if feature("2d")
+var draw_triangle = draw_triangle_RELEASE;
 function draw_triangle_RELEASE(_x1, _y1, _x2, _y2, _x3, _y3, _outline) {
 
     _x1 = yyGetReal(_x1);
@@ -1091,10 +1128,6 @@ function draw_triangle_RELEASE(_x1, _y1, _x2, _y2, _x3, _y3, _outline) {
 	}
 
 }
-// @if function("draw_triangle") || function("draw_arrow") || function("physics_world_draw_debug")
-draw_triangle = draw_triangle_RELEASE;
-// @endif
-// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -1115,9 +1148,8 @@ draw_triangle = draw_triangle_RELEASE;
 ///				
 ///			</returns>
 // #############################################################################################
-function draw_triangle_color(){}
-function draw_triangle_colour(){}
-// @if feature("2d")
+var draw_triangle_color = draw_triangle_color_RELEASE;
+var draw_triangle_colour = draw_triangle_color_RELEASE;
 function draw_triangle_color_RELEASE(_x1, _y1, _x2, _y2, _x3, _y3, _col1, _col2, _col3, _outline) {
 	var col1 = GetHTMLRGB(ConvertGMColour(_col1)|0xff000000);
 
@@ -1128,6 +1160,7 @@ function draw_triangle_color_RELEASE(_x1, _y1, _x2, _y2, _x3, _y3, _col1, _col2,
 	_col1 = yyGetInt32(_col1);
 	_col2 = yyGetInt32(_col2);
 	_col3 = yyGetInt32(_col3);
+	_col4 = yyGetInt32(_col4);
 	_outline = yyGetBool(_outline);
 
 	/*_x1 += 0.5;
@@ -1177,9 +1210,6 @@ function draw_triangle_color_RELEASE(_x1, _y1, _x2, _y2, _x3, _y3, _col1, _col2,
 		graphics.lineJoin = "miter";
 	}
 }
-compile_if_used(draw_triangle_color = draw_triangle_color_RELEASE);
-compile_if_used(draw_triangle_colour = draw_triangle_color_RELEASE);
-// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -1203,7 +1233,8 @@ compile_if_used(draw_triangle_colour = draw_triangle_color_RELEASE);
 ///			 <param name="showback"></param>
 ///			 <param name="showborder"></param>
 // #############################################################################################
-function draw_healthbar_ex(_x1, _y1, _x2, _y2, _amount, _backcol, _mincol, _midcol, _maxcol, _direction, _showback, _showborder)
+var draw_healthbar_ex = draw_healthbar_ex_RELEASE;
+function draw_healthbar_ex_RELEASE(_x1, _y1, _x2, _y2, _amount, _backcol, _mincol, _midcol, _maxcol, _direction, _showback, _showborder)
 {
     _x1 = yyGetReal(_x1);
     _y1 = yyGetReal(_y1);
@@ -1338,7 +1369,8 @@ function draw_get_circle_precision()
 ///				
 ///			 </returns>
 // #############################################################################################
-function draw_arrow(x1, y1, x2, y2, size)
+var draw_arrow = draw_arrow_RELEASE;
+function draw_arrow_RELEASE(x1, y1, x2, y2, size)
 {
     x1 = yyGetReal(x1);
     y1 = yyGetReal(y1);
@@ -1395,9 +1427,8 @@ function draw_ellipse(_x1, _y1, _x2, _y2, _outline) {
 ///				
 ///			 </returns>
 // #############################################################################################
-function draw_ellipse_color(){}
-function draw_ellipse_colour(){}
-// @if feature("2d")
+var draw_ellipse_color = draw_ellipse_color_RELEASE;
+var draw_ellipse_colour = draw_ellipse_color_RELEASE;
 function draw_ellipse_color_RELEASE(x, y, x1, y1, _col1, _col2, outline)
 {
     x = yyGetReal(x);
@@ -1455,11 +1486,6 @@ function draw_ellipse_color_RELEASE(x, y, x1, y1, _col1, _col2, outline)
         graphics.fill();
     }
 }
-// @if function("draw_ellipse") || function("draw_ellipse_color")
-draw_ellipse_color = draw_ellipse_color_RELEASE;
-// @endif
-compile_if_used(draw_ellipse_colour = draw_ellipse_color_RELEASE);
-// @endif
 
 
 // #############################################################################################
@@ -1476,10 +1502,10 @@ compile_if_used(draw_ellipse_colour = draw_ellipse_color_RELEASE);
 ///				
 ///			</returns>
 // #############################################################################################
-function draw_circle_color(){}
-function draw_circle_colour(){}
-// @if feature("2d")
-function draw_circle_color_RELEASE(_x, _y, _r, _col1, _col2, _outline) {
+var draw_circle_color = draw_circle_color_RELEASE;
+var draw_circle_colour = draw_circle_color_RELEASE;
+function draw_circle_color_RELEASE(_x, _y, _r, _col1, _col2, _outline)
+{
     _x = yyGetReal(_x);
     _y = yyGetReal(_y);
     _r = yyGetReal(_r);
@@ -1516,11 +1542,6 @@ function draw_circle_color_RELEASE(_x, _y, _r, _col1, _col2, _outline) {
 	}
 	graphics._closePath();
 }
-// @if function("draw_circle") || function("draw_circle_color")
-draw_circle_color = draw_circle_color_RELEASE; // used for draw_circle
-// @endif
-compile_if_used(draw_circle_colour = draw_circle_color_RELEASE);
-// @endif
 
 // #############################################################################################
 /// Function:<summary>
@@ -1552,10 +1573,10 @@ function draw_circle(_x,_y,_r,_outline) {
 ///				
 ///			</returns>
 // #############################################################################################
-function draw_point_color(){};
-function draw_point_colour(){};
-// @if feature("2d")
-function draw_point_color_RELEASE(_x, _y, _col) {
+var draw_point_color = draw_point_color_RELEASE;
+var draw_point_colour = draw_point_color_RELEASE;
+function draw_point_color_RELEASE(_x, _y, _col)
+{
     _x = yyGetReal(_x);
     _y = yyGetReal(_y);
 
@@ -1571,9 +1592,8 @@ function draw_point_color_RELEASE(_x, _y, _col) {
     graphics.fillStyle = col1;
     graphics._fillRect(_x,_y,1,1);
 }
-compile_if_used(draw_point_color = draw_point_color_RELEASE);
-compile_if_used(draw_point_colour = draw_point_color_RELEASE);
-// @endif
+
+
 
 
 // #############################################################################################
@@ -1588,10 +1608,10 @@ compile_if_used(draw_point_colour = draw_point_color_RELEASE);
 ///			<param name="_w"></param>
 ///				
 // #############################################################################################
-function draw_line_width_color(){}
-function draw_line_width_colour(){}
-// @if feature("2d")
-function draw_line_width_color_RELEASE(_x1, _y1, _x2, _y2, _w, _col1, _col2) {
+var draw_line_width_color = draw_line_width_color_RELEASE;
+var draw_line_width_colour = draw_line_width_color_RELEASE;
+function draw_line_width_color_RELEASE(_x1, _y1, _x2, _y2, _w, _col1, _col2) 
+{
     _x1 = yyGetReal(_x1);
     _y1 = yyGetReal(_y1);
     _x2 = yyGetReal(_x2);
@@ -1626,9 +1646,6 @@ function draw_line_width_color_RELEASE(_x1, _y1, _x2, _y2, _w, _col1, _col2) {
     graphics._stroke();
     graphics._closePath();
 }
-draw_line_width_color = draw_line_width_color_RELEASE;
-compile_if_used(draw_line_width_colour = draw_line_width_color_RELEASE);
-// @endif
 
 
 // #############################################################################################
@@ -1647,9 +1664,7 @@ function draw_line_color(_x1,_y1,_x2,_y2,_col1,_col2)
 {
     draw_line_width_color(_x1,_y1, _x2,_y2, 1, _col1,_col2);
 }
-// @if function("draw_line_colour")
 var draw_line_colour = draw_line_color;
-// @endif
 
 
 // #############################################################################################
@@ -1701,6 +1716,27 @@ function draw_button(_x1, _y1, _x2, _y2, _down)
 	draw_rectangle_color(_x1,_y1, _x2,_y2, g_GlobalColour_GM, g_GlobalColour_GM, g_GlobalColour_GM, g_GlobalColour_GM, false);
 }
 
+
+// #############################################################################################
+/// Function:<summary>
+///				Draws an ellipse with the given bounding box with a gradient from the centre
+///             of the ellipse to the max radius of the ellipse
+///          </summary>
+///
+/// In:		 <param name="x1"></param>
+///			 <param name="y1"></param>
+///			 <param name="x2"></param>
+///			 <param name="y2"></param>
+///			 <param name="outline"></param>
+/// Out:	 <returns>
+///				
+///			 </returns>
+// #############################################################################################
+function draw_ellipse_gradient(x, y, x1, y1, col1, col2, outline) 
+{
+	draw_ellipse_color(x, y, x1, y1, col1, col2, outline);
+}
+
 // #############################################################################################
 /// Function:<summary>
 ///          	Indicates what blend mode to use. The following values are possible: 
@@ -1747,7 +1783,8 @@ function draw_set_blend_mode(_blend)
 ///				
 ///			</returns>
 // #############################################################################################
-function draw_set_blend_mode_ext(src, dest) {
+var draw_set_blend_mode_ext = draw_set_blend_mode_ext_html5;
+function draw_set_blend_mode_ext_html5(src, dest) {
 	ErrorFunction("Blend modes only available in WebGL mode.");
 }
 
@@ -1786,7 +1823,6 @@ function skeleton_animation_set(_inst, _name, _loop = true) {
 	{		
 		skeletonAnim.SelectAnimation(yyGetString(_name), _loop);
 		_inst.image_index = 0;
-		_inst.frame_overflow = 0;
 		skeletonAnim.SetImageIndex(0, 0);
     }    
 }
@@ -1820,7 +1856,6 @@ function skeleton_animation_set_ext(_inst, _anim, _track, _loop = true) {
         if (_track == 0)
         {
             _inst.image_index = 0;
-            _inst.frame_overflow = 0;
             skeletonAnim.SetImageIndex(0, 0);
         }
 	}
@@ -2293,28 +2328,13 @@ function skeleton_animation_get_event_frames(_inst, _anim, _event)
 ///             Clear the animation at the given track
 ///          </summary>
 // #############################################################################################
-function skeleton_animation_clear(_inst, _track, _reset, _mixDuration) {
-	if(_reset === undefined)
-	{
-		_reset = false;
-	}
-	else{
-		_reset = yyGetBool(_reset);
-	}
+function skeleton_animation_clear(_inst, _track) {
 
-	if(_mixDuration === undefined)
-	{
-		_mixDuration = 0.0;
-	}
-	else{
-		_mixDuration = yyGetReal(_mixDuration);
-	}
-
-	var skeletonAnim = _inst.SkeletonAnimation();
-	if (skeletonAnim)
-	{
-		skeletonAnim.ClearAnimation(yyGetInt32(_track), _reset, _mixDuration);
-	}
+    var skeletonAnim = _inst.SkeletonAnimation();
+    if (skeletonAnim)
+	{		
+        skeletonAnim.ClearAnimation(yyGetInt32(_track));
+	}	
 }
 
 // #############################################################################################
@@ -2400,7 +2420,7 @@ function skeleton_bone_state_get(_inst, _bone, _map) {
     var skeletonAnim = _inst.SkeletonAnimation();
     if (skeletonAnim)
 	{		
-        skeletonAnim.GetBoneState(_inst, yyGetString(_bone), yyGetInt32(_map));
+        skeletonAnim.GetBoneState(yyGetString(_bone), yyGetInt32(_map));
 	}
 }
 
@@ -2414,7 +2434,7 @@ function skeleton_bone_state_set(_inst, _bone, _map) {
     var skeletonAnim = _inst.SkeletonAnimation();
     if (skeletonAnim)
 	{		
-        skeletonAnim.SetBoneState(_inst, yyGetString(_bone), yyGetInt32(_map));
+        skeletonAnim.SetBoneState(yyGetString(_bone), yyGetInt32(_map));
 	}
 }
 
@@ -2450,17 +2470,9 @@ function draw_skeleton_time(_sprite, _animname, _skinname, _time, _x, _y, _xscal
 	}
 }
 
-function draw_skeleton_instance(_instance, _animname, _skinname, _frame, _x, _y, _xscale, _yscale, _rot, _colour, _alpha)
-{
-	var pInst = g_pInstanceManager.Get(_instance);
-
-	var skeletonAnim = pInst.SkeletonAnimation();
-	if (skeletonAnim)
-	{
-		var pSpr = g_pSpriteManager.Get(pInst.sprite_index);
-		pSpr.m_skeletonSprite.DrawFrame(yyGetString(_animname), yyGetString(_skinname), yyGetInt32(_frame), yyGetReal(_x), yyGetReal(_y), yyGetReal(_xscale), yyGetReal(_yscale), yyGetReal(_rot), yyGetInt32(_colour), yyGetReal(_alpha));
-	}
-}
+function draw_skeleton_instance() {
+    ErrorFunction("draw_skeleton_instance()");
+};
 
 // #############################################################################################
 /// Function:<summary>
@@ -2706,83 +2718,6 @@ function SetViewExtents(xview, yview, wview, hview,  angle)
 	
 	}
 };
-
-// Updates view extents from view and projection matrices. Optionally inverse
-// view and inverse view-projection matrices can be provided to speed up
-// computations if they are already available.
-function UpdateViewExtents(_matView, _matProj, _matInvView, _matInvViewProj)
-{
-    var isOrthoProj = (_matProj.m[11] == 0);
-    
-    if (isOrthoProj)
-    {
-        if (_matInvView === undefined)
-        {
-            _matInvView = new Matrix();
-            _matInvView.Invert(_matView);
-        }
-        
-        if (_matInvViewProj === undefined)
-        {
-            var matViewProj = new Matrix();
-            matViewProj.Multiply(_matView, _matProj);
-            
-            _matInvViewProj = new Matrix();
-            _matInvViewProj.Invert(matViewProj);
-        }
-        
-        var campos = new Vector3();
-        campos.X = _matInvView.m[_41];
-        campos.Y = _matInvView.m[_42];
-        campos.Z = _matInvView.m[_43];
-
-        // Experimental
-        // Back transform clip space extents by the inverse of our view-proj matrix to get our room-space bounds
-        var leftvec, rightvec, upvec, downvec;
-        leftvec = _matInvViewProj.TransformVec3(new Vector3(-1.0, 0.0, 0.0));
-        rightvec = _matInvViewProj.TransformVec3(new Vector3(1.0, 0.0, 0.0));
-        upvec = _matInvViewProj.TransformVec3(new Vector3(0.0, 1.0, 0.0));
-        downvec = _matInvViewProj.TransformVec3(new Vector3(0.0, -1.0, 0.0));
-
-        var diffh = rightvec.Sub(leftvec);
-        var diffv = upvec.Sub(downvec);
-
-        g_worldw = diffh.Length();
-        g_worldh = diffv.Length();
-
-        g_worldx = campos.X - (g_worldw * 0.5);
-        g_worldy = campos.Y - (g_worldh * 0.5);
-
-        var normdiffv = diffv;
-        normdiffv.Normalise();
-
-        var angle = Math.acos(normdiffv.Y);
-        if (normdiffv.X < 0.0) {
-            angle = (2.0 * Math.PI) - angle;
-        }
-
-        var ViewAreaA = (angle / (2.0 * Math.PI)) * 360.0;
-
-        /*g_worldx = campos.X - (this.m_viewWidth * 0.5);
-		g_worldy = campos.Y - (this.m_viewHeight * 0.5);
-		g_worldw = this.m_viewWidth;
-		g_worldh = this.m_viewHeight;
-		var ViewAreaA = this.m_viewAngle;*/
-
-        //Needs implmenting
-        SetViewExtents(g_worldx, g_worldy, g_worldw, g_worldh, ViewAreaA);
-    }
-    else
-    {
-        // Not ideal, but set the view area to the room extents if this is a perspective camera
-        // We would need to change the way we do culling and work out extents for tile drawing etc across the codebase to handle this properly
-        g_worldx = 0;
-        g_worldy = 0;
-        g_worldw = g_RunRoom != null ? g_RunRoom.GetWidth() : 1;
-        g_worldh = g_RunRoom != null ? g_RunRoom.GetHeight() : 1;
-        SetViewExtents(g_worldx, g_worldy, g_worldw, g_worldh, 0);
-    }
-}
 
 function GetViewFrustum()
 {

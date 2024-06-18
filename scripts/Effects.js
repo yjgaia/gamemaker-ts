@@ -58,14 +58,32 @@ var types_created = false,                 // whether the types have been create
 // #############################################################################################
 function Speed_Factor()
 {
-	if( ( g_GameTimer.GetFPS() <= 30) || (Fps <= 30) ){
-		return 1.0; 
-	}
+    if(g_isZeus)
+    {
+    
+	    if( ( g_GameTimer.GetFPS() <= 30) || (Fps <= 30) ){
+		    return 1.0; 
+	    }
 
-	if( (g_GameTimer.GetFPS()/ Fps) < 1.2 ){
-		return 30.0/g_GameTimer.GetFPS();
-	}else{
-		return 30.0/Fps;
+	    if( (g_GameTimer.GetFPS()/ Fps) < 1.2 ){
+		    return 30.0/g_GameTimer.GetFPS();
+	    }else{
+		    return 30.0/Fps;
+	    }
+    }
+    else
+    {
+
+
+	    if( ( g_RunRoom.GetSpeed() <= 30) || (Fps <= 30) ){
+		    return 1.0; 
+	    }
+
+	    if( (g_RunRoom.GetSpeed() / Fps) < 1.2 ){
+		    return 30.0/g_RunRoom.GetSpeed();
+	    }else{
+		    return 30.0/Fps;
+	    }
 	}
 }
 
@@ -777,7 +795,7 @@ function	Eff_Effect11(_ps, _x, _y, _size, _col)
 ///				Creates an effect
 ///          </summary>
 ///
-/// In:		<param name="ps"></param>
+/// In:		<param name="below"></param>
 ///			<param name="kind"></param>
 ///			<param name="x"></param>
 ///			<param name="y"></param>
@@ -787,23 +805,31 @@ function	Eff_Effect11(_ps, _x, _y, _size, _col)
 ///				
 ///			</returns>
 // #############################################################################################
-function Effect_Create(_ps, _kind, _x, _y, _size, _col)
+function Effect_Create(_below, _kind, _x, _y, _size, _col)
 {
+	var ps;
+
 	Eff_Check_Systems();
-	
+	if ( _below ){
+		ps = ps_below;
+	}else{
+		ps = ps_above;
+	}
+
+
 	switch(  _kind )
 	{
-		case EFFECT_EXPLOSION: Eff_Effect00(_ps,_x,_y,_size,_col); break;
-		case EFFECT_RING: Eff_Effect01(_ps,_x,_y,_size,_col); break;
-		case EFFECT_ELLIPSE: Eff_Effect02(_ps, _x, _y, _size, _col); break;
-		case EFFECT_FIREWORK: Eff_Effect03(_ps,_x,_y,_size,_col); break;
-		case EFFECT_SMOKE: Eff_Effect04(_ps,_x,_y,_size,_col); break;
-		case EFFECT_SMOKE_UP: Eff_Effect05(_ps,_x,_y,_size,_col); break;
-		case EFFECT_STAR: Eff_Effect06(_ps,_x,_y,_size,_col); break;
-		case EFFECT_SPARK: Eff_Effect07(_ps,_x,_y,_size,_col); break;
-		case EFFECT_FLARE: Eff_Effect08(_ps,_x,_y,_size,_col); break;
-		case EFFECT_CLOUD: Eff_Effect09(_ps,_x,_y,_size,_col); break;
-		case EFFECT_RAIN: Eff_Effect10(_ps,_x,_y,_size,_col); break;
-		case EFFECT_SNOW: Eff_Effect11(_ps,_x,_y,_size,_col); break;
+		case EFFECT_EXPLOSION: Eff_Effect00(ps,_x,_y,_size,_col); break;
+		case EFFECT_RING: Eff_Effect01(ps,_x,_y,_size,_col); break;
+		case EFFECT_ELLIPSE: Eff_Effect02(ps, _x, _y, _size, _col); break;
+		case EFFECT_FIREWORK: Eff_Effect03(ps,_x,_y,_size,_col); break;
+		case EFFECT_SMOKE: Eff_Effect04(ps,_x,_y,_size,_col); break;
+		case EFFECT_SMOKE_UP: Eff_Effect05(ps,_x,_y,_size,_col); break;
+		case EFFECT_STAR: Eff_Effect06(ps,_x,_y,_size,_col); break;
+		case EFFECT_SPARK: Eff_Effect07(ps,_x,_y,_size,_col); break;
+		case EFFECT_FLARE: Eff_Effect08(ps,_x,_y,_size,_col); break;
+		case EFFECT_CLOUD: Eff_Effect09(ps,_x,_y,_size,_col); break;
+		case EFFECT_RAIN: Eff_Effect10(ps,_x,_y,_size,_col); break;
+		case EFFECT_SNOW: Eff_Effect11(ps,_x,_y,_size,_col); break;
 	}
 }

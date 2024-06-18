@@ -1,4 +1,3 @@
-/// @if function("gif_*")
 /**
  * This class handles LZW encoding
  * Adapted from Jef Poskanzer's Java port by way of J. M. G. Elliott.
@@ -276,4 +275,3 @@ LZWEncoder = function() {
 	LZWEncoder.apply(this, arguments);
 	return exports;
 };
-/// @endif

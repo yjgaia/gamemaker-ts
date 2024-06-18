@@ -15,7 +15,6 @@
 // 
 // **********************************************************************************************************************
 
-// @if feature("layerEffects")
 var EFFECT_CLEANUP_FUNC = "cleanup",
 EFFECT_STEP_FUNC = "step",
 EFFECT_LAYER_BEGIN_FUNC = "layer_begin",
@@ -73,8 +72,7 @@ function yyEffectParameterInfo()
 	this.type = 0;
 	this.elements = 0;
 	this.arraysize = 0;
-	this.convert = 0.0;
-	
+
 	this.defaults_data = null;
 	this.min_data = null;
 	this.max_data = null;
@@ -109,7 +107,7 @@ function yyEffectInfo(_pStorage)
 yyEffectInfo.prototype.SetupFromJson = function (_json) 
 {
 	var jsonObj = JSON.parse(_json);
-	
+
 	this.pName = jsonObj.name;
 	this.pDisplayName = jsonObj.displayname;
 	this.type = jsonObj.type == "filter" ? FAE_TYPE_FILTER : FAE_TYPE_EFFECT;
@@ -124,7 +122,7 @@ yyEffectInfo.prototype.SetupFromJson = function (_json)
 	}
 
 	var parameters = jsonObj.parameters;
-	
+
 	this.numParameters = parameters.length;
 	this.pParams = [];
 	for(var i = 0; i < parameters.length; i++)
@@ -219,12 +217,8 @@ yyEffectInfo.prototype.SetupFromJson = function (_json)
 				}
 			}
 		}
-		
-		if(jsonParam.convertValueToTimeModulated !== undefined)
-		{
-			param.convert = jsonParam.convertValueToTimeModulated;
-		}
-		
+
+
 		this.pParams.push(param);
 	}
 };
@@ -298,7 +292,10 @@ function yyFilterHost(_pShader, _shaderId, _pEffectInfo)
 	}
 	this[funcId] = this.RoomEnd;
 
-	var varId = EFFECT_AFFECT_SINGLE_LAYER_VAR;
+	var varId = "gml" + EFFECT_AFFECT_SINGLE_LAYER_VAR;
+	if ((typeof g_var2obf !== "undefined") && (g_var2obf[EFFECT_AFFECT_SINGLE_LAYER_VAR] != undefined)) {
+		varId = g_var2obf[EFFECT_AFFECT_SINGLE_LAYER_VAR];
+	}
 	this[varId] = false;		// set this to false initially
 
 	this.GetCommonShaderConstants();
@@ -325,11 +322,11 @@ yyFilterHost.prototype.Step = function ()
 {
 	if (this.startTime == -1)
 	{
-		this.startTime = get_timer();
+		this.startTime = YoYo_GetTimer();
 	}
 	else
 	{
-		this.elapsedTime = get_timer() - this.startTime;
+		this.elapsedTime = YoYo_GetTimer() - this.startTime;
 	}
 };
 
@@ -349,7 +346,10 @@ yyFilterHost.prototype.LayerBegin = function (_layerID)
 	
 	// Check to see if this filter should apply only to this layer
 	var bOnlyThisLayer = false;
-	var varId = EFFECT_AFFECT_SINGLE_LAYER_VAR;
+	var varId = "gml" + EFFECT_AFFECT_SINGLE_LAYER_VAR;
+	if ((typeof g_var2obf !== "undefined") && (g_var2obf[EFFECT_AFFECT_SINGLE_LAYER_VAR] != undefined)) {
+		varId = g_var2obf[EFFECT_AFFECT_SINGLE_LAYER_VAR];
+	}
 	var pVar = this[varId];
 	if (pVar !== undefined)	
 	{
@@ -370,31 +370,24 @@ yyFilterHost.prototype.LayerBegin = function (_layerID)
 
 		this.tempSurfaceID = g_pEffectsManager.AcquireTempSurface(surfwidth, surfheight);
 
-		this.backupWorld = WebGL_GetMatrix(MATRIX_WORLD);
-		this.backupView = WebGL_GetMatrix(MATRIX_VIEW);
-		var matProj = WebGL_GetMatrix(MATRIX_PROJECTION);
-
-		if (g_RenderTargetActive == -1)
+		var pCam = g_pCameraManager.GetActiveCamera();
+		var pClonedCam = null;
+		if (pCam != null)
 		{
-			this.backupProj = matProj;
-		}
-		else
-		{
-			var flipMat = new Matrix();
-			flipMat.unit();
-			flipMat.m[_22] = -1.0;
-			this.backupProj.Multiply(matProj, flipMat);
+			var clonedCamID = g_pCameraManager.CloneCamera(pCam.m_id);	
+			pClonedCam = g_pCameraManager.GetCamera(clonedCamID);
 		}
 
 		// Draw everything on this layer to the temporary surface
 		surface_set_target(this.tempSurfaceID);
 		draw_clear_alpha(0, 0.0);
 
-		WebGL_SetMatrix(MATRIX_WORLD, this.backupWorld);
-		var tempCam = g_pCameraManager.GetTempCamera();
-		tempCam.SetViewMat(this.backupView);
-		tempCam.SetProjMat(this.backupProj);
-		tempCam.ApplyMatrices();
+		if (pClonedCam != null)
+		{			
+			UpdateCamera(pClonedCam.GetViewX(), pClonedCam.GetViewY(), pClonedCam.GetViewWidth(), pClonedCam.GetViewHeight(), pClonedCam.GetViewAngle(), g_pCameraManager.GetActiveCamera());
+
+			g_pCameraManager.DestroyCamera(pClonedCam.m_id);
+		}
 
 		g_webGL.RSMan.SaveStates();
 
@@ -434,14 +427,8 @@ yyFilterHost.prototype.LayerEnd = function (_layerID)
 	var scratchSurface = -1;
 	if (this.tempSurfaceID != -1)
 	{
-		g_webGL.RSMan.RestoreStates(true);
+		g_webGL.RSMan.RestoreStates();
 		surface_reset_target();
-
-		WebGL_SetMatrix(MATRIX_WORLD, this.backupWorld);
-		var tempCam = g_pCameraManager.GetTempCamera();
-		tempCam.SetViewMat(this.backupView);
-		tempCam.SetProjMat(this.backupProj);
-		tempCam.ApplyMatrices();
 	}
 	else
 	{
@@ -512,7 +499,6 @@ yyFilterHost.prototype.LayerEnd = function (_layerID)
 		for (var i = 0; i < this.pEffectInfo.numParameters; i++)
 		{
 			var pParam = this.pEffectInfo.pParams[i]; //EffectParameterInfo
-			
 			var pVar = this[pParam.pName];
 			if (pVar != null)
 			{
@@ -523,25 +509,7 @@ yyFilterHost.prototype.LayerEnd = function (_layerID)
 					{
 						case FAE_PARAM_FLOAT:
 						{
-							var cVar = pVar.slice();
-							if(pParam.convert > 0.0)
-							{
-								for(var j = 0; j < cVar.length; j++)
-								{
-									if(abs(cVar[j]) > 0.0)
-									{
-										var s = 1.0;
-										if(cVar[j] < 0.0)
-										{
-											s = -1.0;
-										}
-										var aVar = abs(cVar[j]);
-										var oneOver = pParam.convert / aVar;
-										cVar[j] = ((fElapsedTime % oneOver) / oneOver) * s;
-									}
-								}
-							}
-							shader_set_uniform_f_array(this.pParamUniformIDs[i], cVar);
+							shader_set_uniform_f_array(this.pParamUniformIDs[i], pVar);
 						} break;
 						case FAE_PARAM_INT:
 						case FAE_PARAM_BOOL:
@@ -557,18 +525,7 @@ yyFilterHost.prototype.LayerEnd = function (_layerID)
 					switch (pParam.type)
 					{
 						case FAE_PARAM_FLOAT:
-						{		
-							if(pParam.convert > 0.0 && abs(pVar) > 0.0)
-							{
-								var s = 1.0;
-								if(pVar < 0.0)
-								{
-									s = -1.0;
-								}
-								var aVar = abs(pVar);
-								var oneOver = pParam.convert / aVar;
-								pVar = ((fElapsedTime % oneOver) / oneOver) * s;
-							}
+						{						
 							shader_set_uniform_f(this.pParamUniformIDs[i], pVar);
 						} break;
 						case FAE_PARAM_INT:
@@ -578,7 +535,6 @@ yyFilterHost.prototype.LayerEnd = function (_layerID)
 						} break;
 						case FAE_PARAM_SAMPLER:
 						{
-							// @if feature("sprites")
 							var spriteID = pVar;
 							var pSprite = g_pSpriteManager.Get(spriteID);
 							if ((pSprite != null) && (pSprite.SWFTimeline === undefined) && (pSprite.m_skeletonSprite === undefined))
@@ -617,7 +573,6 @@ yyFilterHost.prototype.LayerEnd = function (_layerID)
 							args[1].kind = VALUE_PTR;
 							args[1].ptr = YYGetPtr(pVar, 0);
 							F_Shader_Set_Texture(res, NULL, NULL, 2, args);*/
-							// @endif sprites
 						} break;
 					}
 				}
@@ -666,7 +621,7 @@ yyFilterHost.prototype.LayerEnd = function (_layerID)
 	}
 
 	// Restore state
-    g_webGL.RSMan.RestoreStates(true);
+    g_webGL.RSMan.RestoreStates();
 	shader_set(BackupUserShader);
 	//g_webGL.FlushAll();  //FlushShader();
 	GR_Depth = olddepth;
@@ -868,14 +823,12 @@ yyEffectInstance.prototype.SetParam = function (_pParamName, _type, _elements, _
 			case FAE_PARAM_FLOAT: pEntry = _data[j]; break;
 			case FAE_PARAM_INT: pEntry = _data[j]; break;
 			case FAE_PARAM_BOOL: pEntry = _data[j] ? 1 : 0; break;
-			// @if feature("sprites")
 			case FAE_PARAM_SAMPLER:
 			{
 				var spriteID = g_pSpriteManager.Sprite_Find(_data[j]);
 				pEntry = spriteID;
 				break;
 			}
-			// @endif sprites
 			}
 
 			pVar.push(pEntry);
@@ -888,14 +841,12 @@ yyEffectInstance.prototype.SetParam = function (_pParamName, _type, _elements, _
 		case FAE_PARAM_FLOAT: pVar = _data[0]; break;
 		case FAE_PARAM_INT: pVar = _data[0]; break;
 		case FAE_PARAM_BOOL: pVar = _data[0] ? 1 : 0; break;
-		// @if feature("sprites")
 		case FAE_PARAM_SAMPLER:
 		{
 			var spriteID = g_pSpriteManager.Sprite_Find(_data[0]);
 			pVar = spriteID;
 			break;
 		}
-		// @endif sprites
 		}
 	}
 
@@ -1172,7 +1123,7 @@ yyEffectsManager.prototype.CreateNewEffectInstance = function (_effectname, _aut
 	{
 		// Look for a function with a matching name (this should be the constructor)
 		var script_id = method_get_index_from_name(pEffectInfo.pScriptOrShaderName);
-		if ((script_id != null) && (script_id != -1))
+		if (script_id != -1)
 		{
 			// Create a new struct using the constructor and store this in a new EffectInstance
 			//F_JSNewGMLObject(res, m_pScriptInstance, NULL, 1, &scriptarg);
@@ -1199,7 +1150,11 @@ yyEffectsManager.prototype.CreateNewEffectInstance = function (_effectname, _aut
 		newEffect.SetDefaultValues();
 
 		var bAffectsSingleLayerOnly = false;
-		newEffect.SetParam(EFFECT_AFFECT_SINGLE_LAYER_VAR, FAE_PARAM_BOOL, 1, [ bAffectsSingleLayerOnly ]);		// hard code this just now
+		var varId = "gml" + EFFECT_AFFECT_SINGLE_LAYER_VAR;
+		if ((typeof g_var2obf !== "undefined") && (g_var2obf[EFFECT_AFFECT_SINGLE_LAYER_VAR] != undefined)) {
+			varId = g_var2obf[EFFECT_AFFECT_SINGLE_LAYER_VAR];
+		}
+		newEffect[varId] = bAffectsSingleLayerOnly;
 
 		return newEffect;
 	}
@@ -1279,8 +1234,12 @@ yyEffectsManager.prototype.SetupLayerEffect = function (_pRoom, _pLayer)
 				var pParam = pEffectInfo.pParams[i]; //CLayerEffectParam
 				pEffectInst.SetParam(pParam.pName, pParam.type, pParam.elements, pParam.defaults_data);
 			}
-		
-			pEffectInst.SetParam(EFFECT_AFFECT_SINGLE_LAYER_VAR, FAE_PARAM_BOOL, 1, [ pEffectInfo.bAffectsSingleLayerOnly ]);
+
+			var varId = "gml" + EFFECT_AFFECT_SINGLE_LAYER_VAR;
+			if ((typeof g_var2obf !== "undefined") && (g_var2obf[EFFECT_AFFECT_SINGLE_LAYER_VAR] != undefined)) {
+				varId = g_var2obf[EFFECT_AFFECT_SINGLE_LAYER_VAR];
+			}			
+			pEffectInst.SetParam(varId, FAE_PARAM_BOOL, 1, [ pEffectInfo.bAffectsSingleLayerOnly ]);
 		}
 	}
 	else
@@ -1306,7 +1265,11 @@ yyEffectsManager.prototype.SetupLayerEffect = function (_pRoom, _pLayer)
 					_pLayer.SetEffect(pEffectInst.GetRef());
 					_pRoom.AddEffectLayerID(_pLayer.m_id);
 
-					pEffectInst.SetParam(EFFECT_AFFECT_SINGLE_LAYER_VAR, FAE_PARAM_BOOL, 1, [ false ]);		// hard code this just now
+					var varId = "gml" + EFFECT_AFFECT_SINGLE_LAYER_VAR;
+					if ((typeof g_var2obf !== "undefined") && (g_var2obf[EFFECT_AFFECT_SINGLE_LAYER_VAR] != undefined)) {
+						varId = g_var2obf[EFFECT_AFFECT_SINGLE_LAYER_VAR];
+					}
+					pEffectInst.SetParam(varId, FAE_PARAM_BOOL, 1, [ false ]);		// hard code this just now
 				}
 			}
 		}
@@ -1652,4 +1615,3 @@ yyEffectsManager.prototype.CleanupOldTempSurfaces = function()
 		}
 	}
 };
-// @endif

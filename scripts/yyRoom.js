@@ -70,6 +70,9 @@ yyRoom.prototype.Init = function () {
 	//this.m_NewInstances = []; 				// When a new instance is added, its added to the layers at the end of the event
 	//this.m_ParticleChanges = []; 			    // When a particle system changes depth (this needs to be global because it can be called before there is a room)
 
+	this.m_NumTiles = 0;
+	this.m_Tiles = [];
+	this.m_PlayfieldManager = new yyPlayfieldManager();
 	this.m_Views = [];
 
 	this.m_Marked = [];
@@ -151,30 +154,6 @@ yyRoom.prototype.CreateEmptyStorage = function () {
 
 };
 
-// return an expanded array of the tiles, stiles is an array with the tiles RLE compressed 
-function expandTiles( stiles )
-{
-	var r = [];
-	for( var i=0; i<stiles.length;) {
-		var c = stiles[i++];
-		if (c & 0x80000000) {
-			var b = c & 0x7fffffff;
-			++b;
-			var v = stiles[i++];
-			for( var cc=0; cc<b; ++cc) {
-				r.push( v );
-			} // end for
-		} // end if 
-		else {
-			var b = c & 0x7fffffff;
-			for( var cc=0; cc<b; ++cc) {
-				r.push( stiles[i++] );
-			} // end for
-		} // end else
-	} // end for
-	return r;
-}
-
 
 // #############################################################################################
 /// Function:<summary>
@@ -206,7 +185,6 @@ yyRoom.prototype.CloneStorage = function (_pStorage) {
 		}
 
 		// Physics world
-		// @if feature("physics")
 		if ( _pStorage.physicsWorld )
 		{
 			this.m_pStorage.physicsWorld = _pStorage.physicsWorld;
@@ -218,7 +196,6 @@ yyRoom.prototype.CloneStorage = function (_pStorage) {
 			this.m_pStorage.physicsGravityY = _pStorage.physicsGravityY;
 			this.m_pStorage.physicsPixToMeters = _pStorage.physicsPixToMeters;
 		}
-		// @endif physics world storage clone
     
 		// 1.x backgrounds
         for (var i = 0; i < _pStorage.backgrounds.length; i++) 
@@ -306,6 +283,30 @@ yyRoom.prototype.CloneStorage = function (_pStorage) {
                 };
             }
         }        
+        
+		// Tiles
+        this.m_pStorage.tiles = new Array(_pStorage.tiles.length);
+        for (var i = 0; i < _pStorage.tiles.length; i++) 
+        {
+            var sourceTile = _pStorage.tiles[i];
+            if (sourceTile != null)
+            {
+                this.m_pStorage.tiles[i] = {                            
+                    x: sourceTile.x,
+	                y: sourceTile.y,
+	                index: sourceTile.index,
+	                xo: sourceTile.xo,   
+	                yo: sourceTile.yo,
+	                w: sourceTile.w,
+	                h: sourceTile.h,
+	                depth: sourceTile.depth,
+	                id: sourceTile.id,
+	                scaleX: sourceTile.scaleX,
+	                scaleY: sourceTile.scaleY,
+					colour: sourceTile.colour
+                };
+	        }
+        }
 
 		// Layers
         this.m_pStorage.layers = new Array( _pStorage.layers.length );
@@ -331,20 +332,18 @@ yyRoom.prototype.CloneStorage = function (_pStorage) {
 				};
 
 				// Copy effect properties
-				// @if feature("layerEffects")
 				newLayer.effectProperties = new Array( sourceLayer.effectProperties.length );
 
 				var effectPropIdx;
 				for (effectPropIdx = 0; effectPropIdx < sourceLayer.effectProperties.length; effectPropIdx++) 
         		{
-					newLayer.effectProperties[effectPropIdx] =
+					newLayer.EffectProperties[effectPropIdx] =
 					{
 						type: sourceLayer.effectProperties[effectPropIdx].type,
 						name: sourceLayer.effectProperties[effectPropIdx].name,
 						value: sourceLayer.effectProperties[effectPropIdx].value
 					};
 				}
-				// @endif
 
 				// Type-specific properties
         		switch(sourceLayer.type)
@@ -466,36 +465,6 @@ yyRoom.prototype.CloneStorage = function (_pStorage) {
 							};
 						}
 
-						// Text items
-						newLayer.tcount = sourceLayer.tcount;
-						newLayer.textitems = new Array(sourceLayer.textitems.length);
-
-						for (assetIdx = 0; i < sourceLayer.textitems.length; assetIdx++)
-						{
-							var srcTextitem = sourceLayer.textitems[assetIdx];
-
-							newLayer.textitems[assetIdx] =
-							{
-								sX: srcTextitem.sX,
-								sY: srcTextitem.sY,
-								sFontIndex: srcTextitem.sFontIndex,
-								sXScale: srcTextitem.sXScale,
-								sYScale: srcTextitem.sYScale,
-								sRotation: srcTextitem.sRotation,
-								sBlend: srcTextitem.sBlend,
-								sXOrigin: srcTextitem.sXOrigin,
-								sYOrigin: srcTextitem.sYOrigin,
-								sText: srcTextitem.sText,
-								sAlignment: srcTextitem.sAlignment,
-								sCharSpacing: srcTextitem.sCharSpacing,
-								sLineSpacing: srcTextitem.sLineSpacing,
-								sFrameW: srcTextitem.sFrameW,
-								sFrameH: srcTextitem.sFrameH,
-								sWrap: srcTextitem.sWrap,
-								sName: srcTextitem.sName,								
-							};
-						}
-
         				break;
 					case YYLayerType_Effect:
 						newLayer.m_pInitialEffectInfo = sourceLayer.m_pInitialEffectInfo;
@@ -545,6 +514,21 @@ yyRoom.prototype.CreateRoomFromStorage = function (_pRoomStorage)
 	this.SetPersistent(this.m_persistent);
 	this.m_Views = [];
 
+
+	// Make Tiles
+	this.m_NumTiles = 0;		
+	for (var index = 0; index < _pRoomStorage.tiles.length; index++)
+	{
+		var pTileStorage = _pRoomStorage.tiles[index];
+		if (pTileStorage != null)
+		{
+			var pTile = CreateTileFromStorage(pTileStorage);
+			this.m_PlayfieldManager.Add(pTile);
+			this.m_Tiles[pTile.id] = pTile;
+			this.m_NumTiles++;
+		}
+	}
+
 	if (_pRoomStorage.pCode != undefined) this.m_code = _pRoomStorage.pCode;
 
 	// Create views				
@@ -567,16 +551,22 @@ yyRoom.prototype.CreateRoomFromStorage = function (_pRoomStorage)
 ///             
 ///          </summary>
 // #############################################################################################
-// @if feature("physics")
 yyRoom.prototype.BuildPhysicsWorld = function() {
 
     // evaluates to true if value is not: null, undefined, NaN, empty string, 0, false
     if (this.m_pStorage.physicsWorld) {
-        this.m_pPhysicsWorld = new yyPhysicsWorld(this.m_pStorage.physicsPixToMeters, g_GameTimer.GetFPS());
+    
+        if(g_isZeus)
+        {
+            this.m_pPhysicsWorld = new yyPhysicsWorld(this.m_pStorage.physicsPixToMeters, g_GameTimer.GetFPS());
+        }
+        else
+        {
+            this.m_pPhysicsWorld = new yyPhysicsWorld(this.m_pStorage.physicsPixToMeters, this.GetSpeed());
+        }
         this.m_pPhysicsWorld.SetGravity(this.m_pStorage.physicsGravityX, this.m_pStorage.physicsGravityY);
     }
 };
-// @endif BuildPhysicsWorld
 
 // #############################################################################################
 /// Function:<summary>
@@ -704,9 +694,7 @@ yyRoom.prototype.CreateInstance = function (_x, _y, _id, _objindex, _scaleX, _sc
             g_pLayerManager.BuildElementRuntimeData(this, elandlay.layer, elandlay.element);
         }
     }
-	// @if feature("physics")
     pinst.BuildPhysicsBody();
-	// @endif
     
   //  g_pLayerManager.AddInstance(this,pinst);
     return pinst;
@@ -753,10 +741,8 @@ yyRoom.prototype.AddInstance = function (_x, _y, _id, _objindex, _overridedepth,
             g_pLayerManager.BuildElementRuntimeData(this, elandlay.layer, elandlay.element);
         }
     }
-	
-	// @if feature("physics")
+
     pinst.BuildPhysicsBody();
-	// @endif
     return pinst;
 };
 
@@ -788,9 +774,7 @@ yyRoom.prototype.AddLayerInstance = function (_x, _y, _layer, _id, _objindex)
     this.m_Active.Add(pinst);
     g_pInstanceManager.Add(pinst);
 
-	// @if feature("physics")
     pinst.BuildPhysicsBody();
-	// @endif
     
     //this.m_NewInstances.push({ inst: pinst, type: 1, layer:_layer });
 
@@ -989,6 +973,87 @@ yyRoom.prototype.UpdateViews = function () {
 				}
 			}
 		}
+		else if ((pView.visible) && (pView.objid >= 0))
+		{
+			// Find the pInstance to follow
+			pInst = null;
+			if (pView.objid < 100000)
+			{
+				// if they selected an OBJECT, then pick the 1st unmarked one!
+				var pObj = g_pObjectManager.Get(pView.objid);
+				if (pObj != null)
+				{
+					var pool = pObj.GetRPool();					
+					for (var o = 0; o < pool.length; o++)
+					{
+						pInst = pool[o];
+						if (!pInst.marked) break;   // if NOT marked, use this one!
+						pInst = null;               // makes sure we can tell we found one		        
+					}
+				}
+
+			}
+			else                           // pView object is an pInstance
+			{
+				pInst = g_pInstanceManager.Get(pView.objid);
+				if (!pInst && pInst.marked) pInst = null;
+			}
+
+			// if we have an object to follow.... then follow it!
+			if (pInst != null)
+			{
+				// Find the new position
+				l = pView.worldx;
+				t = pView.worldy;
+				ix = pInst.x;
+				iy = pInst.y;
+
+				if (2 * pView.hborder >= pView.worldw)
+				{
+					l = ix - pView.worldw / 2;
+				} else if (ix - pView.hborder < pView.worldx)
+				{
+					l = ix - pView.hborder;
+				} else if (ix + pView.hborder > pView.worldx + pView.worldw)
+				{
+					l = ix + pView.hborder - pView.worldw;
+				}
+
+				if (2 * pView.vborder >= pView.worldh)
+				{
+					t = iy - pView.worldh / 2;
+				} else if (iy - pView.vborder < pView.worldy)
+				{
+					t = iy - pView.vborder;
+				} else if (iy + pView.vborder > pView.worldy + pView.worldh)
+				{
+					t = iy + pView.vborder - pView.worldh;
+				}
+
+
+				// Make sure it does not extend beyond the room
+				if (l < 0) l = 0;
+				if (l + pView.worldw > this.m_width) l = this.m_width - pView.worldw;
+				if (t < 0) t = 0;
+				if (t + pView.worldh > this.m_height) t = this.m_height - pView.worldh;
+
+				// Restrict motion speed
+				if (pView.hspeed >= 0)
+				{
+					if ((l < pView.worldx) && (pView.worldx - l > pView.hspeed)) l = pView.worldx - pView.hspeed;
+					if ((l > pView.worldx) && (l - pView.worldx > pView.hspeed)) l = pView.worldx + pView.hspeed;
+				}
+				if (pView.vspeed >= 0)
+				{
+					if ((t < pView.worldy) && (pView.worldy - t > pView.vspeed)) t = pView.worldy - pView.vspeed;
+					if ((t > pView.worldy) && (t - pView.worldy > pView.vspeed)) t = pView.worldy + pView.vspeed;
+				}
+				pView.worldx = l;
+				pView.worldy = t;
+
+			} //if (pInst != null) 
+
+		} // if((pView.visible) && (pView.objid>=0))
 
 	}
 
@@ -1043,7 +1108,6 @@ yyRoom.prototype.DrawLayerInstanceElement = function(_rect,_layer,_el)
 				    g_skeletonDrawInstance = null;
 				    
 				}
-				// @if feature("sprites")
 				else
 				{
 	
@@ -1069,14 +1133,13 @@ yyRoom.prototype.DrawLayerInstanceElement = function(_rect,_layer,_el)
 					}
 					
 				}
-				// @endif sprites
 			}
 		} // end if
 	}
 };
 yyRoom.prototype.DrawLayerOldTilemapElement = function(_rect,_layer,_el)
 {
-/*    //Don't have one of these in our project, so bit hard to test...
+    //Don't have one of these in our project, so bit hard to test...
 //    LinkedList<CTileSlab>::iterator slabiter = _pOldTilemapEl->m_tiles.GetIterator();
 //	while (*slabiter != NULL)
 	
@@ -1094,7 +1157,7 @@ yyRoom.prototype.DrawLayerOldTilemapElement = function(_rect,_layer,_el)
 	
 	}
 	
-	{
+/*	{
 		CTileSlab* pSlab = *slabiter;
 		RTile* pTiles = pSlab->m_Tiles;
 		int numTiles = pSlab->m_nTilesUsed;
@@ -1154,7 +1217,6 @@ yyRoom.prototype.DrawLayerBackgroundElement = function(_rect,_layer,_el)
 
 
     // Does this background have a sprite?	
-	// @if feature("sprites")
 	if (sprite_exists(back.index))
 	{
 	    // get sprite details
@@ -1177,7 +1239,6 @@ yyRoom.prototype.DrawLayerBackgroundElement = function(_rect,_layer,_el)
         }
 	}
 	else
-	// @endif sprites
 	{
 		// Don't "just" clear - it doesn't respect the current viewport
 	    var oldAlpha = g_GlobalAlpha;
@@ -1201,7 +1262,6 @@ yyRoom.prototype.DrawLayerBackgroundElement = function(_rect,_layer,_el)
 // #############################################################################################
 yyRoom.prototype.DrawLayerSpriteElement = function(_rect,_layer,_el)
 {
-	// @if feature("sprites")
     if (sprite_exists(_el.m_spriteIndex))
 	{
 	    var pImage = g_pSpriteManager.Get( _el.m_spriteIndex );
@@ -1229,98 +1289,6 @@ yyRoom.prototype.DrawLayerSpriteElement = function(_rect,_layer,_el)
 				pImage.Draw(_el.m_imageIndex, _el.m_x + _layer.m_xoffset, _el.m_y + _layer.m_yoffset, _el.m_imageScaleX, _el.m_imageScaleY, _el.m_imageAngle, _el.m_imageBlend, _el.m_imageAlpha);
 			}	
 		}
-	}
-	// @endif sprites
-};
-
-yyRoom.prototype.DrawLayerTextElement = function(_rect,_layer,_el)
-{	
-	var pText = _el.m_text;
-	if (pText == "")
-		return;	// empty string so nothing to draw
-
-	var wrap = _el.m_wrap;
-	var alignment = _el.m_alignment;
-	var fontID = _el.m_fontIndex;
-
-	var frameWidth = _el.m_frameW;
-	var frameHeight = _el.m_frameH;
-	var charSpacing = _el.m_charSpacing;
-	var lineSpacing = _el.m_lineSpacing;
-	var paraSpacing = 0.0;
-
-	var drawcol = _el.m_blend;
-	var a = _el.m_alpha;
-
-	var pFontParams = null;
-
-	var x = _el.m_x;
-	var y = _el.m_y;
-	var scaleX = _el.m_scaleX;
-	var scaleY = _el.m_scaleY;
-	var angle = _el.m_angle;
-	var originX = _el.m_originX;
-	var originY = _el.m_originY;
-
-	var mats = [];	
-	var currmat = 0;	
-	
-	if ((originX != 0.0) || (originY != 0.0))
-	{			
-		mats[currmat] = new Matrix();
-		mats[currmat].SetTranslation(-originX, -originY, 0);		// offset by origin
-		currmat++;
-	}	
-
-	if ((scaleX != 1.0) || (scaleY != 1.0))
-	{		
-		mats[currmat] = new Matrix();
-		mats[currmat].SetScale(scaleX, scaleY, 1.0);
-		currmat++;
-	}
-
-	if (angle != 0.0)
-	{
-		mats[currmat] = new Matrix();
-		mats[currmat].SetZRotation(angle);		
-		currmat++;
-	}
-
-	if ((x != 0.0) || (y != 0.0))
-	{
-		mats[currmat] = new Matrix();
-		mats[currmat].SetTranslation(x, y, 0.0);
-		currmat++;
-	}
-
-	var oldWorldMat = null;
-	var compoundmat = [];
-	compoundmat[0] = new Matrix();
-	compoundmat[1] = new Matrix();
-
-	var currcompoundmat = 0;
-	if (currmat > 0)
-	{
-		compoundmat[0] = mats[0];
-		for (var i = 1; i < currmat; i++)
-		{
-			currcompoundmat = currcompoundmat ^ 1;
-			compoundmat[currcompoundmat].Multiply(compoundmat[currcompoundmat ^ 1], mats[i]);			
-		}
-		
-		oldWorldMat = WebGL_GetMatrix(MATRIX_WORLD);
-
-		var newWorldMat = new Matrix();
-		newWorldMat.Multiply(compoundmat[currcompoundmat], oldWorldMat);
-
-		WebGL_SetMatrix(MATRIX_WORLD, newWorldMat);		
-	}
-
-	this.DrawTextItem(pText, fontID, drawcol, a, frameWidth, frameHeight, alignment, wrap, charSpacing, lineSpacing, paraSpacing, pFontParams, false);
-
-	if (currmat > 0)
-	{
-		WebGL_SetMatrix(MATRIX_WORLD, oldWorldMat);		
 	}
 };
 
@@ -1372,12 +1340,8 @@ function UpdateCamera(_x, _y, _w, _h, _angle, pCam)
 function UpdateDefaultCamera(_x, _y, _w, _h, _angle)
 {
 	var defaultcam = g_pCameraManager.GetCamera(g_DefaultCameraID);
-	if (defaultcam == null)
-		defaultcam = g_pCameraManager.GetTempCamera();
-	// Note: This may override user's camera configuration if it's a cam passed
-	// in with camera_set_default!
 	UpdateCamera(_x, _y, _w, _h, _angle, defaultcam);
-	g_pCameraManager.SetActiveCamera(defaultcam.GetID());
+	g_pCameraManager.SetActiveCamera(g_DefaultCameraID);		
 }
 
 function DrawTile(_rect,_back,_indexdata,_frame,_x,_y,_depth)
@@ -1471,20 +1435,7 @@ function DrawTile(_rect,_back,_indexdata,_frame,_x,_y,_depth)
                 if(g_webGL)
                 {
 					var col = ~~((g_GlobalAlpha * 255.0) << 24) | (g_GlobalColour & 0xffffff);
-					var col2 = col;
-					var col3 = col;
-					var col4 = col;		
-					if(GR_MarkVertCorners)
-					{   
-						col  &= 0xfffefffe;			// clear out bits, ready for "marking"
-						col2 &= 0xfffefffe;			// 
-						col3 &= 0xfffefffe;			// 
-						col4 &= 0xfffefffe;			// 
-						col2 |= 0x00000001;			// Mark which corner we're in!
-						col3 |= 0x00010000;
-						col4 |= 0x00010001;
-					}
-					
+                 
                     var tiledata = _indexdata;
                     tiledata&= tiledatamask;
                     
@@ -1602,10 +1553,8 @@ function DrawTile(_rect,_back,_indexdata,_frame,_x,_y,_depth)
                     pCoords[v5 + 1] = bottomrightY;	
                     pCoords[v5 + 2] = depth;
                 	
-					pColours[v0] = col1;
-					pColours[v1] = pColours[v4] = col2;
-					pColours[v5] = col3;
-					pColours[v2] = pColours[v3] = col4;
+                    pColours[v0] = pColours[v1] = pColours[v2] = pColours[v3] = pColours[v4] = pColours[v5] = col;
+                    
                    
                     pUVs[v0 + 0] =  topleftU;
                     pUVs[v0 + 1] =  topleftV;	
@@ -1741,7 +1690,6 @@ function draw_tile(_inst,_back,_tileindex,_frame,_x,_y)
 
 yyRoom.prototype.DrawLayerTilemapElement = function(_rect,_layer,_el,_xpos,_ypos,_depth)
 {
-	// @if feature("tilemaps")
     if(background_exists(_el.m_backgroundIndex))
     {
         var backwidth = background_get_width(_el.m_backgroundIndex);
@@ -1757,18 +1705,6 @@ yyRoom.prototype.DrawLayerTilemapElement = function(_rect,_layer,_el,_xpos,_ypos
         var tileincu =0,tileincv=0;
         var origu=0,origv=0;
         
-		
-		var col1 = 0xffffffff;
-		var col2 = 0xffffffff;
-		var col3 = 0xffffffff;
-		var col4 = 0xffffffff;		
-		if(GR_MarkVertCorners)
-		{
-			col1 = 0xfffefffe;
-			col2 = 0xfffeffff;
-			col3 = 0xfffffffe;
-			col4 = 0xffffffff;
-		}
         
         if(pBack.TPEntry===null || pBack.TPEntry === undefined)
         {
@@ -1861,7 +1797,6 @@ yyRoom.prototype.DrawLayerTilemapElement = function(_rect,_layer,_el,_xpos,_ypos
                 
                 if(g_webGL)
                 {
-					// @if feature("gl")
                     for(var y=miny;y<maxy;y++)
                     {
                         var index = y*_el.m_mapWidth+minx;
@@ -1986,10 +1921,8 @@ yyRoom.prototype.DrawLayerTilemapElement = function(_rect,_layer,_el,_xpos,_ypos
 	                        pCoords[v5 + 1] = bottomrightY;	
 	                        pCoords[v5 + 2] = depth;
                         	
-							pColours[v0] = col1;
-							pColours[v1] = pColours[v4] = col2;
-							pColours[v5] = col3;
-							pColours[v2] = pColours[v3] = col4;
+                            pColours[v0] = pColours[v1] = pColours[v2] = pColours[v3] = pColours[v4] = pColours[v5] = 0xffffffff;
+                            
                            
                             pUVs[v0 + 0] =  topleftU;
 	                        pUVs[v0 + 1] =  topleftV;	
@@ -2016,11 +1949,10 @@ yyRoom.prototype.DrawLayerTilemapElement = function(_rect,_layer,_el,_xpos,_ypos
                     
                     if(tilesinthisrun>0)
                         pVerts.Current -= tilesinthisrun * 6;
-					// @endif
+
                 }
                 else
                 {
-					// @if feature("2d")
                     //Non Web-GL
                     for(var y=miny;y<maxy;y++)
                     {
@@ -2097,53 +2029,38 @@ yyRoom.prototype.DrawLayerTilemapElement = function(_rect,_layer,_el,_xpos,_ypos
 						    }
 					    }
 				    }            
-					// @endif
                 }   
             }
         }
     }
-	// @endif
 };
 
 yyRoom.prototype.DrawLayerParticleSystem = function(_rect,_layer,_el)
 {
-	// @if feature("particles")
 	var ps = _el.m_systemID;
 
-	if (!ParticleSystem_Exists(ps)) return;
-
-	var pSystem = g_ParticleSystems[ps];
-
-	if (!pSystem.automaticdraw) return;
+	if (!ParticleSystem_Exists(ps) || !g_ParticleSystems[ps].automaticdraw)
+	{
+		return;
+	}
 
 	var matWorldOld = WebGL_GetMatrix(MATRIX_WORLD);
 
 	var matRot = new Matrix();
-	matRot.SetZRotation(_el.m_imageAngle + pSystem.angle);
-
 	var matScale = new Matrix();
+	matRot.SetZRotation(_el.m_imageAngle);
 	matScale.SetScale(_el.m_imageScaleX, _el.m_imageScaleY, 1.0);
-
-	var matScaleRot = new Matrix();
-	matScaleRot.Multiply(matScale, matRot);
-
-	var matPos = new Matrix();
-	matPos.SetTranslation(-pSystem.xdraw, -pSystem.ydraw, 0.0);
-	
 	var matWorldNew = new Matrix();
-	matWorldNew.Multiply(matPos, matScaleRot);
-	matWorldNew.Translation(pSystem.xdraw + _el.m_x, pSystem.ydraw + _el.m_y, 0.0);
+	matWorldNew.Multiply(matScale, matRot);
+	matWorldNew.Translation(_el.m_x, _el.m_y, 0.0);
 
 	WebGL_SetMatrix(MATRIX_WORLD, matWorldNew);
-	ParticleSystem_SetMatrix(ps, matWorldNew);
 	ParticleSystem_Draw(ps, _el.m_imageBlend, _el.m_imageAlpha);
 	WebGL_SetMatrix(MATRIX_WORLD, matWorldOld);
-	// @endif
 };
 
 yyRoom.prototype.DrawLayerTileElement = function (_rect, _layer, _el) {
     // TODO - cull according to screen rect
-	// @if feature("sprites")
     if (!_el.m_visible) return false;
     var pImage = g_pSpriteManager.Get(_el.m_index);
     if (pImage != null) {
@@ -2195,12 +2112,11 @@ yyRoom.prototype.DrawLayerTileElement = function (_rect, _layer, _el) {
             graphics._drawImage(pTPE, pTPE.x + (_el.m_xo * scalex), pTPE.y + (_el.m_yo * scalex), _el.m_w * scalex, _el.m_h * scalex, _el.m_x, _el.m_y, _el.m_w * _el.m_imageScaleX, _el.m_h * _el.m_imageScaleY, col);
         }*/
     }
-	// @endif sprites
 };
 
 
 yyRoom.prototype.DrawLayerSequenceElement = function (_rect, _layer, _pSequenceEl) {
-	// @if feature("sequences")
+
 	// Update sequence element in case there has been changes between the sequence instance update pre-step and now 
 	g_pSequenceManager.EvaluateLayerSequenceElement(_pSequenceEl, true);
 
@@ -2253,10 +2169,8 @@ yyRoom.prototype.DrawLayerSequenceElement = function (_rect, _layer, _pSequenceE
             }
         }
     }
-	// @endif
 };
 
-// @if feature("sequences")
 yyRoom.prototype.DrawSequence = function (_rect, _layer, _pSequenceEl, _evalTree, _headPosition, _lastHeadPosition, _headDirection, _sequence, _isNested, _sequenceMatrix) {
 
     if (_sequence == null)
@@ -2386,7 +2300,7 @@ yyRoom.prototype.DrawTrackList = function (_rect, _layer, _pSequenceEl, _evalTre
 };
 
 yyRoom.prototype.HandleSequenceGraphic = function (_rect, _layer, _pSequenceEl, _node, _track, _headPosition, _lastHeadPosition, _headDirection, _sequence) {
-	// @if feature("sprites")
+
     var keyframeStore = _track.m_keyframeStore;
 
     var keyframeIndex = keyframeStore.GetKeyframeIndexAtFrame(_headPosition, _sequence.m_length);
@@ -2496,8 +2410,7 @@ yyRoom.prototype.HandleSequenceGraphic = function (_rect, _layer, _pSequenceEl, 
 
     var oldworldmat;
     var restorematrix = false;
-	
-	// @if feature("gl") && feature("nineslice")
+
     if ((g_webGL) && (sprite.nineslicedata != null) && (sprite.nineslicedata.enabled == true))
     {
         var spriteScaleX = Math.sqrt((_node.value.matrix.m[0] * _node.value.matrix.m[0]) + (_node.value.matrix.m[1] * _node.value.matrix.m[1]));
@@ -2525,7 +2438,6 @@ yyRoom.prototype.HandleSequenceGraphic = function (_rect, _layer, _pSequenceEl, 
             WebGL_SetMatrix(MATRIX_WORLD, normalisedworldmat);
         }
     }
-	// @endif gl nineslice
 
 
     //if (_node.value.Overrides(eT_Width)) {
@@ -2539,7 +2451,6 @@ yyRoom.prototype.HandleSequenceGraphic = function (_rect, _layer, _pSequenceEl, 
 
     if (!g_webGL)
     {
-		// @if feature("2d")
         // extract sprite rotation, scale, and translation from the world matrix
         var worldMatrix = g_Matrix[MATRIX_WORLD];
         var spriteRotationZ = Math.atan2(worldMatrix.m[1], worldMatrix.m[0]) * (-180 / Math.PI);
@@ -2562,7 +2473,6 @@ yyRoom.prototype.HandleSequenceGraphic = function (_rect, _layer, _pSequenceEl, 
 
         // Reset the world matrix
         WebGL_SetMatrix(MATRIX_WORLD, worldMatrix);
-		// @endif 2d
     }
     else
     {
@@ -2573,7 +2483,6 @@ yyRoom.prototype.HandleSequenceGraphic = function (_rect, _layer, _pSequenceEl, 
     {
         WebGL_SetMatrix(MATRIX_WORLD, oldworldmat);
     }
-	// @endif sprites
 };
 
 
@@ -2883,7 +2792,6 @@ yyRoom.prototype.HandleSequenceInstance = function (_rect, _layer, _pSequenceEl,
 								//if (!pInst.PerformEvent(EVENT_DRAW, 0, pInst, pInst))
 								if( !pInst.REvent[EVENT_DRAW] )
 								{
-									// @if feature("sprites")
 									// Otherwise just DRAW it..
 									var pSprite = g_pSpriteManager.Get(pInst.sprite_index);
 									if (pSprite)
@@ -2903,7 +2811,6 @@ yyRoom.prototype.HandleSequenceInstance = function (_rect, _layer, _pSequenceEl,
 														);
 										}
 									}
-									// @endif sprites
 								}
 								else
 								{
@@ -2998,26 +2905,76 @@ yyRoom.prototype.HandleSequenceParticle = function (_rect, _layer, _pSequenceEl,
 	_pInst.m_trackIDToLastKeyframe[_track.id] = keyframeCurrent;
 };
 
-yyRoom.prototype.DrawTextItem = function (_pText, _fontID, _drawcol, _drawalpha, _frameWidth, _frameHeight, _alignment, _wrap, _charSpacing, _lineSpacing, _paraSpacing, _pFontParams, _seqYOffset)
-{
-	// @if feature("fonts")
+yyRoom.prototype.HandleSequenceText = function (_rect, _layer, _pSequenceEl, _node, _track, _headPosition, _lastHeadPosition, _headDirection, _sequence) {
+
+    var keyframeStore = _track.m_keyframeStore;
+
+    var keyframeIndex = keyframeStore.GetKeyframeIndexAtFrame(_headPosition, _sequence.m_length);
+    if (keyframeIndex == -1) return;
+
+    var pTextKey = keyframeStore.keyframes[keyframeIndex];
+
+	var text = pTextKey.m_channels[0].text;
+	if (text == null)
+		return;
+
+	var wrap = pTextKey.m_channels[0].wrap;
+	var alignment = pTextKey.m_channels[0].alignment;
+	var fontID = pTextKey.m_channels[0].fontIndex;
+
 	var oldFontID = draw_get_font();
 	var oldCol = draw_get_color();
 	var oldAlpha = draw_get_alpha();
 
-	draw_set_font(_fontID);
-	draw_set_color(_drawcol);
-	draw_set_alpha(_drawalpha);
+    // Color transform
+    var mul = _node.value.colorMultiply;
+    var add = _node.value.colorAdd;
+    var r = Math.min(255, ((mul[0] + add[0]) * (_pSequenceEl.m_imageBlend & 0xff)));
+    var g = Math.min(255, ((mul[1] + add[1]) * ((_pSequenceEl.m_imageBlend >> 8) & 0xff)));
+    var b = Math.min(255, ((mul[2] + add[2]) * ((_pSequenceEl.m_imageBlend >> 16) & 0xff)));
+    var drawcol = (Math.max(0, r))
+				| (Math.max(0, g) << 8)
+                | (Math.max(0, b) << 16);
+    var a = Math.min(1, (mul[3] + add[3]) * _pSequenceEl.m_imageAlpha);
+
+	draw_set_font(fontID);
+	draw_set_color(drawcol);
+	draw_set_alpha(a);
+
+	var frameWidth = -1;
+	var frameHeight = -1;
+	if (_node.value.paramset & (1 << eT_FrameSize))
+	{
+		frameWidth = _node.value.FrameSizeX;
+		frameHeight = _node.value.FrameSizeY;
+	}	
+
+	var charSpacing = 0.0;
+	if (_node.value.paramset & (1 << eT_CharacterSpacing))
+	{
+		charSpacing = _node.value.CharacterSpacing;
+	}
+
+	var lineSpacing = 0.0;
+	if (_node.value.paramset & (1 << eT_LineSpacing))
+	{
+		lineSpacing = _node.value.LineSpacing;
+	}
+
+	var paraSpacing = 0.0;
+	if (_node.value.paramset & (1 << eT_ParagraphSpacing))
+	{
+		paraSpacing = _node.value.ParagraphSpacing;
+	}
 
 	g_pFontManager.SetFont();
-	var sldata = g_pFontManager.Split_TextBlock_IDEstyle(_pText, _frameWidth, _frameHeight, _alignment, _wrap, _charSpacing, _lineSpacing, _paraSpacing);
+	var sldata = g_pFontManager.Split_TextBlock_IDEstyle(text, frameWidth, frameHeight, alignment, wrap, charSpacing, lineSpacing, paraSpacing);
 
-	var mask = _wrap && ((sldata.totalW > _frameWidth + 2) || (sldata.totalH > _frameHeight + 2));
+	var mask = wrap && ((sldata.totalW > frameWidth + 2) || (sldata.totalH > frameHeight + 2));
 	if (mask)
 	{
 		if (g_webGL)
 		{
-			// @if feature("gl")
 			// Set up stencil
 			if (g_clippingMaskStack == null || g_clippingMaskStack.length == 0)
 			{
@@ -3064,19 +3021,19 @@ yyRoom.prototype.DrawTextItem = function (_pText, _fontID, _drawcol, _drawalpha,
 			currVert += stride;	
 
 			pCoords[currVert + 0] = 0.0;
-			pCoords[currVert + 1] = _frameHeight;// + 1;
+			pCoords[currVert + 1] = frameHeight;// + 1;
 			pCoords[currVert + 2] = GR_Depth;
 			pColours[currVert] = 0xffffffff;
 			currVert += stride;	
 
-			pCoords[currVert + 0] = _frameWidth;// + 1;
+			pCoords[currVert + 0] = frameWidth;// + 1;
 			pCoords[currVert + 1] = 0.0;
 			pCoords[currVert + 2] = GR_Depth;
 			pColours[currVert] = 0xffffffff;
 			currVert += stride;	
 
-			pCoords[currVert + 0] = _frameWidth;// + 1;
-			pCoords[currVert + 1] = _frameHeight;// + 1;
+			pCoords[currVert + 0] = frameWidth;// + 1;
+			pCoords[currVert + 1] = frameHeight;// + 1;
 			pCoords[currVert + 2] = GR_Depth;
 			pColours[currVert] = 0xffffffff;												
 
@@ -3093,19 +3050,17 @@ yyRoom.prototype.DrawTextItem = function (_pText, _fontID, _drawcol, _drawalpha,
 				g_webGL.RSMan.SetRenderState(yyGL.RenderState_AlphaRef, g_globalClippingMaskState.AlphaRef);
 				g_webGL.RSMan.SetRenderState(yyGL.RenderState_AlphaFunc, g_globalClippingMaskState.AlphaFunc);
 			}
-			// @endif
 		}
 		else
 		{
-			// @if feature("2d")
 			worldMatrix = g_Matrix[MATRIX_WORLD];
 
 			graphics.save();
 
 			var posvec0 = new Vector3(0, 0, 0);
-			var posvec1 = new Vector3(0, _frameHeight, 0);
-			var posvec2 = new Vector3(_frameWidth, _frameHeight, 0);
-			var posvec3 = new Vector3(_frameWidth, 0, 0);
+			var posvec1 = new Vector3(0, frameHeight, 0);
+			var posvec2 = new Vector3(frameWidth, frameHeight, 0);
+			var posvec3 = new Vector3(frameWidth, 0, 0);
 
 			var transposvec0 = worldMatrix.TransformVec3(posvec0);
 			var transposvec1 = worldMatrix.TransformVec3(posvec1);
@@ -3120,17 +3075,15 @@ yyRoom.prototype.DrawTextItem = function (_pText, _fontID, _drawcol, _drawalpha,
 			graphics.lineTo(transposvec3.X, transposvec3.Y);
 			graphics.closePath();    
 			graphics.clip();
-			// @endif
 		}
 	}
 	
-	g_pFontManager.GR_StringList_Draw_IDEstyle(sldata.sl, 0.0, 0.0, _charSpacing, 0.0, sldata.totalW, _pFontParams, _seqYOffset);
+	g_pFontManager.GR_StringList_Draw_IDEstyle(sldata.sl, 0.0, 0.0, charSpacing, 0.0, sldata.totalW);
 
 	if (mask)
 	{
 		if (g_webGL)
 		{
-			// @if feature("gl")
 			// Always alpha test
 			if (g_globalClippingMaskState.AlphaTestEnable == 0)
 			{
@@ -3162,19 +3115,19 @@ yyRoom.prototype.DrawTextItem = function (_pText, _fontID, _drawcol, _drawalpha,
 			currVert += stride;	
 
 			pCoords[currVert + 0] = 0.0;
-			pCoords[currVert + 1] = _frameHeight + 1;
+			pCoords[currVert + 1] = frameHeight + 1;
 			pCoords[currVert + 2] = GR_Depth;
 			pColours[currVert] = 0xffffffff;
 			currVert += stride;	
 
-			pCoords[currVert + 0] = _frameWidth + 1;
+			pCoords[currVert + 0] = frameWidth + 1;
 			pCoords[currVert + 1] = 0.0;
 			pCoords[currVert + 2] = GR_Depth;
 			pColours[currVert] = 0xffffffff;
 			currVert += stride;	
 
-			pCoords[currVert + 0] = _frameWidth + 1;
-			pCoords[currVert + 1] = _frameHeight + 1;
+			pCoords[currVert + 0] = frameWidth + 1;
+			pCoords[currVert + 1] = frameHeight + 1;
 			pCoords[currVert + 2] = GR_Depth;
 			pColours[currVert] = 0xffffffff;		
 
@@ -3187,80 +3140,17 @@ yyRoom.prototype.DrawTextItem = function (_pText, _fontID, _drawcol, _drawalpha,
 			if (g_clippingMaskStack.length == 0) {
 				g_globalClippingMaskState.Apply();
 			}
-			// @endif
 		}
 		else
 		{
-			// @if feature("2d")
 			graphics.restore();
-			// @endif
 		}
 	}
 
 	draw_set_font(oldFontID);
 	draw_set_color(oldCol);
 	draw_set_alpha(oldAlpha);
-	// @endif fonts
 };
-
-yyRoom.prototype.HandleSequenceText = function (_rect, _layer, _pSequenceEl, _node, _track, _headPosition, _lastHeadPosition, _headDirection, _sequence) {
-    var keyframeStore = _track.m_keyframeStore;
-
-    var keyframeIndex = keyframeStore.GetKeyframeIndexAtFrame(_headPosition, _sequence.m_length);
-    if (keyframeIndex == -1) return;
-
-    var pTextKey = keyframeStore.keyframes[keyframeIndex];
-
-	var text = pTextKey.m_channels[0].text;
-	if (text == null)
-		return;
-
-	var wrap = pTextKey.m_channels[0].wrap;
-	var alignment = pTextKey.m_channels[0].alignment;
-	var fontID = pTextKey.m_channels[0].fontIndex;
-
-    // Color transform
-    var mul = _node.value.colorMultiply;
-    var add = _node.value.colorAdd;
-    var r = Math.min(255, ((mul[0] + add[0]) * (_pSequenceEl.m_imageBlend & 0xff)));
-    var g = Math.min(255, ((mul[1] + add[1]) * ((_pSequenceEl.m_imageBlend >> 8) & 0xff)));
-    var b = Math.min(255, ((mul[2] + add[2]) * ((_pSequenceEl.m_imageBlend >> 16) & 0xff)));
-    var drawcol = (Math.max(0, r))
-				| (Math.max(0, g) << 8)
-                | (Math.max(0, b) << 16);
-    var a = Math.min(1, (mul[3] + add[3]) * _pSequenceEl.m_imageAlpha);
-
-	var frameWidth = -1;
-	var frameHeight = -1;
-	if (_node.value.paramset.GetBit(eT_FrameSize))
-	{
-		frameWidth = _node.value.FrameSizeX;
-		frameHeight = _node.value.FrameSizeY;
-	}	
-
-	var charSpacing = 0.0;
-	if (_node.value.paramset.GetBit(eT_CharacterSpacing))
-	{
-		charSpacing = _node.value.CharacterSpacing;
-	}
-
-	var lineSpacing = 0.0;
-	if (_node.value.paramset.GetBit(eT_LineSpacing))
-	{
-		lineSpacing = _node.value.LineSpacing;
-	}
-
-	var paraSpacing = 0.0;
-	if (_node.value.paramset.GetBit(eT_ParagraphSpacing))
-	{
-		paraSpacing = _node.value.ParagraphSpacing;
-	}
-
-	var pFontParams = _node.value.pFontEffectParams;
-
-	this.DrawTextItem(text, fontID, drawcol, a, frameWidth, frameHeight, alignment, wrap, charSpacing, lineSpacing, paraSpacing, pFontParams, true);	
-};
-// @endif sequences
 
 
 
@@ -3272,6 +3162,7 @@ yyRoom.prototype.DrawRoomLayers = function(_rect){
     Current_Event_Type = EVENT_DRAW;
     Current_Event_Number = 0;
 
+	Graphics_ClearScreen(ConvertGMColour(0xfff7ffff));
      var player,el,i,pool;
 	    pool = this.m_Layers.pool;
 	    for (i = pool.length - 1; i >= 0; i--)
@@ -3289,12 +3180,15 @@ yyRoom.prototype.DrawRoomLayers = function(_rect){
 		    else
 		    {
 			    WebGL_d3d_set_depth_RELEASE(player.depth);		
-		    }
+		    }		
+	        
+	        
+	     //   GR_Depth = player.depth;
+	        //TODO SetLayerShader
+	        //TODO ExecuteLayerScript
 
-			// @if feature("layerEffects")
 			if (player.m_effectEnabled)
 				ExecuteEffectFunction(player, EFFECT_LAYER_BEGIN_FUNC, EVENT_DRAW, 0);
-			// @endif
 
 	        SetLayerShader(player.m_shaderId);
 	        ExecuteLayerScript(player.m_id, player.m_beginScript);
@@ -3312,22 +3206,18 @@ yyRoom.prototype.DrawRoomLayers = function(_rect){
 	                {
 	                    this.DrawLayerInstanceElement(_rect,player,el);
 	                }
-	                //else if(el.m_type === eLayerElementType_OldTilemap)
-	                //{
-	                //    this.DrawLayerOldTilemapElement(_rect,player,el);
-	                //}
-					// @if feature("sprites")
+	                else if(el.m_type === eLayerElementType_OldTilemap)
+	                {
+	                    this.DrawLayerOldTilemapElement(_rect,player,el);
+	                }
 	                else if(el.m_type === eLayerElementType_Sprite)
 	                {
 	                    this.DrawLayerSpriteElement(_rect,player,el,0,0,0);
 	                }
-					// @endif sprites
-					// @if feature("tilemaps")
 	                else if(el.m_type === eLayerElementType_Tilemap)
 	                {
 	                    this.DrawLayerTilemapElement(_rect,player,el);
 	                }   
-					// @endif
 					else if(el.m_type === eLayerElementType_ParticleSystem)
 					{
 						this.DrawLayerParticleSystem(_rect,player,el);
@@ -3336,15 +3226,9 @@ yyRoom.prototype.DrawRoomLayers = function(_rect){
 					{
 						this.DrawLayerTileElement(_rect,player,el);
 					}
-					// @if feature("sequences")
 					else if (el.m_type === eLayerElementType_Sequence)
 					{
 					    this.DrawLayerSequenceElement(_rect, player, el);
-					}
-					// @endif
-					else if (el.m_type === eLayerElementType_Text)
-					{
-					    this.DrawLayerTextElement(_rect, player, el);
 					}
 	            }
 	        }
@@ -3352,10 +3236,8 @@ yyRoom.prototype.DrawRoomLayers = function(_rect){
 	        ExecuteLayerScript(player.m_id, player.m_endScript);
 	        ResetLayerShader(player.m_shaderId);
 
-			// @if feature("layerEffects")
 			if (player.m_effectEnabled)
 				ExecuteEffectFunction(player, EFFECT_LAYER_END_FUNC, EVENT_DRAW, 0);
-			// @endif
 	    }
 
 	    Current_Event_Type = oldtype;
@@ -3380,10 +3262,6 @@ yyRoom.prototype.DrawTheRoom = function (_rect) {
 	{
 		Graphics_ClearScreen(ConvertGMColour(g_pBuiltIn.background_color));
 	}
-	else if(this.m_Layers!=null && this.m_Layers.length>0)
-	{
-		Graphics_ClearScreen(ConvertGMColour(0xfff7ffff));
-	}
 
 	this.ExecuteDrawEvent(_rect, EVENT_DRAW_BEGIN);
 
@@ -3404,7 +3282,6 @@ yyRoom.prototype.DrawTheRoom = function (_rect) {
 // #############################################################################################
 yyRoom.prototype.DrawUserCursor = function () {
 	// Draw USER curser
-	// @if feature("sprites")
 	if (g_CurrentCursor >= 0)
 	{
 		var pSpr = g_pSpriteManager.Get(g_CurrentCursor);
@@ -3415,7 +3292,6 @@ yyRoom.prototype.DrawUserCursor = function () {
 		g_CurrentCursorFrame++;
 		if (g_CurrentCursorFrame > pSpr.numb) g_CurrentCursorFrame -= pSpr.numb;
 	}
-	// @endif sprites
 };
 
 // #############################################################################################
@@ -3464,7 +3340,6 @@ yyRoom.prototype.ClearEffectLayerIDs = function () {
 
 function ExecuteEffectFunction(_pLayer, _funcname, _etype, _enumb)
 {
-	// @if feature("layerEffects")
 	if (_pLayer === null)
 		return;
 
@@ -3506,7 +3381,6 @@ function ExecuteEffectFunction(_pLayer, _funcname, _etype, _enumb)
 	Current_Event_Type = oldtype;
 	Current_Event_Number = oldnumb;
 	*/
-	// @endif
 };
 
 function ExecuteLayerScript(layerid,script)
@@ -3530,22 +3404,18 @@ function ExecuteLayerScript(layerid,script)
 
 function SetLayerShader(shaderid)
 {
-	// @if feature("shaders")
     if(shaderid!=-1)
     {
         shader_set(shaderid);    
     
     }
-	// @endif
 };
 function ResetLayerShader(shaderid)
 {
-	// @if feature("shaders")
     if(shaderid!=-1)
     {
         shader_reset();
     }
-	// @endif
 };
 // #############################################################################################
 /// Function:<summary>
@@ -3555,7 +3425,7 @@ function ResetLayerShader(shaderid)
 /// In:		 <param name="r">Rect to "fit" in</param>
 // #############################################################################################
 yyRoom.prototype.ExecuteDrawEvent = function (_rect, _event) {
-	var pSprite, pInst, i, pool;
+	var pSprite, pInst, i, pool, pSprites;
 	
 	Current_Event_Type = _event;
 
@@ -3577,10 +3447,8 @@ yyRoom.prototype.ExecuteDrawEvent = function (_rect, _event) {
 
 			Current_Event_Number = EVENT_DRAW_BEGIN;
 
-			// @if feature("layerEffects")
 			if (player.m_effectEnabled)
 				ExecuteEffectFunction(player, EFFECT_LAYER_BEGIN_FUNC, EVENT_DRAW_BEGIN, 0);
-			// @endif
 
 	        SetLayerShader(player.m_shaderId);
 	        ExecuteLayerScript(player.m_id, player.m_beginScript);
@@ -3612,10 +3480,8 @@ yyRoom.prototype.ExecuteDrawEvent = function (_rect, _event) {
 	        ExecuteLayerScript(player.m_id,player.m_endScript);
 	        ResetLayerShader(player.m_shaderId);
 
-			// @if feature("layerEffects")
 			if (player.m_effectEnabled)
 				ExecuteEffectFunction(player, EFFECT_LAYER_END_FUNC, EVENT_DRAW_BEGIN, 0);
-			// @endif
 	    
 	    }
 	}
@@ -3624,6 +3490,7 @@ yyRoom.prototype.ExecuteDrawEvent = function (_rect, _event) {
 	
 	
 	    pool = this.m_Active.pool;
+	    pSprites = g_pSpriteManager.Sprites;
 
 	    for (i = pool.length - 1; i >= 0; i--)
 	    {
@@ -3681,7 +3548,7 @@ yyRoom.prototype.SetApplicationSurface = function () {
     if( g_bUsingAppSurface )
     {
         //Create Application Surface?
-        if( (g_ApplicationSurface < 0) || !surface_exists(g_ApplicationSurface) )
+        if( g_ApplicationSurface < 0 )
         {
             g_ApplicationSurface = surface_create( g_ApplicationWidth, g_ApplicationHeight, eTextureFormat_A8R8G8B8 );
             g_pBuiltIn.application_surface = g_ApplicationSurface;
@@ -3736,8 +3603,12 @@ yyRoom.prototype.DrawViews = function (r) {
 	
 		Graphics_SetViewPort(0, 0, g_ApplicationWidth, g_ApplicationHeight);
          
-		g_DefaultView.cameraID = g_DefaultCameraID;
-		UpdateDefaultCamera(0, 0, g_RunRoom.m_width, g_RunRoom.m_height, 0);
+		if (g_isZeus) {
+		    UpdateDefaultCamera(0, 0, g_RunRoom.m_width, g_RunRoom.m_height, 0);
+		}
+		else {
+		    Graphics_SetViewArea(0, 0, g_RunRoom.m_width, g_RunRoom.m_height, 0);
+		}
 	} 
 	else {
 	
@@ -3798,17 +3669,51 @@ yyRoom.prototype.DrawViews = function (r) {
                                               g_pCurrentView.portw * sx, g_pCurrentView.porth * sy );
                     }
 
-					g_pCameraManager.SetActiveCamera(g_pCurrentView.cameraID);
-					var pCam = g_pCameraManager.GetActiveCamera();
-					if(pCam!=null)
-					{
-						pCam.Begin();						
-						pCam.ApplyMatrices();												
-		            }
+			        if(g_isZeus/* && (g_webGL!=null)*/)
+			        {
+			            g_pCameraManager.SetActiveCamera(g_pCurrentView.cameraID);
+			            var pCam = g_pCameraManager.GetActiveCamera();
+			            if(pCam!=null)
+			            {
+			                pCam.Begin();						
+			                pCam.ApplyMatrices();												
+			            }
+			        }
+			        else
+			            Graphics_SetViewArea(g_pCurrentView.worldx, g_pCurrentView.worldy, g_pCurrentView.worldw, g_pCurrentView.worldh, g_pCurrentView.angle);
 
-                    
-					g_pBuiltIn.view_current = i;
-					this.DrawTheRoom(g_roomExtents);
+                    if(/*(g_webGL==null) || */(!g_isZeus))
+                    {
+			            // no Angle allowed on view....unless it's webgl...
+			            if( Math.abs( g_pCurrentView.angle) < 0.001)
+			            {
+			                r.left = g_pCurrentView.worldx;
+			                r.top = g_pCurrentView.worldy;
+			                r.right = g_pCurrentView.worldx + g_pCurrentView.worldw;
+			                r.bottom = g_pCurrentView.worldy + g_pCurrentView.worldh;
+			            } 
+			            else
+			            {
+			                // We need a larger area here to make sure we draw enough - calculate extents from rotation
+			                var rad = g_pCurrentView.angle * (Pi/180);
+			                var s = Math.abs( Math.sin(rad));
+			                var c = Math.abs( Math.cos(rad));
+			                var ex = (c * g_pCurrentView.worldw) + (s * g_pCurrentView.worldh);
+			                var ey = (s * g_pCurrentView.worldw) + (c * g_pCurrentView.worldh);
+			                r.left = g_pCurrentView.worldx + (g_pCurrentView.worldw - ex)/2;
+			                r.right = g_pCurrentView.worldx + (g_pCurrentView.worldw + ex)/2;
+			                r.top = g_pCurrentView.worldy + (g_pCurrentView.worldh - ey)/2; 
+			                r.bottom = g_pCurrentView.worldy + (g_pCurrentView.worldh + ey)/2; 
+			            }
+			            g_pBuiltIn.view_current = i;
+			            this.DrawTheRoom(r);
+			        }
+			        else
+			        {
+
+			            g_pBuiltIn.view_current = i;
+			            this.DrawTheRoom(g_roomExtents);
+			        }
 
 
 			        if (g_pCurrentView.surface_id != -1) {
@@ -3817,12 +3722,16 @@ yyRoom.prototype.DrawViews = function (r) {
 			        Current_View++;
     			    
     			  
-					var pCam = g_pCameraManager.GetActiveCamera();
-					if(pCam!=null)
-					{
-						pCam.End(); 
-					}			    
-					g_pCameraManager.SetActiveCamera(-1);		// no active camera
+			        if (g_isZeus)
+			        {			
+    			    
+			            var pCam = g_pCameraManager.GetActiveCamera();
+			            if(pCam!=null)
+			            {
+			                pCam.End(); 
+			            }			    
+				        g_pCameraManager.SetActiveCamera(-1);		// no active camera
+			        }
 
 			    }
 			    Graphics_Restore();
@@ -3900,7 +3809,6 @@ yyRoom.prototype.PostDraw = function (r) {
     {
 	    Graphics_SetViewPort(0, 0, r.right, r.bottom);
 	    Graphics_SetViewArea(0, 0, r.right, r.bottom, 0);
-		UpdateDefaultCamera(0, 0, r.right, r.bottom, 0);
 	    this.ExecuteDrawEvent(r, EVENT_DRAW_POST);
 	}
 	Graphics_Restore();
@@ -4154,7 +4062,82 @@ yyRoom.prototype.ActivateInstance = function (_pInst) {
 	}
 };
 
+// #############################################################################################
+/// Property: <summary>
+///           	Add a tile to the room.
+///           </summary>
+// #############################################################################################
+yyRoom.prototype.AddTile = function (_pTile) {
 
+	this.m_PlayfieldManager.Add(_pTile);
+	this.m_Tiles[_pTile.id] = _pTile;
+	this.m_NumTiles++;
+};
+
+
+
+// #############################################################################################
+/// Property: <summary>
+///           	Add a tile to the room.
+///           </summary>
+// #############################################################################################
+yyRoom.prototype.DeleteTile = function (_id) {
+	var pTile = this.m_Tiles[_id];
+	if (pTile)
+	{
+	    this.m_PlayfieldManager.DeleteTile(pTile);
+		this.m_Tiles[_id] = undefined;
+		this.m_NumTiles--;
+	}
+};
+
+// #############################################################################################
+/// Property: <summary>
+///           	Add a tile to the room.
+///           </summary>
+// #############################################################################################
+yyRoom.prototype.DeleteTileLayer = function (_depth) {
+
+	var pPlayfield = this.m_PlayfieldManager.Get(_depth);
+	if (pPlayfield != null && pPlayfield != undefined) {
+	
+	    var pool = pPlayfield.GetPool();
+	    
+	    // Delete all tile that exist in this layer.	    
+	    for (var tile = 0; tile < pool.length; tile++)
+	    {
+	    	var pTile = pool[tile];
+	    	if (pTile)
+	    	{
+	    		this.m_Tiles[pTile.id] = null;
+	    		this.m_NumTiles--;
+	    	}
+	    }	    
+	}
+	this.m_PlayfieldManager.Delete(_depth);
+};
+
+
+// #############################################################################################
+/// Property: <summary>
+///           	Remove all tiles currently in use
+///           </summary>
+// #############################################################################################
+yyRoom.prototype.ClearTiles = function () {
+
+    this.m_NumTiles = 0;
+    this.m_Tiles = [];
+};
+
+
+// #############################################################################################
+/// Property: <summary>
+///           	Remove all tiles specified in storage
+///           </summary>
+// #############################################################################################
+yyRoom.prototype.ClearTilesFromStorage = function () {
+	this.m_pStorage.tiles = [];
+};
 
 
 
@@ -4230,7 +4213,6 @@ yyRoom.prototype.ProcessNewInstanceList = function () {
 */
 
 yyRoom.prototype.ProcessParticleDepthChange = function () {
-	// @if feature("particles")
     // Particle systems changing depth
 	if (g_isZeus) {
 	    var len = g_ParticleChanges.length;
@@ -4247,12 +4229,11 @@ yyRoom.prototype.ProcessParticleDepthChange = function () {
 	            var pPartEl = new CLayerParticleElement();
 	            pPartEl.m_systemID = id;
 	            //pPartEl.m_origLayerID = -1;  // scrub any associated layer ID if we're manually changing depth
-	            pPartSys.m_elementID = g_pLayerManager.AddNewElementAtDepth(g_RunRoom, pPartSys.depth, pPartEl, true, true);
+	            pPartEl.m_elementID = g_pLayerManager.AddNewElementAtDepth(g_RunRoom, pPartSys.depth, pPartEl, true, true);
 	        }
         }
 	}
 	if( g_ParticleChanges.length!=0 ) g_ParticleChanges = []; // wipe array
-	// @endif
 };
 
 
@@ -4359,25 +4340,6 @@ yyRoomManager.prototype.Get = function (_Index) {
 // #############################################################################################
 yyRoomManager.prototype.GetOrder = function (_Index) {
 	return this.pRooms[this.m_RoomOrder[_Index]];
-};
-
-// #############################################################################################
-/// Function:<summary>
-///             Retrieves an array of all room asset IDs.
-///          </summary>
-///
-/// Out:	 <returns>
-///				An array of all room asset IDs.
-///			 </returns>
-// #############################################################################################
-yyRoomManager.prototype.List = function () {
-	var ids = [];
-	for (var i = 0; i < this.pRooms.length; ++i) {
-		if (this.pRooms[i]) {
-			ids.push(i);
-		}
-	}
-	return ids;
 };
 
 // #############################################################################################
