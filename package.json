@@ -1,0 +1,13 @@
+{
+  "name": "opengamemaker",
+  "version": "0.0.1",
+  "author": "yj.gaia",
+  "homepage": "https://yj.dev",
+  "type": "module",
+  "main": "./scripts/runner.js",
+  "devDependencies": {
+    "@types/node": "^20.14.6",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.15.6"
+  }
+}
